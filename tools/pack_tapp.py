@@ -59,7 +59,7 @@ def substitute(text, values, name):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--cdn", default="https://gnatali.github.io/tasmoflow/",
+    parser.add_argument("--cdn", default="https://gnatali.github.io/TasmoFlow/",
                         help="adresse GitHub Pages de l'interface ('' : copie locale seule)")
     args = parser.parse_args()
     if args.cdn and not args.cdn.endswith("/"):

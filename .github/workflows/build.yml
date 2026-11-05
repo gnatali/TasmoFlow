@@ -1,8 +1,5 @@
 name: Build
 
-# Prevu pour le depot TasmoFlow. Tant que le projet vit dans le dossier
-# tasmoflow/ du depot du firmware, GitHub ne l execute pas.
-
 on:
   push:
     branches: [main]
@@ -38,6 +35,12 @@ jobs:
 
       - name: Assemblage de la .tapp et budgets de taille
         run: python3 tools/pack_tapp.py
+
+      - name: Tests de bout en bout (Chromium, passerelle simulee)
+        run: |
+          npm install --no-save --no-package-lock playwright@1
+          npx playwright install --with-deps chromium
+          node tests/e2e.js
 
       - uses: actions/upload-artifact@v4
         with:

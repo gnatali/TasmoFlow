@@ -45,7 +45,7 @@ Conséquences :
 ## Chargement de l'interface
 
 1. Le navigateur ouvre `http://<passerelle>/tf`.
-2. La page charge `https://gnatali.github.io/tasmoflow/vX.Y.Z/app.js` avec l'empreinte SRI
+2. La page charge `https://gnatali.github.io/TasmoFlow/vX.Y.Z/app.js` avec l'empreinte SRI
    calculée à l'assemblage. Une page HTTP peut charger un script HTTPS.
 3. Si GitHub ne répond pas en 3 s, ou si l'empreinte ne correspond pas, la page charge
    `http://<passerelle>:8384/app.js`, la copie gzip contenue dans la `.tapp`.

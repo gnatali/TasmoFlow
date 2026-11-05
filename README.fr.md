@@ -54,6 +54,10 @@ Puis ouvrir <http://localhost:8080/tf>. La fausse passerelle sert la vraie page 
 extraite de `extension/tasmoflow.be`, et la même API, avec trois appareils fictifs qui
 envoient des événements.
 
+Tests de bout en bout (Playwright) : `node tests/e2e.js`. Ils lancent eux-mêmes deux
+fausses passerelles et vérifient le chargeur (GitHub, empreinte SRI fausse, GitHub lent,
+tout absent) puis le parcours de l'interface.
+
 ## Organisation
 
 | Chemin | Contenu |
@@ -65,6 +69,7 @@ envoient des événements.
 | `tools/pack_tapp.py` | Assemblage de la `.tapp` et contrôle des budgets de taille |
 | `tools/mock_gateway.py` | Fausse passerelle pour le développement |
 | `tools/check_syntax.be` | Vérification de la syntaxe Berry |
+| `tests/e2e.js` | Tests de bout en bout dans Chromium, contre la fausse passerelle |
 | `.github/workflows/build.yml` | Contrôles, assemblage, release et publication sur GitHub Pages |
 
 ## Feuille de route
@@ -81,8 +86,11 @@ envoient des événements.
 ## Publication
 
 À chaque tag `vX.Y.Z` (égal au contenu de `VERSION`), le workflow publie
-`TasmoFlow.tapp` dans une release et l'interface sous `https://gnatali.github.io/tasmoflow/vX.Y.Z/`.
+`TasmoFlow.tapp` dans une release et l'interface sous `https://gnatali.github.io/TasmoFlow/vX.Y.Z/`.
 Les versions précédentes restent en ligne.
+
+Au premier tag, activer GitHub Pages une fois : **Settings → Pages → Build and deployment →
+Deploy from a branch**, branche `gh-pages`, dossier `/ (root)`.
 
 ## Licence
 

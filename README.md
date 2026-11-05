@@ -45,6 +45,17 @@ Then open <http://localhost:8080/tf>. The simulated gateway serves the real `/tf
 extracted from `extension/tasmoflow.be`, and the same API, with three fake devices
 sending events.
 
+End-to-end tests (Playwright): `node tests/e2e.js`. They start two simulated gateways
+and check the loader (GitHub, wrong SRI hash, slow GitHub, nothing available) and the
+interface.
+
+## Publishing
+
+Each `vX.Y.Z` tag (equal to the content of `VERSION`) publishes `TasmoFlow.tapp` in a
+release and the interface under `https://gnatali.github.io/TasmoFlow/vX.Y.Z/`. Older
+versions stay online. After the first tag, enable GitHub Pages once: **Settings → Pages →
+Deploy from a branch**, branch `gh-pages`, folder `/ (root)`.
+
 ## License
 
 GPL v3, like Tasmota. `extension/tf_http.be` is a copy of `webserver_async.be`
