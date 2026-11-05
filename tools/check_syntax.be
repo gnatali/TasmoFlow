@@ -1,5 +1,14 @@
 # Verifie la syntaxe des fichiers Berry sans les executer
 # Usage : berry tools/check_syntax.be extension/*.be
+#
+# L'interpreteur Berry standard refuse de compiler un nom global inconnu : on declare
+# d'abord les globales que le firmware Tasmota fournit et que l'extension utilise.
+import global
+global.tasmota = true
+global.log = true
+global.tcpserver = true
+global.format = true
+
 var ok = true
 for path: _argv[1 ..]
   var f = open(path)
