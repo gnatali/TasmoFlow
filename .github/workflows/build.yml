@@ -1,7 +1,7 @@
 name: Build
 
-# A placer dans .github/workflows/ du depot TasmoFlow. Il est range dans ci/
-# tant que le projet vit dans le dossier tasmoflow/ du depot du firmware.
+# Prevu pour le depot TasmoFlow. Tant que le projet vit dans le dossier
+# tasmoflow/ du depot du firmware, GitHub ne l execute pas.
 
 on:
   push:

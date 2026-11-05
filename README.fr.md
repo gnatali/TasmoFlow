@@ -65,7 +65,7 @@ envoient des événements.
 | `tools/pack_tapp.py` | Assemblage de la `.tapp` et contrôle des budgets de taille |
 | `tools/mock_gateway.py` | Fausse passerelle pour le développement |
 | `tools/check_syntax.be` | Vérification de la syntaxe Berry |
-| `ci/build.yml` | Contrôles, assemblage, release et publication sur GitHub Pages (à placer dans `.github/workflows/` du nouveau dépôt) |
+| `.github/workflows/build.yml` | Contrôles, assemblage, release et publication sur GitHub Pages |
 
 ## Feuille de route
 
