@@ -29,6 +29,7 @@ jobs:
 
       - name: Syntaxe Berry
         run: |
+          sudo apt-get install -y --no-install-recommends libreadline-dev
           git clone --depth 1 https://github.com/berry-lang/berry.git "$RUNNER_TEMP/berry"
           make -C "$RUNNER_TEMP/berry" -j"$(nproc)"
           "$RUNNER_TEMP/berry/berry" tools/check_syntax.be extension/*.be
