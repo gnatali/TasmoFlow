@@ -8,6 +8,7 @@ global.tasmota = true
 global.log = true
 global.tcpserver = true
 global.format = true
+global.re = true
 
 var ok = true
 for path: _argv[1 ..]
