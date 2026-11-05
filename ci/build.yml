@@ -1,0 +1,86 @@
+name: Build
+
+# A placer dans .github/workflows/ du depot TasmoFlow. Il est range dans ci/
+# tant que le projet vit dans le dossier tasmoflow/ du depot du firmware.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Syntaxe JavaScript
+        run: node --check app/app.js
+
+      - name: Syntaxe Berry
+        run: |
+          git clone --depth 1 https://github.com/berry-lang/berry.git "$RUNNER_TEMP/berry"
+          make -C "$RUNNER_TEMP/berry" -j"$(nproc)"
+          "$RUNNER_TEMP/berry/berry" tools/check_syntax.be extension/*.be
+
+      - name: Assemblage de la .tapp et budgets de taille
+        run: python3 tools/pack_tapp.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tasmoflow
+          path: dist/
+          retention-days: 90
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: tasmoflow
+          path: dist/
+
+      - name: Le tag correspond au fichier VERSION
+        run: test "${GITHUB_REF_NAME#v}" = "$(cat VERSION)"
+
+      - name: Release GitHub avec TasmoFlow.tapp
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/TasmoFlow.tapp --title "TasmoFlow $GITHUB_REF_NAME" --generate-notes
+
+      # Branche gh-pages cumulative : chaque version reste publiee sous /vX.Y.Z/,
+      # car une passerelle pas encore mise a jour charge toujours sa propre version.
+      - name: Publication de l'interface sur GitHub Pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git fetch origin gh-pages; then
+            git worktree add "$RUNNER_TEMP/pages" FETCH_HEAD
+            git -C "$RUNNER_TEMP/pages" checkout -B gh-pages
+          else
+            git worktree add --orphan -b gh-pages "$RUNNER_TEMP/pages"
+          fi
+          cp -r dist/pages/. "$RUNNER_TEMP/pages/"
+          touch "$RUNNER_TEMP/pages/.nojekyll"
+          git -C "$RUNNER_TEMP/pages" add -A
+          git -C "$RUNNER_TEMP/pages" commit -m "Interface $GITHUB_REF_NAME"
+          git -C "$RUNNER_TEMP/pages" push origin gh-pages
