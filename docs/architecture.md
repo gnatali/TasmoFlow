@@ -19,6 +19,14 @@ La page `/tf` transmet à l'interface l'adresse de l'API et un jeton de 128 bits
 premier démarrage et gardé dans `persist`. Toutes les routes `/api/*` exigent ce jeton
 (paramètre `t`) ; seule `/app.js` est publique.
 
+### Accès à la page `/tf`
+
+`webserver.check_privileged_access()` appelle `HttpCheckPriviledgedAccess()` : authentification
+HTTP Basic si `WebPassword` est défini, puis contrôle de l'en-tête `Referer`, qui doit venir de
+la passerelle (sauf `SetOption128 1`). Sans `Referer`, Tasmota refuse et ne renvoie rien
+(`xdrv_01_9_webserver.ino`). `/tf` renvoie donc d'abord une page qui se recharge elle-même
+quand l'en-tête manque.
+
 ### Pourquoi un second port
 
 - `webserver.content_open()` n'envoie que les en-têtes de `WSHeaderSend()` : `Server`,
@@ -111,13 +119,15 @@ TasmoFlow écoute `attributes_final`, appelé une fois par message décodé
 
 - [ ] Copier `TasmoFlow.tapp` dans `/.extensions/` (ou `/`) et redémarrer : le journal affiche `TFL: TasmoFlow 0.0.1, API sur le port 8384`
 - [ ] Installer à chaud (`tasmota.load("/.extensions/TasmoFlow.tapp")` dans la console Berry) : le bouton et `/tf` répondent sans redémarrage
-- [ ] Le bouton « TasmoFlow » apparaît dans le menu principal ; `/tf` demande le mot de passe web s'il est défini
+- [ ] Le bouton « TasmoFlow » apparaît dans le menu principal
+- [ ] Avec `WebPassword` défini, dans une fenêtre de navigation privée (sinon le navigateur renvoie le mot de passe déjà saisi pour Tasmota), `/tf` demande le mot de passe ; `curl -i http://<passerelle>/tf?r=1` répond `401 Unauthorized`
+- [ ] `http://<passerelle>/tf` tapé dans la barre d'adresse (sans passer par le bouton) ouvre l'interface
 - [ ] Sans accès Internet, `/tf` charge la copie locale (onglet Diagnostic : « local »)
 - [ ] `open(tasmota.wd + "app.js.gz", "rb")` lit bien le fichier dans la `.tapp`, et le navigateur décompresse la copie locale
 - [ ] La liste des appareils correspond à `ZbStatus1`
 - [ ] Un appui sur un bouton Zigbee apparaît dans l'onglet Événements en moins de 2 s
 - [ ] « Basculer » allume et éteint une lampe ; « Appairer » ouvre l'appairage 60 s
-- [ ] Mémoire : noter `heap_free` avant installation, après démarrage, et après 10 minutes avec l'interface ouverte (cible : moins de 15 Ko consommés)
+- [ ] Mémoire : noter `heap_free` avant installation, après démarrage, et après 10 minutes avec l'interface ouverte, chaque fois après `tasmota.gc()` dans la console Berry (cible : moins de 15 Ko consommés)
 - [ ] Deux onglets ouverts plus un troisième : la passerelle reste stable, le plus ancien flux est fermé
 - [ ] Une interface ouverte sur la passerelle A lit `/api/status` de la passerelle B (jeton de B)
 - [ ] Chrome, Firefox, Safari sur iPhone : l'interface se charge et le flux d'événements reste ouvert

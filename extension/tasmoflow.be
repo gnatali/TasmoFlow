@@ -197,6 +197,19 @@ class tasmoflow
   end
 
   def page_tf()
+    # Tasmota refuse une page protegee sans en-tete Referer (adresse tapee, favori) et ne
+    # renvoie alors rien. Sans Referer, on renvoie une page qui se recharge elle-meme :
+    # le navigateur ajoute alors le Referer. `r=1` evite une boucle si le navigateur
+    # n'envoie jamais de Referer (reglage de confidentialite) : SetOption128 1 reste alors
+    # la seule solution, comme pour les pages de Tasmota.
+    var referer = webserver.header("Referer")
+    if (referer == nil || size(referer) == 0) && !webserver.has_arg("r")
+      webserver.content_open(200, "text/html")
+      webserver.content_send('<!doctype html><meta charset="utf-8"><title>TasmoFlow</title>'
+                             '<script>location.replace("/tf?r=1")</script><a href="/tf?r=1">TasmoFlow</a>')
+      webserver.content_close()
+      return
+    end
     if !webserver.check_privileged_access()   return nil   end
     var cfg = {
       'version': self.VERSION,

@@ -74,6 +74,7 @@ def loader_html(api_port, cdn, sri):
     """Recompose la page /tf a partir des chaines de page_tf() dans tasmoflow.be."""
     src = (ROOT / "extension" / "tasmoflow.be").read_text()
     body = src[src.index("def page_tf()"):]
+    body = body[body.index("check_privileged_access"):]
     body = body[body.index("webserver.content_open"):body.index("webserver.content_close")]
     cfg = {"version": (ROOT / "VERSION").read_text().strip(), "port": api_port, "token": TOKEN,
            "cdn": cdn, "sri": sri}
