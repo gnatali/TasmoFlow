@@ -3,9 +3,12 @@
 # Copie de lib/libesp32/berry_tasmota/src/embedded/webserver_async.be (Tasmota, GPL-3.0,
 # Stephan Hadinger & Theo Arends), commit b7994b52c47777ea3f125723f2ba5db6d3669397.
 # Le firmware compile cette classe mais ne l'expose pas en Berry : l'extension officielle
-# Leds Panel embarque elle aussi sa propre copie. Seule modification : le bloc de test
-# final est retire.
+# Leds Panel embarque elle aussi sa propre copie. Modifications : ajout de `import re`
+# ci-dessous (la classe initialise ses expressions regulieres a sa definition, et `re`
+# n'est pas un nom global en Berry) ; bloc de test final retire.
 #
+
+import re
 
 #
 # webserber_async.be - implements a generic async non-blocking HTTP server

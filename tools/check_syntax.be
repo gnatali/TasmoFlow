@@ -2,13 +2,13 @@
 # Usage : berry tools/check_syntax.be extension/*.be
 #
 # L'interpreteur Berry standard refuse de compiler un nom global inconnu : on declare
-# d'abord les globales que le firmware Tasmota fournit et que l'extension utilise.
+# d'abord les globales que le firmware Tasmota fournit vraiment. Ne jamais y ajouter un
+# module qui s'importe (re, json, string...) : cela masquerait un `import` manquant.
 import global
 global.tasmota = true
 global.log = true
 global.tcpserver = true
 global.format = true
-global.re = true
 
 var ok = true
 for path: _argv[1 ..]
