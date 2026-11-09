@@ -27,7 +27,11 @@ RAM is the critical resource, so the port 8384 server (`tf_http.be`) is not star
 (v0.1):
 
 - `/tf`, once the password check has passed, starts it. `tf_http.be` is compiled at that moment
-  (`import` inside `start_api()`): no RAM is spent before the first interface is opened.
+  (`load_tf_http()`, `introspect.module('tf_http', true)`: loaded **without cache**, so
+  `tasmota.gc()` frees it when the server stops): no RAM is spent while no interface is open.
+  A plain `import` would cache the module for good, and fails at run time anyway: Tasmota only
+  keeps the `.tapp` folder in `sys.path` while it loads the extension, so `load_tf_http()` adds
+  it back around the call.
 - `/tf?w=1` also starts it, **without password and without returning any data**. It lets an
   interface open on another gateway wake this one (see [Several gateways](#several-gateways));
   the API itself still requires the token.
@@ -257,9 +261,19 @@ these actions. Measured on a gateway running both the driver and TasmoFlow, each
 The first readings of 6 November, without `tasmota.gc()` (90.4, 66.1 then 60.6 KB), counted
 garbage that Berry had not collected yet. TasmoFlow was 2 to 4 KB above its 15 KB target. v0.1 starts the port 8384 server only while an
 interface is open, compiles `tf_http.be` at that moment, records events only while it runs, and
-removes the unused code of `tf_http.be` (chunked encoding, two helpers). **Not measured yet**:
-repeat the table above after `tasmota.gc()`, with the extension loaded, then with an interface
-open, then 5 minutes after closing it.
+removes the unused code of `tf_http.be` (chunked encoding, two helpers). Measured on 9 November
+2026 after `tasmota.gc()`, against the same 84 KB / 25 KB baseline:
+
+| Moment | Free heap | Berry `HeapUsed` | TasmoFlow cost |
+| --- | --- | --- | --- |
+| v0.1, extension loaded (API server not started) | 75 KB | 35 KB | **9 KB** |
+| v0.1, interface open | 63 KB | 48 KB | 21 KB |
+
+At rest the 15 KB target is met (17 KB before). With an interface open the cost is 2 KB above
+v0.0: `tf_http.be` compiled (about 12 KB) plus the server. The second table row was measured
+with a cached `import`, which keeps that code in RAM after the server stops; the uncached
+loading that replaced it is **not measured yet**: repeat with the interface open, then 5 minutes
+after closing it (`TFL: API server stopped`), after `tasmota.gc()`.
 
 ### What TasmoFlow does not do
 
@@ -321,4 +335,5 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [ ] v0.1: `curl "http://<gateway>/tf?w=1"` answers `ok` without a password and starts the server
 - [ ] v0.1: the Tuya cards match `TuyaStatus`; a switch, a dimmer and a fan speed act on the real devices; a change made on a device (button, Smart Life) reaches the interface within 2 s
 - [ ] v0.1: with the Tuya driver disabled (`TuyaEnable 0`) or absent, the Tuya section is hidden
-- [ ] v0.1: memory after `tasmota.gc()` (target 15 KB, see [Memory](#memory)); `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)
+- [x] v0.1: memory at rest after `tasmota.gc()`: 75 KB free, Berry 35 KB, i.e. 9 KB (target 15 KB); with an interface open 63 KB / 48 KB (cached `import`, see [Memory](#memory))
+- [ ] v0.1: with the uncached loading, the memory returns to about 75 KB free 5 minutes after the last tab is closed; `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)

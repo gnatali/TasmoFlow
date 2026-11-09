@@ -27,8 +27,12 @@ La RAM est la ressource critique : le serveur du port 8384 (`tf_http.be`) n'est 
 boot (v0.1) :
 
 - `/tf`, une fois le mot de passe vérifié, le démarre. `tf_http.be` est compilé à ce moment
-  (`import` dans `start_api()`) : aucune RAM n'est dépensée avant la première ouverture de
-  l'interface.
+  (`load_tf_http()`, `introspect.module('tf_http', true)` : chargé **sans cache**, donc
+  `tasmota.gc()` le libère quand le serveur s'arrête) : aucune RAM n'est dépensée tant
+  qu'aucune interface n'est ouverte. Un simple `import` mettrait le module en cache pour
+  toujours, et échoue de toute façon à l'exécution : Tasmota ne garde le dossier de la `.tapp`
+  dans `sys.path` que pendant le chargement de l'extension, `load_tf_http()` le remet donc
+  autour de l'appel.
 - `/tf?w=1` le démarre aussi, **sans mot de passe et sans renvoyer aucune donnée**. Elle permet
   à une interface ouverte sur une autre passerelle de réveiller celle-ci (voir
   [Plusieurs passerelles](#plusieurs-passerelles)) ; l'API elle-même exige toujours le jeton.
@@ -266,9 +270,19 @@ Les premières mesures du 6 novembre, sans `tasmota.gc()` (90,4, 66,1 puis 60,6 
 des déchets que Berry n'avait pas encore libérés. TasmoFlow dépassait de 2 à 4 Ko sa cible de
 15 Ko. La v0.1 ne démarre le serveur du port 8384 que pendant qu'une interface est ouverte,
 compile `tf_http.be` à ce moment, n'enregistre les événements que pendant qu'il tourne, et
-retire le code inutilisé de `tf_http.be` (encodage par blocs, deux fonctions utilitaires). **Pas
-encore mesuré** : refaire le tableau ci-dessus après `tasmota.gc()`, extension chargée, puis
-interface ouverte, puis 5 minutes après sa fermeture.
+retire le code inutilisé de `tf_http.be` (encodage par blocs, deux fonctions utilitaires). Mesuré
+le 9 novembre 2026 après `tasmota.gc()`, sur la même base de 84 Ko / 25 Ko :
+
+| Moment | Mémoire libre | `HeapUsed` de Berry | Coût de TasmoFlow |
+| --- | --- | --- | --- |
+| v0.1, extension chargée (serveur d'API non démarré) | 75 Ko | 35 Ko | **9 Ko** |
+| v0.1, interface ouverte | 63 Ko | 48 Ko | 21 Ko |
+
+Au repos, la cible de 15 Ko est tenue (17 Ko avant). Avec une interface ouverte, le coût dépasse
+de 2 Ko celui de la v0.0 : `tf_http.be` compilé (environ 12 Ko) plus le serveur. La seconde ligne
+a été mesurée avec un `import` mis en cache, qui garde ce code en RAM après l'arrêt du serveur ;
+le chargement sans cache qui l'a remplacé **n'est pas encore mesuré** : refaire avec l'interface
+ouverte, puis 5 minutes après sa fermeture (`TFL: API server stopped`), après `tasmota.gc()`.
 
 ### Ce que TasmoFlow ne fait pas
 
@@ -331,4 +345,5 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [ ] v0.1 : `curl "http://<passerelle>/tf?w=1"` répond `ok` sans mot de passe et démarre le serveur
 - [ ] v0.1 : les cartes Tuya correspondent à `TuyaStatus` ; un interrupteur, un variateur et une vitesse de ventilateur agissent sur les vrais appareils ; un changement fait sur un appareil (bouton, Smart Life) arrive dans l'interface en moins de 2 s
 - [ ] v0.1 : avec le pilote Tuya désactivé (`TuyaEnable 0`) ou absent, la section Tuya est masquée
-- [ ] v0.1 : mémoire après `tasmota.gc()` (cible : 15 Ko, voir [Mémoire](#mémoire)) ; `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)
+- [x] v0.1 : mémoire au repos après `tasmota.gc()` : 75 Ko libres, Berry 35 Ko, soit 9 Ko (cible : 15 Ko) ; interface ouverte 63 Ko / 48 Ko (`import` en cache, voir [Mémoire](#mémoire))
+- [ ] v0.1 : avec le chargement sans cache, la mémoire revient vers 75 Ko libres 5 minutes après la fermeture du dernier onglet ; `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)

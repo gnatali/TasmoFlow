@@ -18,8 +18,8 @@
 # interface is open. The /tf page starts it, and so does /tf?w=1 (without password and
 # without any data: it only starts the server, so that another gateway's interface can
 # reach this one). It stops after IDLE_MS without a request or an open event stream.
-# tf_http.be is only compiled when the server first starts, and events are only kept
-# while the server runs.
+# tf_http.be is only compiled when the server starts (loaded without cache, so it is freed
+# when the server stops), and events are only kept while the server runs.
 #
 # The API routes require the `t` token, created at first start and only handed out
 # by the /tf page.
@@ -271,8 +271,10 @@ class tasmoflow
     if added    path.push(self.wd)    end
     var cls = nil
     try
-      import tf_http
-      cls = tf_http
+      # not cached (like autoexec.be does for this extension): a cached module stays in RAM for
+      # good, an uncached one is freed by tasmota.gc() once stop_api() dropped every reference
+      import introspect
+      cls = introspect.module('tf_http', true)
     except .. as e, m
       log(f"TFL: cannot load tf_http.be from '{self.wd}' ({e} {m})", 1)
     end
@@ -316,6 +318,7 @@ class tasmoflow
     self.events = []
     self.web.close()
     self.web = nil
+    tasmota.gc()                        # frees the compiled tf_http class
     log("TFL: API server stopped", 2)
   end
 

@@ -50,6 +50,8 @@ Après `tasmota.gc()`, passerelle avec le pilote Tuya (9 novembre 2026) :
 | Avant installation | 84 Ko | 25 Ko | |
 | Extension chargée | 67 Ko | 47 Ko | 17 Ko |
 | Interface ouverte | 65 Ko | 48 Ko | 19 Ko |
+| **v0.1**, extension chargée (serveur d'API non démarré) | 75 Ko | 35 Ko | **9 Ko** |
+| **v0.1**, interface ouverte | 63 Ko | 48 Ko | 21 Ko |
 
 Cible : 15 Ko. Tailles : `TasmoFlow.tapp` 45 Ko (budget 150 Ko), `app.js.gz` 5,4 Ko (budget
 120 Ko).
@@ -65,9 +67,11 @@ Cible : 15 Ko. Tailles : `TasmoFlow.tapp` 45 Ko (budget 150 Ko), `app.js.gz` 5,4
 Fait dans le code et la fausse passerelle (voir l'[architecture](architecture.fr.md)) :
 
 1. **Preact + htm** (décision du 9 novembre), `app/src/`, `npm run build`.
-2. **Mémoire** : serveur d'API à la demande, compilation de `tf_http.be` à la demande,
-   événements enregistrés seulement pendant qu'il tourne, code inutilisé retiré. **À mesurer**
-   après `tasmota.gc()` (cible : 15 Ko).
+2. **Mémoire** : serveur d'API à la demande, chargement de `tf_http.be` à la demande et sans
+   cache, événements enregistrés seulement pendant qu'il tourne, code inutilisé retiré. **Mesuré
+   au repos : 9 Ko** (cible : 15 Ko) ; interface ouverte 21 Ko. **À mesurer** : que la mémoire
+   revienne vers 75 Ko libres après l'arrêt du serveur (chargement sans cache, écrit après la
+   mesure).
 3. **Appareils Tuya dans le tableau de bord** (F7.1 à F7.3) : interrupteurs, variateurs,
    température de couleur, vitesse de ventilateur, mesures, mise à jour en direct, masqués sans
    le pilote.
