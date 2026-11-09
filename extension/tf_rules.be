@@ -21,6 +21,7 @@
 ###################################################################################
 
 import json
+import string
 
 class tf_rules
   static var MAX_LEN = 2200             # Tasmota stores up to about 2 KB (Unishox compression)
@@ -39,10 +40,29 @@ class tf_rules
     return f"/tf_rule{n}.bak"
   end
 
-  # the Tasmota rule set n as a map (State, Once, StopOnError, Length, Free, Rules), or nil
+  # The Tasmota rule set n as a map (State, Once, StopOnError, Length, Free, Rules), or nil.
+  # Never raises. Tasmota answers {"Rule<n>":{...,"Rules":"<text>"}}: if the text holds a line
+  # break or a quote that the answer does not escape, the answer is not valid JSON and
+  # tasmota.cmd() returns the raw string instead of a map: cut the text out by hand.
   def rule(n)
-    var r = tasmota.cmd(f"Rule{n}", true)
-    return r != nil ? r.find(f"Rule{n}") : nil
+    try
+      var r = tasmota.cmd(f"Rule{n}", true)
+      if isinstance(r, map)    return r.find(f"Rule{n}")    end
+      if type(r) != 'string'    return nil    end
+      var key = ',"Rules":"'
+      var i = string.find(r, key)
+      if i < 0 || size(r) < i + size(key) + 3    return nil    end
+      var head = json.load(r[0 .. i - 1] + '}}')
+      if !isinstance(head, map)    return nil    end
+      var m = head.find(f"Rule{n}")
+      if !isinstance(m, map)    return nil    end
+      var a = i + size(key)
+      var z = size(r) - 4               # the answer ends with "}}
+      m['Rules'] = a <= z ? r[a .. z] : ''
+      return m
+    except ..
+      return nil
+    end
   end
 
   # previous copy of rule set n, or nil
@@ -75,10 +95,17 @@ class tf_rules
     except ..
       return "backup"                   # no room for the copy: nothing was changed
     end
-    tasmota.cmd(size(text) > 0 ? f"Rule{n} {text}" : f'Rule{n} ""', true)
+    try
+      tasmota.cmd(size(text) > 0 ? f"Rule{n} {text}" : f'Rule{n} ""', true)
+    except .. as e, m
+      return f"exception {e}: {m}"
+    end
     r = self.rule(n)
     if r == nil || r.find('Rules', '') != text
-      tasmota.cmd(size(old) > 0 ? f"Rule{n} {old}" : f'Rule{n} ""', true)
+      try
+        tasmota.cmd(size(old) > 0 ? f"Rule{n} {old}" : f'Rule{n} ""', true)
+      except ..
+      end
       return "write"
     end
     return nil
@@ -118,9 +145,20 @@ class tf_rules
     cnx.content_stop()
   end
 
+  # an exception in a handler makes the port 8384 server drop the connection (the browser
+  # only sees "Failed to fetch"): answer with its text instead
   def api_rule_set(cnx, uri, verb)
     var q = self.tf.authorized(cnx, uri)
     if q == nil   return   end
+    try
+      self.rule_set(cnx, q)
+    except .. as e, m
+      self.buf = ''
+      self.answer(cnx, f"exception {e}: {m}")
+    end
+  end
+
+  def rule_set(cnx, q)
     var n = int(q.find('n', '0'))
     var i = int(q.find('i', '0'))
     if n < 1 || n > 3
@@ -153,13 +191,17 @@ class tf_rules
   def api_rule_restore(cnx, uri, verb)
     var q = self.tf.authorized(cnx, uri)
     if q == nil   return   end
-    var n = int(q.find('n', '0'))
-    var bak = n >= 1 && n <= 3 ? self.read_bak(n) : nil
-    if bak == nil
-      self.answer(cnx, "nobackup")
-      return
+    try
+      var n = int(q.find('n', '0'))
+      var bak = n >= 1 && n <= 3 ? self.read_bak(n) : nil
+      if bak == nil
+        self.answer(cnx, "nobackup")
+        return
+      end
+      self.answer(cnx, self.apply(n, bak))
+    except .. as e, m
+      self.answer(cnx, f"exception {e}: {m}")
     end
-    self.answer(cnx, self.apply(n, bak))
   end
 
   def register(web)

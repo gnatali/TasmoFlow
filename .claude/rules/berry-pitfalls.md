@@ -23,6 +23,11 @@ paths:
 - The port 8384 server reads **one short request line** (a partial line over 100 bytes is
   refused): never send long data in a query. Rule texts go in 300-character chunks
   (`/api/rule_set`).
+- `tasmota.cmd()` returns a **map only if the answer is valid JSON**, else the raw string (see
+  `exec_rules` in `tasmota_class.be`): calling `.find()` on it raises. `Rule<n>` copies the rule
+  text as is, so a line break or a quote can make its answer invalid (`tf_rules.rule()` cuts
+  the text out by hand). Never let a handler of the port 8384 server raise: the browser only
+  sees "Failed to fetch". Answer with the exception text.
 - Never read a large file in one go (no PSRAM): stream it in 1 KB chunks
   (`tf_streamer`), at the client's pace (`buf_out_empty()`).
 - Files inside a `.tapp` are opened with `open(tasmota.wd + "name")`; a `.tapp` is an
