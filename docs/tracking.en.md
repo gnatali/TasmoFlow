@@ -1,0 +1,86 @@
+# Work tracking: TasmoFlow
+
+*Version française : [tracking.fr.md](tracking.fr.md)*
+
+State of the project, decisions, measurements and next steps, to resume work in a new
+session. Architecture details and the test plan: [architecture.en.md](architecture.en.md).
+Specification (French, outside the repository):
+<https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix>.
+
+## Status (9 November 2026)
+
+- **v0.0 (prototype) complete**, released as
+  [v0.0.1](https://github.com/gnatali/TasmoFlow/releases/tag/v0.0.1) and checked on the
+  gateway (ZB-GW03 with the local Tuya driver). The interface loads from GitHub Pages
+  (header "v0.0.1 · github") and falls back to the local copy.
+- **[PR #1](https://github.com/gnatali/TasmoFlow/pull/1) open** (branch
+  `claude/tasmota-web-interface-dumj56`): test results of 9 November, memory after
+  `tasmota.gc()`, v0.0 marked complete, these tracking files and the `.claude/rules/` modules.
+  Merge it before starting v0.1 (`main` only accepts pull requests).
+- **Next**: v0.1 (control), starting with the Preact or Lit choice.
+
+## History
+
+| Date | Step |
+| --- | --- |
+| 5 Nov 2026 | Existing projects reviewed (none combines GitHub hosting, no-code editor and Zigbee gateway management), 20 decisions taken, specification and roadmap written, name TasmoFlow |
+| 5 Nov | Findings from Tasmota's source: no response headers from Berry's `webserver`, `webserver_async` class compiled but not exposed, WebSocket server needs a rebuild, `.tapp` format, Extension Manager catalogue derived from `OtaUrl` |
+| 5 Nov | v0.0 prototype written: Berry extension (ports 80 and 8384), interface without dependencies, `pack_tapp.py`, simulated gateway, CI |
+| 5-6 Nov | Moved from the firmware repository to `gnatali/TasmoFlow`; CI fixed (`libreadline-dev`, `#-` block comments found by the Berry check) |
+| 6 Nov | First load on the gateway: `'re' undeclared` in `tf_http.be` (missing `import re`, hidden by the CI check that predeclared `re`) |
+| 6 Nov | First gateway tests: 10 of 11 passed. `/tf` fixed for typed addresses and bookmarks (`Referer` required by Tasmota) |
+| 9 Nov | The firmware gained a local Tuya driver: specification, architecture and roadmap extended to Tuya devices (module F7) |
+| 9 Nov | Decision: TasmoFlow manages **all rules** (`Rule1` to `Rule3`, Berry, its own automations) |
+| 9 Nov | `CLAUDE.md` added; language rule applied (English code, docs and messages; French translation of user docs) |
+| 9 Nov | All v0.0 checks passed, memory measured after `tasmota.gc()`; v0.0.1 tagged by Guillaume, GitHub Pages enabled |
+
+## Measurements on the gateway
+
+After `tasmota.gc()`, gateway running the Tuya driver (9 November 2026):
+
+| Moment | Free heap | Berry `HeapUsed` | TasmoFlow cost |
+| --- | --- | --- | --- |
+| Before installation | 84 KB | 25 KB | |
+| Extension loaded | 67 KB | 47 KB | 17 KB |
+| Interface open | 65 KB | 48 KB | 19 KB |
+
+Target: 15 KB. Sizes: `TasmoFlow.tapp` 45 KB (budget 150 KB), `app.js.gz` 5.4 KB (budget
+120 KB).
+
+## Decisions still open
+
+- **Preact or Lit** for the interface: build the same screen with both and compare the
+  gzipped size, then decide with Guillaume.
+- **Extension Manager catalogue**: submit TasmoFlow to Tasmota's official catalogue, or
+  publish one on `gnatali.github.io/extensions/` (requires `OtaUrl` on that host), or keep the
+  manual installation.
+
+## Next steps (v0.1, by priority)
+
+1. **Preact or Lit** (see above).
+2. **Memory under 15 KB**: start the port 8384 server only while an interface is open (first
+   `/tf` request), stop it after a few minutes without a client; remove the unused code of
+   `tf_http.be`. Measure again after `tasmota.gc()`.
+3. **Tuya devices in the dashboard** (F7.1 to F7.3): `TuyaEnable`, `TuyaStatus`, `Tuya` rule
+   events pushed on the SSE stream (`tasmota.add_rule("Tuya", ...)`), controls derived from the
+   Matter bindings of `TuyaConfig`, `TuyaSend` (including `toggle`). Hide the Tuya screens when
+   the driver is absent or disabled.
+4. **Several gateways** (F1): list kept in the browser, screen to copy a gateway's token, check
+   that gateway A reads gateway B's API (last open item of the test plan).
+5. Then v0.2: all rules (`Rule1` to `Rule3`, Berry, automations), sentence editor, backup
+   before writing.
+
+## Points to check
+
+- Writing a DP of a Tuya Zigbee device (TS0601, `EF00` cluster) with `ZbSend`: to try on a real
+  device (needed for v0.3).
+
+## Links
+
+| What | Where |
+| --- | --- |
+| Repository | <https://github.com/gnatali/TasmoFlow> |
+| Firmware | <https://github.com/gnatali/tasmota32-zbgw03-matter> (Tuya driver: `docs/tuya-local.en.md`) |
+| Specification and roadmap (French) | <https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix> |
+| Release v0.0.1 | <https://github.com/gnatali/TasmoFlow/releases/tag/v0.0.1> |
+| Interface on GitHub Pages | `https://gnatali.github.io/TasmoFlow/v0.0.1/app.js` |

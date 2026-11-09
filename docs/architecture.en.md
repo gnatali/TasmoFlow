@@ -179,9 +179,19 @@ with a mapping editor, then load it (`ZbLoad`).
 
 The driver waits for **45 KB free** to start, and requires **30 KB** to modify `tuya.json`,
 **35 KB** for the cloud import. TasmoFlow checks the free memory (`tasmota.memory()`) before
-these actions. Measured on 6 November 2026 on a gateway running both the driver and TasmoFlow:
-90.4 KB free before TasmoFlow, 66.1 KB after it started, 60.6 KB after 10 minutes with 4 tabs
-open (without `tasmota.gc()`).
+these actions. Measured on a gateway running both the driver and TasmoFlow, each time after
+`tasmota.gc()` (`Heap` and Berry `HeapUsed` of `Status 4`, 9 November 2026):
+
+| Moment | Free heap | Berry `HeapUsed` | TasmoFlow cost |
+| --- | --- | --- | --- |
+| Before installation | 84 KB | 25 KB | |
+| Extension loaded | 67 KB | 47 KB | 17 KB |
+| Interface open | 65 KB | 48 KB | 19 KB |
+
+The first readings of 6 November, without `tasmota.gc()` (90.4, 66.1 then 60.6 KB), counted
+garbage that Berry had not collected yet. TasmoFlow is 2 to 4 KB above its 15 KB target: v0.1
+only starts the port 8384 server while the interface is open, and removes the unused code of
+`tf_http.be`.
 
 ### What TasmoFlow does not do
 
@@ -220,22 +230,22 @@ Plan:
 
 ## Test plan on the gateway
 
-Results of 6 November 2026 (gateway with the Tuya driver), v0.0.1 before the `Referer` fix.
-`[x]` passed, `[ ]` to do or to redo.
+Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `[ ]` to do. v0.0 is complete: the only open check belongs to v0.1.
 
 - [x] Copy `TasmoFlow.tapp` to `/.extensions/` (or `/`) and restart: the log shows `TFL: TasmoFlow 0.0.1, API on port 8384` (`API sur le port 8384` in the version tested on 6 November)
 - [x] Install while running (`tasmota.load("/.extensions/TasmoFlow.tapp")` in the Berry console): the button and `/tf` answer without a restart
 - [x] The "TasmoFlow" button appears in the main menu
-- [ ] With `WebPassword` set, in a private window (otherwise the browser sends the password already entered for Tasmota), `/tf` asks for the password; `curl -i "http://<gateway>/tf?r=1"` answers `401 Unauthorized` (first try without a private window: no prompt)
-- [ ] `http://<gateway>/tf` typed in the address bar (without the button) opens the interface
+- [x] With `WebPassword` set, in a private window (otherwise the browser sends the password already entered for Tasmota), `/tf` asks for the password; `curl -i "http://<gateway>/tf?r=1"` answers `401 Unauthorized`
+- [x] `http://<gateway>/tf` typed in the address bar (without the button) opens the interface
 - [x] Without internet access, `/tf` loads the local copy (Diagnostics tab: "local")
 - [x] `open(tasmota.wd + "app.js.gz", "rb")` reads the file inside the `.tapp`, and the browser decompresses the local copy
 - [x] The device list matches `ZbStatus1`
 - [x] A Zigbee button press shows up in the Events tab within 2 s
-- [ ] "Toggle" switches a light on and off; "Pair" opens pairing for 60 s
-- [ ] Memory, each time after `tasmota.gc()` in the Berry console: before installation, after start, after 10 minutes with the interface open (target: less than 15 KB used). Without `tasmota.gc()`: 90.4 → 66.1 → 60.6 KB, i.e. 24 then 30 KB
+- [x] "Toggle" switches a light on and off; "Pair" opens pairing for 60 s
+- [x] Memory, each time after `tasmota.gc()` in the Berry console: 84 KB free before installation, 67 KB with the extension loaded, 65 KB with the interface open, i.e. 17 then 19 KB (target: 15 KB, see [Memory](#memory))
 - [x] Two tabs open plus a third: the gateway stays stable (3 Chrome tabs and 1 Android)
 - [ ] An interface opened on gateway A reads gateway B's `/api/status` (B's token; screen planned for v0.1)
-- [ ] Chrome, Firefox, Safari on iPhone: the interface loads and the event stream stays open (Chrome and Android passed)
+- [x] With GitHub Pages enabled (tag `v0.0.1`), `/tf` loads the GitHub copy (header: "v0.0.1 · github")
+- [x] Chrome, Firefox, Safari on iPhone: the interface loads and the event stream stays open
 - [x] Matter keeps working (Google Home still controls its devices)
-- [ ] The Tuya driver still starts at boot with TasmoFlow installed (`TuyaEnable`: `"State":"running"`)
+- [x] The Tuya driver still starts at boot with TasmoFlow installed (`TuyaEnable`: `"State":"running"`)

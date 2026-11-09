@@ -7,9 +7,9 @@ devices, and to create automations between them. First target: the eWeLink ZB-GW
 running the [tasmota32-zbgw03-matter](https://github.com/gnatali/tasmota32-zbgw03-matter)
 firmware.
 
-> **Status: v0.0 prototype, in test on a real gateway since 6 November 2026.** It checks the
-> architecture before features are written. Results and remaining checks: see the
-> [test plan](docs/architecture.en.md#test-plan-on-the-gateway).
+> **Status: v0.0 prototype, released as [v0.0.1](https://github.com/gnatali/TasmoFlow/releases/tag/v0.0.1)
+> and checked on a real gateway on 9 November 2026.** It validates the architecture before
+> features are written: see the [test plan](docs/architecture.en.md#test-plan-on-the-gateway).
 
 ## What v0.0 does
 
@@ -71,6 +71,8 @@ then a walkthrough of the interface.
 | `tests/e2e.js` | End-to-end tests in Chromium, against the simulated gateway |
 | `.github/workflows/build.yml` | Checks, build, release and publication on GitHub Pages |
 | `docs/architecture.en.md` | Architecture, findings from Tasmota's code, test plan |
+| `docs/tracking.en.md` | Progress, measurements, open decisions and next steps |
+| `CLAUDE.md`, `.claude/rules/` | Instructions for Claude Code |
 
 ## Roadmap
 
@@ -80,7 +82,7 @@ and local Tuya (Wi-Fi and Tuya gateway), the latter through the firmware's Tuya 
 
 | Version | Content |
 | --- | --- |
-| v0.0 | Prototype: architecture checked on the gateway (in test since 6 November 2026) |
+| v0.0 | Prototype: architecture checked on the gateway (done, v0.0.1, 9 November 2026) |
 | v0.1 | Control: several gateways, Zigbee and Tuya dashboard, extension under 15 KB of RAM |
 | v0.2 | All rules (`Rule1` to `Rule3`, Berry, TasmoFlow automations): reading, sentence editor, backup before writing; Zigbee and Tuya triggers and actions |
 | v0.3 | Advanced Zigbee and Tuya: groups, scenes, bindings, Tuya discovery and import, TS0601 plugins, Matter |

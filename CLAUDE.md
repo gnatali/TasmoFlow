@@ -32,4 +32,7 @@ devices, rules, Matter and administration.
 
 ## 4. Module index
 
-No module yet.
+* [`project.md`](.claude/rules/project.md): context, hardware (no PSRAM, critical RAM), decisions, way of working (PRs, tags, checks).
+* [`berry-pitfalls.md`](.claude/rules/berry-pitfalls.md): Berry pitfalls met in the extension.
+
+See also: progress and next steps in [`docs/tracking.en.md`](docs/tracking.en.md).
