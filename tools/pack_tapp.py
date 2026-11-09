@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Assemble l'extension TasmoFlow.
+"""Builds the TasmoFlow extension.
 
-Produit dans dist/ :
-  TasmoFlow.tapp          extension a installer sur la passerelle (zip sans compression,
-                          comme les extensions officielles de Tasmota)
-  pages/vX.Y.Z/app.js     interface a publier sur GitHub Pages
+Writes into dist/:
+  TasmoFlow.tapp          extension to install on the gateway (uncompressed zip, like
+                          Tasmota's official extensions)
+  pages/vX.Y.Z/app.js     interface to publish on GitHub Pages
 
-La .tapp contient app.js.gz, copie locale de l'interface servie quand GitHub ne
-repond pas. L'empreinte SRI de app.js est inscrite dans tasmoflow.be : la page /tf
-refuse une copie GitHub differente de celle de la version installee.
+The .tapp holds app.js.gz, the local copy of the interface served when GitHub does not
+answer. The SRI hash of app.js is written into tasmoflow.be: the /tf page refuses a
+GitHub copy that differs from the installed version's.
 
-Usage : python3 tools/pack_tapp.py [--cdn URL]
+Usage: python3 tools/pack_tapp.py [--cdn URL]
 """
 
 import argparse
@@ -29,22 +29,22 @@ EXT = ROOT / "extension"
 APP = ROOT / "app" / "app.js"
 DIST = ROOT / "dist"
 
-# budgets du cahier des charges (exigences non fonctionnelles)
+# budgets from the specification (non-functional requirements)
 MAX_APP_GZ = 120 * 1024
 MAX_TAPP = 150 * 1024
 
-# date fixe dans le zip et le gzip : deux assemblages du meme code donnent le meme fichier
+# fixed date in the zip and the gzip: two builds of the same code give the same file
 ZIP_DATE = (2026, 1, 1, 0, 0, 0)
 
 
 def version_hex(version):
-    """'1.2.3' -> '0x01020300', format des versions Tasmota (octet de build a 0)."""
+    """'1.2.3' -> '0x01020300', Tasmota version format (build byte set to 0)."""
     m = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", version)
     if not m:
-        sys.exit(f"VERSION invalide : {version!r} (attendu X.Y.Z)")
+        sys.exit(f"invalid VERSION: {version!r} (expected X.Y.Z)")
     major, minor, patch = (int(x) for x in m.groups())
     if max(major, minor, patch) > 255:
-        sys.exit(f"VERSION invalide : {version!r} (chaque nombre <= 255)")
+        sys.exit(f"invalid VERSION: {version!r} (each number <= 255)")
     return f"0x{major:02X}{minor:02X}{patch:02X}00"
 
 
@@ -53,14 +53,14 @@ def substitute(text, values, name):
         text = text.replace(f"@@{key}@@", value)
     left = re.findall(r"@@[A-Z_]+@@", text)
     if left:
-        sys.exit(f"{name} : marqueurs non remplaces {sorted(set(left))}")
+        sys.exit(f"{name}: markers not replaced {sorted(set(left))}")
     return text
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--cdn", default="https://gnatali.github.io/TasmoFlow/",
-                        help="adresse GitHub Pages de l'interface ('' : copie locale seule)")
+                        help="GitHub Pages address of the interface ('': local copy only)")
     args = parser.parse_args()
     if args.cdn and not args.cdn.endswith("/"):
         args.cdn += "/"
@@ -78,7 +78,7 @@ def main():
         "tf_http.be": (EXT / "tf_http.be").read_bytes(),
         "app.js.gz": app_gz,
     }
-    json.loads(files["manifest.json"])          # le manifeste doit rester du JSON valide
+    json.loads(files["manifest.json"])          # the manifest must stay valid JSON
 
     DIST.mkdir(exist_ok=True)
     tapp = DIST / "TasmoFlow.tapp"
@@ -96,17 +96,17 @@ def main():
     tapp_size = tapp.stat().st_size
     print(f"TasmoFlow {version} ({values['VERSION_HEX']})")
     for name, data in files.items():
-        print(f"  {name:<14} {len(data):>7} o")
-    print(f"  app.js         {len(app):>7} o (non compresse)")
-    print(f"  {tapp.relative_to(ROOT)} : {tapp_size} o / budget {MAX_TAPP} o")
-    print(f"  app.js.gz : {len(app_gz)} o / budget {MAX_APP_GZ} o")
-    print(f"  SRI : {sri}")
+        print(f"  {name:<14} {len(data):>7} B")
+    print(f"  app.js         {len(app):>7} B (uncompressed)")
+    print(f"  {tapp.relative_to(ROOT)}: {tapp_size} B / budget {MAX_TAPP} B")
+    print(f"  app.js.gz: {len(app_gz)} B / budget {MAX_APP_GZ} B")
+    print(f"  SRI: {sri}")
 
     errors = []
     if len(app_gz) > MAX_APP_GZ:
-        errors.append(f"app.js.gz depasse le budget ({len(app_gz)} > {MAX_APP_GZ} o)")
+        errors.append(f"app.js.gz exceeds its budget ({len(app_gz)} > {MAX_APP_GZ} B)")
     if tapp_size > MAX_TAPP:
-        errors.append(f"TasmoFlow.tapp depasse le budget ({tapp_size} > {MAX_TAPP} o)")
+        errors.append(f"TasmoFlow.tapp exceeds its budget ({tapp_size} > {MAX_TAPP} B)")
     if errors:
         sys.exit("\n".join(errors))
 

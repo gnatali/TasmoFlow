@@ -1,23 +1,23 @@
 ###################################################################################
-# tasmoflow.be - TasmoFlow, interface web sans code pour passerelle Zigbee Tasmota
+# tasmoflow.be - TasmoFlow, no-code web interface for a Tasmota Zigbee gateway
 #
 # SPDX-License-Identifier: GPL-3.0-only
 ###################################################################################
-# Prototype v0.0. Deux serveurs :
+# Prototype v0.0. Two servers:
 #
-# - port 80, serveur web de Tasmota : bouton « TasmoFlow » dans le menu principal et
-#   page /tf, protegee par le mot de passe web, qui charge l'interface depuis GitHub
-#   Pages (version figee, empreinte SRI) ou, a defaut, depuis la copie locale.
+# - port 80, Tasmota's web server: "TasmoFlow" button in the main menu and /tf page,
+#   protected by the web password, which loads the interface from GitHub Pages
+#   (pinned version, SRI hash) or, failing that, from the local copy.
 #
-# - port 8384, serveur asynchrone Berry (tf_http.be) : API JSON, flux d'evenements
-#   (Server-Sent Events) et copie locale de l'interface. Le serveur principal ne
-#   permet pas d'ajouter d'en-tetes HTTP depuis Berry (ni CORS, ni Content-Encoding) :
-#   ce second port le permet sans recompiler le firmware.
+# - port 8384, Berry asynchronous server (tf_http.be): JSON API, event stream
+#   (Server-Sent Events) and local copy of the interface. The main server cannot add
+#   HTTP headers from Berry (neither CORS nor Content-Encoding): this second port can,
+#   without rebuilding the firmware.
 #
-# Les routes de l'API exigent le jeton `t`, cree au premier demarrage et transmis
-# uniquement par la page /tf.
+# The API routes require the `t` token, created at first start and only handed out
+# by the /tf page.
 #
-# Les @@...@@ sont remplaces par tools/pack_tapp.py.
+# The @@...@@ markers are replaced by tools/pack_tapp.py.
 ###################################################################################
 
 import webserver
@@ -26,8 +26,8 @@ import json
 import tf_http
 
 #################################################################################
-# Envoi d'un fichier par morceaux de 1 Ko, au rythme du client : la copie locale de
-# l'interface (environ 100 Ko) ne doit jamais etre chargee d'un bloc en RAM.
+# Sends a file in 1 KB chunks, at the client's pace: the local copy of the interface
+# (about 100 KB) must never be loaded into RAM in one go.
 #################################################################################
 class tf_streamer
   var cnx, f, cb
@@ -60,18 +60,18 @@ end
 #################################################################################
 class tasmoflow
   static var VERSION = "@@VERSION@@"
-  static var CDN = "@@CDN@@"            # adresse GitHub Pages ('' = copie locale seule)
-  static var SRI = "@@SRI@@"            # empreinte SRI (sha384) de app.js
+  static var CDN = "@@CDN@@"            # GitHub Pages address ('' = local copy only)
+  static var SRI = "@@SRI@@"            # SRI hash (sha384) of app.js
   static var PORT = 8384
-  static var MAX_EVENTS = 50            # evenements gardes pour les clients qui se reconnectent
-  static var MAX_FEEDS = 3              # flux d'evenements ouverts en meme temps
+  static var MAX_EVENTS = 50            # events kept for clients that reconnect
+  static var MAX_FEEDS = 3              # event streams open at the same time
 
-  var wd                                # dossier de la .tapp, ex. '/.extensions/TasmoFlow.tapp#'
-  var web                               # serveur tf_http du port 8384
+  var wd                                # .tapp folder, e.g. '/.extensions/TasmoFlow.tapp#'
+  var web                               # tf_http server on port 8384
   var token
-  var events                            # [ [seq, texte SSE], ... ]
+  var events                            # [ [seq, SSE text], ... ]
   var seq
-  var feeds                             # connexions SSE ouvertes
+  var feeds                             # open SSE connections
   var ping
   var routes_added
 
@@ -90,7 +90,7 @@ class tasmoflow
 
     if tasmota.is_network_up()
       self.init_network()
-      # extension installee a chaud : Tasmota n'enverra plus l'evenement web_add_handler
+      # extension installed while running: Tasmota will not send web_add_handler again
       if webserver.state() != 0   self.web_add_handler()   end
     else
       tasmota.when_network_up(/ -> self.init_network())
@@ -108,7 +108,7 @@ class tasmoflow
   end
 
   #################################################################################
-  # Outils
+  # Helpers
   #################################################################################
   static def zb()
     import global
@@ -164,7 +164,7 @@ class tasmoflow
     return q
   end
 
-  # valeur d'une commande Tasmota, ou nil
+  # value returned by a Tasmota command, or nil
   static def cmdv(cmd, key)
     var r = tasmota.cmd(cmd, true)
     return r != nil ? r.find(key) : nil
@@ -175,7 +175,7 @@ class tasmoflow
     cnx.content_stop()
   end
 
-  # renvoie la requete decodee, ou nil (et repond 403) si le jeton manque
+  # returns the decoded query, or nil (and answers 403) if the token is missing
   def authorized(cnx, uri)
     var q = self.parse_query(uri)
     if q.find('t') == self.token    return q    end
@@ -184,7 +184,7 @@ class tasmoflow
   end
 
   #################################################################################
-  # Port 80 : bouton et page /tf
+  # Port 80: button and /tf page
   #################################################################################
   def web_add_main_button()
     webserver.content_send("<p></p><form id=but_tasmoflow style='display: block;' action='tf' method='get'><button>TasmoFlow</button></form>")
@@ -197,11 +197,11 @@ class tasmoflow
   end
 
   def page_tf()
-    # Tasmota refuse une page protegee sans en-tete Referer (adresse tapee, favori) et ne
-    # renvoie alors rien. Sans Referer, on renvoie une page qui se recharge elle-meme :
-    # le navigateur ajoute alors le Referer. `r=1` evite une boucle si le navigateur
-    # n'envoie jamais de Referer (reglage de confidentialite) : SetOption128 1 reste alors
-    # la seule solution, comme pour les pages de Tasmota.
+    # Tasmota refuses a protected page without a Referer header (typed address, bookmark)
+    # and then sends nothing back. Without a Referer, answer with a page that reloads
+    # itself: the browser then adds the Referer. `r=1` avoids a loop if the browser never
+    # sends a Referer (privacy setting): SetOption128 1 is then the only way, as for
+    # Tasmota's own pages.
     var referer = webserver.header("Referer")
     if (referer == nil || size(referer) == 0) && !webserver.has_arg("r")
       webserver.content_open(200, "text/html")
@@ -237,7 +237,7 @@ class tasmoflow
           'document.head.appendChild(s);}'
         'function local(){if(fell)return;fell=true;clearTimeout(t);'
           'add(c.api+"/app.js","",function(){'
-            'box.textContent="TasmoFlow : interface introuvable (port "+c.port+")";});}'
+            'box.textContent="TasmoFlow: interface not found (port "+c.port+")";});}'
         'if(c.cdn){add(c.cdn,c.sri,local);t=setTimeout(local,3000);}'
         'else{local();}'
       '})(window.TASMOFLOW);'
@@ -246,14 +246,14 @@ class tasmoflow
   end
 
   #################################################################################
-  # Port 8384 : API
+  # Port 8384: API
   #################################################################################
   def init_network()
     if self.web != nil    return    end
     try
       self.web = tf_http(self.PORT)
     except .. as e, m
-      log(f"TFL: port {self.PORT} indisponible ({e} {m})", 1)
+      log(f"TFL: port {self.PORT} unavailable ({e} {m})", 1)
       return
     end
     self.web.set_chunked(false)
@@ -263,16 +263,16 @@ class tasmoflow
     self.web.on("/api/devices", self, self.api_devices)
     self.web.on("/api/cmd", self, self.api_cmd)
     self.web.on("/api/events", self, self.api_events)
-    log(f"TFL: TasmoFlow {self.VERSION}, API sur le port {self.PORT}", 2)
+    log(f"TFL: TasmoFlow {self.VERSION}, API on port {self.PORT}", 2)
   end
 
-  # copie locale de l'interface, stockee compressee dans la .tapp
+  # local copy of the interface, stored gzipped in the .tapp
   def send_app(cnx, uri, verb)
     var f
     try
       f = open(self.wd + "app.js.gz", "rb")
     except ..
-      cnx.send(404, "text/plain", "app.js.gz absent")
+      cnx.send(404, "text/plain", "app.js.gz missing")
       cnx.content_stop()
       return
     end
@@ -329,7 +329,7 @@ class tasmoflow
     cnx.content_stop()
   end
 
-  # commande Tasmota quelconque : /api/cmd?t=...&c=ZbSend%20...
+  # any Tasmota command: /api/cmd?t=...&c=ZbSend%20...
   def api_cmd(cnx, uri, verb)
     var q = self.authorized(cnx, uri)
     if q == nil   return   end
@@ -342,7 +342,7 @@ class tasmoflow
     self.send_json(cnx, 200, r == nil ? '{}' : json.dump(r))
   end
 
-  # flux SSE : /api/events?t=...&since=<dernier seq recu>
+  # SSE stream: /api/events?t=...&since=<last seq received>
   def api_events(cnx, uri, verb)
     var q = self.authorized(cnx, uri)
     if q == nil   return   end
@@ -370,9 +370,9 @@ class tasmoflow
   end
 
   #################################################################################
-  # Evenements
+  # Events
   #################################################################################
-  # appele par zigbee.dispatch() pour chaque message decode
+  # called by zigbee.dispatch() for each decoded message
   def attributes_final(event_type, frame, attr_list, idx)
     if attr_list == nil   return   end
     var zb = self.zb()
@@ -391,7 +391,7 @@ class tasmoflow
       end
     end
     self.ping += 1
-    if self.ping >= 15                  # commentaire SSE : garde les connexions ouvertes
+    if self.ping >= 15                  # SSE comment: keeps connections open
       self.ping = 0
       for f: self.feeds   f.write(": ping\n\n")   end
     end

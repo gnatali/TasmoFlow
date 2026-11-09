@@ -1,8 +1,8 @@
-# TasmoFlow : point d'entree de la .tapp (assemblee par tools/pack_tapp.py)
-do                          # dans un bloc `do` pour ne rien ajouter a l'espace global
+# TasmoFlow: entry point of the .tapp (built by tools/pack_tapp.py)
+do                          # inside a `do` block so nothing is added to the global namespace
   import introspect
-  var tasmoflow = introspect.module('tasmoflow', true)     # charge le module sans le mettre en cache
+  var tasmoflow = introspect.module('tasmoflow', true)     # load the module without caching it
   tasmota.add_extension(tasmoflow)
 end
 
-# pour decharger : tasmota.unload_extension('TasmoFlow')
+# to unload: tasmota.unload_extension('TasmoFlow')

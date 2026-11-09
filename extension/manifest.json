@@ -1,7 +1,7 @@
 {
   "name": "TasmoFlow",
   "version": "@@VERSION_HEX@@",
-  "description": "Interface web sans code pour piloter et administrer une passerelle Zigbee",
+  "description": "No-code web interface to control and manage a Zigbee and Tuya gateway",
   "author": "gnatali",
   "min_tasmota": "0x10000000"
 }

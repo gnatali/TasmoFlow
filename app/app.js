@@ -1,26 +1,26 @@
 /*
- * TasmoFlow - interface web sans code pour passerelle Zigbee Tasmota
+ * TasmoFlow - no-code web interface for a Tasmota Zigbee gateway
  * SPDX-License-Identifier: GPL-3.0-only
  *
- * Prototype v0.0, sans dependance ni compilation : sert de reference de taille
- * et de comportement avant le choix entre Preact et Lit.
+ * Prototype v0.0, without dependencies or build step: the size and behaviour
+ * reference before choosing between Preact and Lit.
  *
- * Chargee par la page /tf de la passerelle, qui fournit window.TASMOFLOW :
- *   { version, port, token, api, cdn, sri } ; l'interface y ajoute source ("github" ou "local")
+ * Loaded by the gateway's /tf page, which provides window.TASMOFLOW:
+ *   { version, port, token, api, cdn, sri }; the interface adds source ("github" or "local")
  */
 (function () {
   "use strict";
-  if (window.TASMOFLOW_STARTED) return;   // la copie GitHub et la copie locale peuvent arriver toutes les deux
+  if (window.TASMOFLOW_STARTED) return;   // the GitHub copy and the local copy may both arrive
   window.TASMOFLOW_STARTED = true;
 
   var T0 = performance.now();
   var cfg = window.TASMOFLOW;
-  // provenance reelle : la copie GitHub peut arriver apres le delai et la copie locale avant elle
+  // actual origin: the GitHub copy may arrive after the timeout, and the local copy before it
   var me = document.currentScript && document.currentScript.src;
   if (cfg && me) cfg.source = cfg.api && me.indexOf(cfg.api) === 0 ? "local" : "github";
   var root = document.getElementById("tasmoflow") || document.body;
 
-  // ---------------------------------------------------------------- textes
+  // ---------------------------------------------------------------- texts
   var TEXTS = {
     fr: {
       devices: "Appareils", events: "Événements", console: "Console", diag: "Diagnostic",
@@ -112,7 +112,7 @@
   }
   function cmd(c) { return get("/api/cmd", { c: c }); }
 
-  // ---------------------------------------------------------------- etat
+  // ---------------------------------------------------------------- state
   var state = {
     tab: "devices",
     status: null,
@@ -136,7 +136,7 @@
     }).catch(function (e) { state.error = e.message; render(); });
   }
 
-  // flux d'evenements (Server-Sent Events) sur le port de l'API
+  // event stream (Server-Sent Events) on the API port
   var es;
   function connectEvents() {
     if (es) es.close();
@@ -146,7 +146,7 @@
     es.onmessage = function (m) {
       var ev;
       try { ev = JSON.parse(m.data); } catch (e) { return; }
-      if (ev.seq <= state.lastSeq) return;      // deja recu avant une reconnexion
+      if (ev.seq <= state.lastSeq) return;      // already received before a reconnection
       state.lastSeq = ev.seq;
       state.events.unshift(ev);
       if (state.events.length > 100) state.events.pop();
@@ -158,14 +158,14 @@
           d.lastseen = 0;
           d.seenAt = Date.now();
         } else {
-          loadDevices();                            // appareil nouveau ou renomme
+          loadDevices();                            // new or renamed device
         }
       }
       if (state.tab === "devices" || state.tab === "events") renderMain();
     };
   }
 
-  // ---------------------------------------------------------------- rendu
+  // ---------------------------------------------------------------- rendering
   var header = h("header");
   var nav = h("nav", { "aria-label": "TasmoFlow" });
   var main = h("main", { "aria-live": "polite" });
@@ -218,7 +218,7 @@
     return (t("ago") ? t("ago") + " " : "") + u[0] + " " + t(u[1]);
   }
 
-  // attributs affiches en premier sur une carte
+  // attributes shown first on a card
   var MAIN_ATTRS = ["Power", "Dimmer", "Temperature", "Humidity", "Pressure", "Illuminance",
                     "Occupancy", "Contact", "Water", "Action", "Click", "BatteryPercentage"];
   function hasPower(d) { return Object.keys(d.attrs).some(function (k) { return /^Power\d*$/.test(k); }); }
@@ -297,7 +297,7 @@
     ]);
   }
 
-  // ---------------------------------------------------------------- demarrage
+  // ---------------------------------------------------------------- start
   render();
   Promise.all([loadStatus(), loadDevices()]).then(function () {
     state.startMs = performance.now() - T0;

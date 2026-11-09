@@ -24,20 +24,20 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Syntaxe JavaScript
+      - name: JavaScript syntax
         run: node --check app/app.js
 
-      - name: Syntaxe Berry
+      - name: Berry syntax
         run: |
           sudo apt-get install -y --no-install-recommends libreadline-dev
           git clone --depth 1 https://github.com/berry-lang/berry.git "$RUNNER_TEMP/berry"
           make -C "$RUNNER_TEMP/berry" -j"$(nproc)"
           "$RUNNER_TEMP/berry/berry" tools/check_syntax.be extension/*.be
 
-      - name: Assemblage de la .tapp et budgets de taille
+      - name: Build the .tapp and check size budgets
         run: python3 tools/pack_tapp.py
 
-      - name: Tests de bout en bout (Chromium, passerelle simulee)
+      - name: End-to-end tests (Chromium, simulated gateway)
         run: |
           npm install --no-save --no-package-lock playwright@1
           npx playwright install --with-deps chromium
@@ -63,17 +63,17 @@ jobs:
           name: tasmoflow
           path: dist/
 
-      - name: Le tag correspond au fichier VERSION
+      - name: Tag matches the VERSION file
         run: test "${GITHUB_REF_NAME#v}" = "$(cat VERSION)"
 
-      - name: Release GitHub avec TasmoFlow.tapp
+      - name: GitHub release with TasmoFlow.tapp
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" dist/TasmoFlow.tapp --title "TasmoFlow $GITHUB_REF_NAME" --generate-notes
 
-      # Branche gh-pages cumulative : chaque version reste publiee sous /vX.Y.Z/,
-      # car une passerelle pas encore mise a jour charge toujours sa propre version.
-      - name: Publication de l'interface sur GitHub Pages
+      # Cumulative gh-pages branch: every version stays published under /vX.Y.Z/,
+      # because a gateway not yet updated still loads its own version.
+      - name: Publish the interface on GitHub Pages
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

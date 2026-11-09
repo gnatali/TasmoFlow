@@ -1,5 +1,7 @@
 # Architecture de TasmoFlow (v0.0)
 
+*English version: [architecture.en.md](architecture.en.md)*
+
 Le prototype v0.0 garde le firmware intact : l'interface est une extension Berry
 (`.tapp`) qui ouvre un second serveur HTTP sur la passerelle. Le serveur principal de
 Tasmota ne permet pas d'ajouter des en-têtes depuis Berry, ce second serveur le permet.
@@ -223,7 +225,7 @@ Plan :
 Résultats du 6 novembre 2026 (passerelle avec le pilote Tuya), v0.0.1 avant le correctif
 du `Referer`. `[x]` validé, `[ ]` à faire ou à refaire.
 
-- [x] Copier `TasmoFlow.tapp` dans `/.extensions/` (ou `/`) et redémarrer : le journal affiche `TFL: TasmoFlow 0.0.1, API sur le port 8384`
+- [x] Copier `TasmoFlow.tapp` dans `/.extensions/` (ou `/`) et redémarrer : le journal affiche `TFL: TasmoFlow 0.0.1, API on port 8384` (`API sur le port 8384` dans la version testée le 6 novembre)
 - [x] Installer à chaud (`tasmota.load("/.extensions/TasmoFlow.tapp")` dans la console Berry) : le bouton et `/tf` répondent sans redémarrage
 - [x] Le bouton « TasmoFlow » apparaît dans le menu principal
 - [ ] Avec `WebPassword` défini, dans une fenêtre de navigation privée (sinon le navigateur renvoie le mot de passe déjà saisi pour Tasmota), `/tf` demande le mot de passe ; `curl -i "http://<passerelle>/tf?r=1"` répond `401 Unauthorized` (premier essai sans fenêtre privée : pas de demande)

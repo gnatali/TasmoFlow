@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Fausse passerelle pour developper l'interface sans materiel.
+"""Simulated gateway, to develop the interface without hardware.
 
-Imite les deux serveurs de l'extension :
-  - port --web (8080 par defaut) : page /tf, extraite telle quelle de
-    extension/tasmoflow.be pour tester le vrai chargeur ;
-  - port --api (8384 par defaut) : /app.js (gzip), /api/status, /api/devices,
-    /api/cmd et /api/events (SSE), avec les memes en-tetes CORS que tf_http.be.
+Mimics the extension's two servers:
+  - port --web (8080 by default): /tf page, extracted as is from
+    extension/tasmoflow.be to test the real loader;
+  - port --api (8384 by default): /app.js (gzip), /api/status, /api/devices,
+    /api/cmd and /api/events (SSE), with the same CORS headers as tf_http.be.
 
-Trois appareils Zigbee fictifs emettent des evenements toutes les 2 secondes.
+Three fake Zigbee devices send events every 2 seconds.
 
-Usage : python3 tools/pack_tapp.py --cdn '' && python3 tools/mock_gateway.py
-        puis ouvrir http://localhost:8080/tf
+Usage: python3 tools/pack_tapp.py --cdn '' && python3 tools/mock_gateway.py
+       then open http://localhost:8080/tf
 """
 
 import argparse
@@ -71,7 +71,7 @@ def simulator():
 
 
 def loader_html(api_port, cdn, sri):
-    """Recompose la page /tf a partir des chaines de page_tf() dans tasmoflow.be."""
+    """Rebuilds the /tf page from the strings of page_tf() in tasmoflow.be."""
     src = (ROOT / "extension" / "tasmoflow.be").read_text()
     body = src[src.index("def page_tf()"):]
     body = body[body.index("check_privileged_access"):]
@@ -139,7 +139,7 @@ class Api(BaseHTTPRequestHandler):
             self.json(403, {"error": "token"})
             return
         if u.path == "/api/status":
-            self.json(200, {"tasmoflow": (ROOT / "VERSION").read_text().strip(), "device_name": "ZB-GW03 (simulee)",
+            self.json(200, {"tasmoflow": (ROOT / "VERSION").read_text().strip(), "device_name": "ZB-GW03 (simulated)",
                             "firmware": {"Version": "16.0.0.2(zbgw03-matter)"}, "memory": {"heap_free": 62},
                             "ufs_size_kb": 320, "ufs_free_kb": 180, "uptime_s": int(time.monotonic()),
                             "zigbee": True, "zigbee_devices": len(DEVICES), "events_seq": seq, "feeds": 1,
@@ -183,7 +183,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--web", type=int, default=8080)
     p.add_argument("--api", type=int, default=8384)
-    p.add_argument("--cdn", default="", help="adresse de app.js a essayer avant la copie locale")
+    p.add_argument("--cdn", default="", help="address of app.js to try before the local copy")
     p.add_argument("--sri", default="")
     a = p.parse_args()
     web = ThreadingHTTPServer(("127.0.0.1", a.web), Web)
@@ -192,7 +192,7 @@ def main():
     api.daemon_threads = True
     threading.Thread(target=simulator, daemon=True).start()
     threading.Thread(target=api.serve_forever, daemon=True).start()
-    print(f"Passerelle simulee : http://localhost:{a.web}/tf (API sur le port {a.api})")
+    print(f"Simulated gateway: http://localhost:{a.web}/tf (API on port {a.api})")
     web.serve_forever()
 
 

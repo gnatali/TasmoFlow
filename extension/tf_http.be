@@ -1,11 +1,11 @@
-# tf_http.be - serveur HTTP asynchrone de TasmoFlow
+# tf_http.be - TasmoFlow's asynchronous HTTP server
 #
-# Copie de lib/libesp32/berry_tasmota/src/embedded/webserver_async.be (Tasmota, GPL-3.0,
+# Copy of lib/libesp32/berry_tasmota/src/embedded/webserver_async.be (Tasmota, GPL-3.0,
 # Stephan Hadinger & Theo Arends), commit b7994b52c47777ea3f125723f2ba5db6d3669397.
-# Le firmware compile cette classe mais ne l'expose pas en Berry : l'extension officielle
-# Leds Panel embarque elle aussi sa propre copie. Modifications : ajout de `import re`
-# ci-dessous (la classe initialise ses expressions regulieres a sa definition, et `re`
-# n'est pas un nom global en Berry) ; bloc de test final retire.
+# The firmware compiles this class but does not expose it to Berry: the official Leds
+# Panel extension also ships its own copy. Changes: `import re` added below (the class
+# builds its regular expressions when it is defined, and `re` is not a global name in
+# Berry); final test block removed.
 #
 
 import re
