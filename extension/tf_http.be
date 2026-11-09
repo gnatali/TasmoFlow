@@ -5,7 +5,9 @@
 # The firmware compiles this class but does not expose it to Berry: the official Leds
 # Panel extension also ships its own copy. Changes: `import re` added below (the class
 # builds its regular expressions when it is defined, and `re` is not a global name in
-# Berry); final test block removed.
+# Berry); final test block removed; RAM savings, this extension never needs them: chunked
+# encoding (`set_chunked`, always off here: responses are closed, not chunked), the
+# integer-to-text helpers `bytes_format_hex` and `bytes_append_int`.
 #
 
 import re
@@ -64,7 +66,6 @@ class webserver_async
     var header_host                                 # 'Host' header - useful for redirections
     # response
     var resp_headers                                # (string) aggregate headers
-    var chunked                                     # if true enable chunked encoding (default true)
     # conversion
     static var CODE_TO_STRING = {
       # 100: "Continue",
@@ -87,9 +88,7 @@ class webserver_async
     #  - server : main instance of `webserver_async` server
     #  - cnx : instance of `tcpclientasync`
     #
-    # By default:
-    #   version is HTTP/1.1
-    #   response is chunked-encoded
+    # Responses are never chunked-encoded: the connection is closed at the end
     def init(server, cnx)
       self.server = server
       self.cnx = cnx
@@ -101,18 +100,9 @@ class webserver_async
       self.close_after_send = false
       # response
       self.resp_headers = ''
-      self.chunked = true
       # register cb
       self.fastloop_cb = def () self.loop() end   # the closure needs to be kept, to allow removal of fast_loop later
       tasmota.add_fast_loop(self.fastloop_cb)
-    end
-
-    #############################################################
-    # set_chunked: sets whether the response is chunked encoded
-    #   true by default
-    #
-    def set_chunked(chunked)
-      self.chunked = bool(chunked)
     end
 
     #############################################################
@@ -379,10 +369,6 @@ class webserver_async
       self.send_header("Content-Type", content_type ? content_type : "text/html", true)
 
       self.send_header("Accept-Ranges", "none")
-      # chunked encoding?
-      if self.chunked
-        self.send_header("Transfer-Encoding", "chunked")
-      end
       # cors?
       if self.server.cors
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -406,33 +392,18 @@ class webserver_async
     #############################################################
     # write: writes a bytes or string piece of content
     #
-    # If chunked encoding is enabled, it is sent as a separate chunk
-    #
-    # If content is empty, it can be sent as an empty chunk
-    # which is an indicator of end-of-content
+    # If content is empty, nothing is sent
     #
     def write(v)
       if type(v) == 'string'          # if string, convert to bytes
         v = bytes().fromstring(v)
       end
 
-      # use chunk encoding
-      if self.chunked
-        var p1 = self.server.p1
-        p1.clear()
-        p1.append(f"{size(v):X}\r\n")
-        p1.append(v)
-        p1.append("\r\n")
-
-        # log(f"WEB: sending chunk '{p1.tohex()}'")
-        self._write(p1)
-      else
-        self._write(v)
-      end
+      self._write(v)
     end
 
     #############################################################
-    # write_raw: low-level write of string or bytes (without chunk encoding)
+    # write_raw: low-level write of string or bytes
     #
     # If content is empty, nothing is sent
     #
@@ -450,7 +421,6 @@ class webserver_async
     # content_stop: signal that the response is finished
     #
     def content_stop()
-      self.write('')                  # send 'end-of-content' for chunked encoding
       self.close_after_send = true    # close connection when everything was sent to client
     end
   end
@@ -529,11 +499,7 @@ class webserver_async
   # var auth                                        # web authentication string (Basic Auth) or `nil`, in format `user:password` as bade64
   # var cmd                                         # GET url command
   var dispatchers
-  # copied in each connection
-  var chunked                                     # if true enable chunked encoding (default true)
   var cors                                        # if true send CORS headers (default false)
-  #
-  var p1                                          # temporary object bytes() to avoid reallocation
 
   # static var TIMEOUT = 1000                       # default timeout: 1000ms
 
@@ -555,9 +521,7 @@ class webserver_async
     self.connections = []
     self.dispatchers = []
     self.server = tcpserver(port)                 # throws an exception if port is not available
-    self.chunked = true
     self.cors = false
-    self.p1 = bytes(100)              # reserve 100 bytes by default
     # TODO what about max_clients ?
     # register cb
     tasmota.add_driver(self)
@@ -566,78 +530,9 @@ class webserver_async
   end
 
   #############################################################
-  # enable or disable chunked mode (enabled by default)
-  def set_chunked(chunked)
-    self.chunked = bool(chunked)
-  end
-
-  #############################################################
   # enable or disable CORS mode (enabled by default)
   def set_cors(cors)
     self.cors = bool(cors)
-  end
-
-  #############################################################
-  # Helper function to encode integer as hex (uppercase)
-  static def bytes_format_hex(b, i, default)
-    b.clear()
-    if (i == nil)   b .. default    return  end
-    # sanity check
-    if (i < 0)    i = -i    end
-    if (i < 0)    return    end     # special case for MININT
-    if (i == 0)   b.resize(1)   b[0] = 0x30   return  end   # return bytes("30")
-
-    b.resize(8)
-    var len = 0
-    while i > 0
-      var digit = i & 0x0F
-      if (digit < 10)
-        b[len] = 0x30 + digit
-      else
-        b[len] = 0x37 + digit # 0x37 = 0x41 ('A') - 10
-      end
-      len += 1
-      i = (i >> 4)
-    end
-    # reverse order
-    b.resize(len)
-    b.reverse()
-  end
-
-  #############################################################
-  # Helper function to encode integer as int
-  static def bytes_append_int(b, i, default)
-    var sz = size(b)
-    if (i == 0)         # just append '0'
-      b.resize(sz + 1)
-      b[sz] = 0x30
-    elif (i != nil)     # we have a non-zero value
-      var negative = false
-      # sanity check
-      if (i < 0)    i = -i    negative = true   end
-      if (i < 0)    return b   end     # special case for MININT
-  
-      if negative
-        b.resize(sz + 1)
-        b[sz] = 0x2D
-        sz += 1
-      end
-  
-      var start = sz
-      while i > 0
-        var digit = i % 10
-        b.resize(sz + 1)
-        b[sz] = 0x30 + digit
-        sz += 1
-        i = (i / 10)
-      end
-      # reverse order starting where the integer is
-      b.reverse(start)
-
-    else                # i is `nil`, append default
-      b.append(default)
-    end
-    return b
   end
 
   #############################################################
@@ -681,9 +576,7 @@ class webserver_async
     # check if any incoming connection
     while self.server.hasclient()
       # retrieve new client
-      var cnx = self.webserver_async_cnx(self, self.server.acceptasync())
-      cnx.set_chunked(self.chunked)
-      self.connections.push(cnx)
+      self.connections.push(self.webserver_async_cnx(self, self.server.acceptasync()))
     end
   end
 

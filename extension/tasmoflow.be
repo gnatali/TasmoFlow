@@ -3,16 +3,23 @@
 #
 # SPDX-License-Identifier: GPL-3.0-only
 ###################################################################################
-# Prototype v0.0. Two servers:
+# Two servers:
 #
 # - port 80, Tasmota's web server: "TasmoFlow" button in the main menu and /tf page,
-#   protected by the web password, which loads the interface from GitHub Pages
-#   (pinned version, SRI hash) or, failing that, from the local copy.
+#   protected by the web password, which loads the full interface from GitHub Pages
+#   (pinned version, SRI hash) or, failing that, the light interface kept in the .tapp.
 #
 # - port 8384, Berry asynchronous server (tf_http.be): JSON API, event stream
-#   (Server-Sent Events) and local copy of the interface. The main server cannot add
+#   (Server-Sent Events) and light interface. The main server cannot add
 #   HTTP headers from Berry (neither CORS nor Content-Encoding): this second port can,
 #   without rebuilding the firmware.
+#
+# RAM is the critical resource (no PSRAM): the port 8384 server only runs while an
+# interface is open. The /tf page starts it, and so does /tf?w=1 (without password and
+# without any data: it only starts the server, so that another gateway's interface can
+# reach this one). It stops after IDLE_MS without a request or an open event stream.
+# tf_http.be is only compiled when the server starts (loaded without cache, so it is freed
+# when the server stops), and events are only kept while the server runs.
 #
 # The API routes require the `t` token, created at first start and only handed out
 # by the /tf page.
@@ -23,11 +30,10 @@
 import webserver
 import string
 import json
-import tf_http
 
 #################################################################################
-# Sends a file in 1 KB chunks, at the client's pace: the local copy of the interface
-# (about 100 KB) must never be loaded into RAM in one go.
+# Sends a file in 1 KB chunks, at the client's pace: a file of the .tapp must never be
+# loaded into RAM in one go.
 #################################################################################
 class tf_streamer
   var cnx, f, cb
@@ -63,6 +69,7 @@ class tasmoflow
   static var CDN = "@@CDN@@"            # GitHub Pages address ('' = local copy only)
   static var SRI = "@@SRI@@"            # SRI hash (sha384) of app.js
   static var PORT = 8384
+  static var IDLE_MS = 300000           # API server stopped after 5 minutes without a client
   static var MAX_EVENTS = 50            # events kept for clients that reconnect
   static var MAX_FEEDS = 3              # event streams open at the same time
 
@@ -73,6 +80,7 @@ class tasmoflow
   var seq
   var feeds                             # open SSE connections
   var ping
+  var idle_at                           # millis() after which an unused API server stops
   var routes_added
 
   def init()
@@ -81,28 +89,18 @@ class tasmoflow
     self.seq = 0
     self.feeds = []
     self.ping = 0
+    self.idle_at = 0
     self.routes_added = false
     self.token = self.load_token()
 
-    var zb = self.zb()
-    if zb != nil    zb.add_handler(self)    end
     tasmota.add_driver(self)
-
-    if tasmota.is_network_up()
-      self.init_network()
-      # extension installed while running: Tasmota will not send web_add_handler again
-      if webserver.state() != 0   self.web_add_handler()   end
-    else
-      tasmota.when_network_up(/ -> self.init_network())
-    end
+    # extension installed while running: Tasmota will not send web_add_handler again
+    if webserver.state() != 0   self.web_add_handler()   end
+    log(f"TFL: TasmoFlow {self.VERSION}, API on port {self.PORT} once an interface is opened", 2)
   end
 
   def unload()
-    var zb = self.zb()
-    if zb != nil    zb.remove_handler(self)    end
-    for f: self.feeds   f.close()   end
-    self.feeds = []
-    if self.web != nil    self.web.close()    self.web = nil    end
+    self.stop_api()
     if self.routes_added    webserver.remove_route("/tf", webserver.HTTP_GET)    end
     tasmota.remove_driver(self)
   end
@@ -177,6 +175,7 @@ class tasmoflow
 
   # returns the decoded query, or nil (and answers 403) if the token is missing
   def authorized(cnx, uri)
+    self.touch()
     var q = self.parse_query(uri)
     if q.find('t') == self.token    return q    end
     self.send_json(cnx, 403, '{"error":"token"}')
@@ -197,6 +196,14 @@ class tasmoflow
   end
 
   def page_tf()
+    # /tf?w=1: wakes the API server for another gateway's interface (opaque request, no data)
+    if webserver.has_arg("w")
+      self.start_api()
+      webserver.content_open(200, "text/plain")
+      webserver.content_send("ok")
+      webserver.content_close()
+      return
+    end
     # Tasmota refuses a protected page without a Referer header (typed address, bookmark)
     # and then sends nothing back. Without a Referer, answer with a page that reloads
     # itself: the browser then adds the Referer. `r=1` avoids a loop if the browser never
@@ -211,6 +218,7 @@ class tasmoflow
       return
     end
     if !webserver.check_privileged_access()   return nil   end
+    self.start_api()
     var cfg = {
       'version': self.VERSION,
       'port': self.PORT,
@@ -236,7 +244,7 @@ class tasmoflow
           's.onload=function(){clearTimeout(t);};s.onerror=onerr;'
           'document.head.appendChild(s);}'
         'function local(){if(fell)return;fell=true;clearTimeout(t);'
-          'add(c.api+"/app.js","",function(){'
+          'add(c.api+"/lite.js","",function(){'
             'box.textContent="TasmoFlow: interface not found (port "+c.port+")";});}'
         'if(c.cdn){add(c.cdn,c.sri,local);t=setTimeout(local,3000);}'
         'else{local();}'
@@ -246,33 +254,82 @@ class tasmoflow
   end
 
   #################################################################################
-  # Port 8384: API
+  # Port 8384: API, started on demand
   #################################################################################
-  def init_network()
-    if self.web != nil    return    end
+  def touch()
+    self.idle_at = tasmota.millis(self.IDLE_MS)
+  end
+
+  # Tasmota only keeps the .tapp folder in sys.path while it loads the extension, then removes
+  # it: a later `import tf_http` fails ("module not found") unless the folder is added back.
+  # Never raises: an error here must not stop /tf from answering (Tasmota then sends nothing,
+  # and the browser shows ERR_EMPTY_RESPONSE).
+  def load_tf_http()
+    import sys
+    var path = sys.path()
+    var added = path.find(self.wd) == nil
+    if added    path.push(self.wd)    end
+    var cls = nil
+    try
+      # not cached (like autoexec.be does for this extension): a cached module stays in RAM for
+      # good, an uncached one is freed by tasmota.gc() once stop_api() dropped every reference
+      import introspect
+      cls = introspect.module('tf_http', true)
+    except .. as e, m
+      log(f"TFL: cannot load tf_http.be from '{self.wd}' ({e} {m})", 1)
+    end
+    var i = path.find(self.wd)
+    if added && i != nil    path.remove(i)    end
+    return cls
+  end
+
+  def start_api()
+    self.touch()
+    if self.web != nil || !tasmota.is_network_up()   return   end
+    var tf_http = self.load_tf_http()   # compiled here, the first time: no RAM before
+    if tf_http == nil    return    end
     try
       self.web = tf_http(self.PORT)
     except .. as e, m
       log(f"TFL: port {self.PORT} unavailable ({e} {m})", 1)
       return
     end
-    self.web.set_chunked(false)
     self.web.set_cors(true)
-    self.web.on("/app.js", self, self.send_app)
+    self.web.on("/lite.js", self, self.send_lite)
     self.web.on("/api/status", self, self.api_status)
     self.web.on("/api/devices", self, self.api_devices)
     self.web.on("/api/cmd", self, self.api_cmd)
     self.web.on("/api/events", self, self.api_events)
-    log(f"TFL: TasmoFlow {self.VERSION}, API on port {self.PORT}", 2)
+    var zb = self.zb()
+    if zb != nil    zb.add_handler(self)    end
+    # state changes of the firmware's Tuya driver ({"Tuya":{"Name":...,"Dps":{...}}}); the
+    # callback must be a closure, not a method, and the id lets stop_api() remove only ours
+    tasmota.add_rule("Tuya", / v -> self.tuya_event(v), 'tasmoflow')
+    log(f"TFL: API server started on port {self.PORT}", 2)
   end
 
-  # local copy of the interface, stored gzipped in the .tapp
-  def send_app(cnx, uri, verb)
+  def stop_api()
+    if self.web == nil    return    end
+    var zb = self.zb()
+    if zb != nil    zb.remove_handler(self)    end
+    tasmota.remove_rule("Tuya", 'tasmoflow')
+    for f: self.feeds   f.close()   end
+    self.feeds = []
+    self.events = []
+    self.web.close()
+    self.web = nil
+    tasmota.gc()                        # frees the compiled tf_http class
+    log("TFL: API server stopped", 2)
+  end
+
+  # light interface, stored gzipped in the .tapp (the full one only lives on GitHub Pages)
+  def send_lite(cnx, uri, verb)
+    self.touch()
     var f
     try
-      f = open(self.wd + "app.js.gz", "rb")
+      f = open(self.wd + "lite.js.gz", "rb")
     except ..
-      cnx.send(404, "text/plain", "app.js.gz missing")
+      cnx.send(404, "text/plain", "lite.js.gz missing")
       cnx.content_stop()
       return
     end
@@ -374,14 +431,23 @@ class tasmoflow
   #################################################################################
   # called by zigbee.dispatch() for each decoded message
   def attributes_final(event_type, frame, attr_list, idx)
-    if attr_list == nil   return   end
+    if attr_list == nil || self.web == nil   return   end
     var zb = self.zb()
     var d = zb != nil ? zb.find(idx) : nil
     var name = d != nil ? d.name : nil
     self.push_event("zigbee", format('"device":"0x%04X","name":%s,"attrs":%s', idx, json.dump(name), str(attr_list)))
   end
 
+  # Tuya driver rule: v is {"Name": device, "Dps": {dp: value}}
+  def tuya_event(v)
+    if self.web == nil || !isinstance(v, map)   return   end
+    var dps = v.find('Dps')
+    if !isinstance(dps, map)   return   end
+    self.push_event("tuya", format('"name":%s,"dps":%s', json.dump(v.find('Name')), json.dump(dps)))
+  end
+
   def every_second()
+    if self.web == nil    return    end
     var i = 0
     while i < size(self.feeds)
       if !self.feeds[i].connected()
@@ -389,6 +455,12 @@ class tasmoflow
       else
         i += 1
       end
+    end
+    if size(self.feeds) > 0
+      self.touch()                      # an open interface keeps the server alive
+    elif tasmota.time_reached(self.idle_at)
+      self.stop_api()
+      return
     end
     self.ping += 1
     if self.ping >= 15                  # SSE comment: keeps connections open

@@ -26,3 +26,15 @@ paths:
   uncompressed zip (`tools/pack_tapp.py`).
 - More pitfalls of Berry under Tasmota (strict mode, solidification, 32-bit integers): see the
   firmware repository's `.claude/rules/berry-pitfalls.md`.
+- A `.tapp`'s folder is in `sys.path` **only while Tasmota loads it** (`tasmota.load()` pushes
+  then pops it, and resets `tasmota.wd`). An `import` of one of its files at run time (inside a
+  method, after load) raises "module not found": push `self.wd` onto `sys.path()` around it
+  (`load_tf_http()`). The simulated gateway cannot catch this.
+- An exception in a `webserver.on` handler makes Tasmota send nothing (browser:
+  `ERR_EMPTY_RESPONSE`): catch everything that can fail before the page is sent.
+- Uploading a new `.tapp` does not reload the running extension: restart (`Restart 1`) before
+  testing, and never keep a `TasmoFlow.tapp` in both `/.extensions/` and `/` (both are loaded,
+  the first one keeps `/tf` and port 8384). Every build shows the same `VERSION` in the header
+  until a release is tagged, so an old build is easy to mistake for the new one: the banner of
+  the light interface, `curl "http://<gateway>/tf?w=1"` answering `ok` and the boot log line
+  `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` tell them apart.

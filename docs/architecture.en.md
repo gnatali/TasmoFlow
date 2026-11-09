@@ -1,10 +1,10 @@
-# TasmoFlow architecture (v0.0)
+# TasmoFlow architecture
 
 *Version française : [architecture.fr.md](architecture.fr.md)*
 
-The v0.0 prototype leaves the firmware untouched: the interface is a Berry extension
-(`.tapp`) that opens a second HTTP server on the gateway. Tasmota's main server cannot add
-headers from Berry; this second server can.
+TasmoFlow leaves the firmware untouched: the interface is a Berry extension (`.tapp`) that
+opens a second HTTP server on the gateway. Tasmota's main server cannot add headers from Berry;
+this second server can.
 
 The findings below come from Tasmota's source code, `development` branch, commit
 `b7994b52c47777ea3f125723f2ba5db6d3669397` (5 November 2026). They are being checked on a
@@ -15,11 +15,30 @@ real ZB-GW03 (see the [test plan](#test-plan-on-the-gateway)).
 | Port | Server | Role |
 | --- | --- | --- |
 | 80 | Tasmota's web server | "TasmoFlow" button in the main menu, `/tf` page protected by the web password |
-| 8384 | `tf_http.be`, Berry asynchronous server | JSON API, event stream, local copy of the interface; CORS and `Content-Encoding` headers |
+| 8384 | `tf_http.be`, Berry asynchronous server | JSON API, event stream, light interface; CORS and `Content-Encoding` headers; [only while an interface is open](#api-server-on-demand) |
 
 The `/tf` page gives the interface the API address and a 128-bit token, created at first
 start and kept in `persist`. Every `/api/*` route requires this token (`t` parameter); only
-`/app.js` is public.
+`/lite.js` is public.
+
+### API server on demand
+
+RAM is the critical resource, so the port 8384 server (`tf_http.be`) is not started at boot
+(v0.1):
+
+- `/tf`, once the password check has passed, starts it. `tf_http.be` is compiled at that moment
+  (`load_tf_http()`, `introspect.module('tf_http', true)`: loaded **without cache**, so
+  `tasmota.gc()` frees it when the server stops): no RAM is spent while no interface is open.
+  A plain `import` would cache the module for good, and fails at run time anyway: Tasmota only
+  keeps the `.tapp` folder in `sys.path` while it loads the extension, so `load_tf_http()` adds
+  it back around the call.
+- `/tf?w=1` also starts it, **without password and without returning any data**. It lets an
+  interface open on another gateway wake this one (see [Several gateways](#several-gateways));
+  the API itself still requires the token.
+- The server stops after 5 minutes (`IDLE_MS`) without a request and without an open event
+  stream. Events and the Zigbee and Tuya handlers only exist while it runs.
+- An open interface whose event stream drops calls `/tf?w=1` again (at most every 10 s), which
+  covers a gateway restart.
 
 ### Access to the `/tf` page
 
@@ -45,12 +64,28 @@ reloads itself when the header is missing.
 Consequences:
 
 - **Several gateways**: an interface opened on gateway A can call gateway B's API, since
-  port 8384 sends `Access-Control-Allow-Origin: *`. It needs B's token, copied once from B's
-  interface (planned for v0.1).
-- **Compressed local copy**: served with `Content-Encoding: gzip`, the browser decompresses
-  it itself.
+  port 8384 sends `Access-Control-Allow-Origin: *`. It needs B's token (see below).
+- **Compressed light interface**: served with `Content-Encoding: gzip`, the browser
+  decompresses it itself.
 - **Real time**: `/api/events` keeps the connection open and pushes each Zigbee message as
   soon as it arrives, without polling.
+
+### Several gateways
+
+The interface's **Gateways** screen (v0.1):
+
+- **This gateway**: a link `address:port#token` (the token is masked until shown), to copy and
+  paste into another gateway's interface. The copy falls back to `execCommand` because the
+  Clipboard API needs a secure context, which `http://<gateway>` is not.
+- **Other gateways**: name, address and token kept in the browser (`localStorage` of the page's
+  address: a list is per address, IP or name, used to reach the gateway). Test, use and remove.
+  The header gets a selector as soon as one is saved.
+- Switching gateway closes the event stream, clears the devices and reloads everything from the
+  other API. B's server may be stopped: the interface first sends `/tf?w=1` to B's port 80
+  (an opaque `no-cors` request: only its effect matters), then retries `/api/status` for 5 s.
+- Port 80 is assumed for the main server of the other gateways.
+- Tokens are not secrets between gateways of the same administrator, but they stay out of the
+  interface unless asked for, and out of `/api/status`.
 
 ## Loading the interface
 
@@ -58,21 +93,66 @@ Consequences:
 2. The page loads `https://gnatali.github.io/TasmoFlow/vX.Y.Z/app.js` with the SRI hash
    computed at build time. An HTTP page may load an HTTPS script.
 3. If GitHub does not answer within 3 s, or if the hash does not match, the page loads
-   `http://<gateway>:8384/app.js`, the gzipped copy held in the `.tapp`.
+   `http://<gateway>:8384/lite.js`, the **light interface** held, gzipped, in the `.tapp`. It
+   says so in a banner and offers to retry.
 4. If both fail, the page says so.
 
 The script guards against starting twice: the GitHub copy may arrive after the timeout, when
-the local copy is already running.
+the light interface is already running.
+
+### Full interface on GitHub, light interface on the gateway
+
+Decision of 9 November 2026 (option B of the analysis; it replaces "the same full copy in both
+places" of v0.0):
+
+| | Full interface (`dist/app.js`) | Light interface (`dist/lite.js`) |
+| --- | --- | --- |
+| Where | GitHub Pages only, `vX.Y.Z/`, pinned by the `.tapp` with its SRI hash | In the `.tapp` as `lite.js.gz`, served on port 8384 |
+| Used | Normally | When the browser cannot reach GitHub (no internet, GitHub down, wrong hash) |
+| Content | Everything: devices, events, console, Gateways, and later rules, sentence editor, scenes, administration | Devices (Zigbee and Tuya, switches, sliders, pairing), console, diagnostics, French and English |
+| Source | `app/src/main.js` | `app/src/main_lite.js`: same code, fewer tabs (`boot.js`) |
+| Budget (gzipped) | 120 KB | 25 KB |
+
+Light interface, planned for v0.2: enable or disable a rule and restore the previous copy of a
+rule, so that rules stay manageable without GitHub. Never in the light interface: sentence
+editor, groups, scenes, Zigbee plugins, administration (OTA), several gateways.
+
+Why:
+
+- The **browser**, not the gateway, needs internet to load the full interface. Rules and
+  automations run on the gateway: without internet nothing stops, only editing is unavailable.
+  Tasmota's own pages stay the last resort (Zigbee list, console, `/tuya`, Matter).
+- **File system**: `UfsFree` was 148 KB of 320 KB (9 November 2026), and the full interface
+  will grow (rule and sentence editor, scenes, administration). A full local copy would eat the
+  room that rule backups (copy before every write), `tuya.json.bak` and imports need.
+- **Not unpinned**: the full interface stays pinned to the installed version with its SRI hash.
+  An unpinned interface would run whatever GitHub serves in a browser holding the gateway's
+  token and full control of Tasmota. Updating it still means a new `.tapp`. A later "update the
+  interface" button could write the new version and its hash to `persist` after the user's
+  approval, which would decouple the two while keeping SRI (the full interface would then have
+  to stay compatible with older APIs).
+- **Kept local, light**: GitHub (account, Pages, repository) must not be a single point of
+  failure for controlling the gateway.
+- The light interface is another entry point of the same sources, so no second code base:
+  same API client, same Tuya model, same texts. Today it is only 1 KB smaller (13.7 against
+  14.9 KB gzipped); the gap grows with the full interface.
+- The full interface cannot be moved to `https://gnatali.github.io` to manage gateways from
+  one place: an HTTPS page calling `http://<gateway>` is blocked (mixed content, Private
+  Network Access). It must stay loaded by the gateway's HTTP page.
+- Users who want no GitHub at all (`pack_tapp.py --cdn ''`) only get the light interface.
 
 ## Port 8384 API
 
 | Route | Response |
 | --- | --- |
-| `GET /app.js` | Local copy of the interface (gzip), sent in 1 KB chunks |
+| `GET /lite.js` | Light interface (gzip), sent in 1 KB chunks |
 | `GET /api/status?t=` | Versions, free memory, file system, Zigbee state, number of devices |
 | `GET /api/devices?t=` | Zigbee devices: address, name, model, manufacturer, LQI, battery, last message, last attributes |
 | `GET /api/cmd?t=&c=` | Runs a Tasmota command (`c`, encoded) and returns its JSON response |
 | `GET /api/events?t=&since=` | SSE stream; first sends the kept events after `since` (50 at most) |
+
+Events carry a sequence number and a `type`: `zigbee` (`device`, `name`, `attrs`) and `tuya`
+(`name`, `dps`, from the driver's `Tuya` rule).
 
 The asynchronous server only handles `GET`: commands go in the address. A `GET` request
 without custom headers does not trigger an `OPTIONS` preflight request.
@@ -175,6 +255,38 @@ EF00/0204=0001/0021,mul:2
 TasmoFlow (v0.3) will report the raw DPs, offer a plugin from Tasmota's library or build one
 with a mapping editor, then load it (`ZbLoad`).
 
+### In the interface (v0.1)
+
+`loadTuya()` runs after the Zigbee devices, one command at a time (each loads driver data):
+
+1. `TuyaEnable`: no `TuyaEnable` key in the answer (`{"Command":"Unknown"}`) means no driver;
+   `Enabled: false` means disabled; any `State` other than `running` is shown as waiting. In
+   the first two cases **no Tuya screen is shown**.
+2. `TuyaStatus`: every device and sub-device (name, `Connected`, `Ip`, `Version`, `Dps`).
+3. `/api/status`, then `TuyaConfig` **only if at least 32 KB are free** (the driver refuses
+   below 30 KB, and `TuyaConfig` loads the whole `tuya.json`). Otherwise the cards fall back to
+   toggles for the boolean DPs and say so.
+
+Changes arrive through the event stream: the extension adds a Berry rule
+`tasmota.add_rule("Tuya", closure, 'tasmoflow')` while its server runs (a closure, because
+`check_not_method` refuses methods; the id lets `remove_rule` remove only TasmoFlow's rule;
+`tasmota_class.be`). Its value is the `{"Name","Dps"}` map itself.
+
+Controls come from the Matter bindings of `tuya.json` (`controlsFor` in `app/src/tuya_model.js`):
+
+| Binding `type` | Controls |
+| --- | --- |
+| `relay`, `relay_power` | switch on `dp` (default 1); `relay_power`: power, voltage, current readings (`dp_power`, `div_power`...) |
+| `light0` to `light3` | switch on `dp` (default 20); `light1`+: dimmer on `dp_bri` (22, `bri_min` 10 to `bri_max` 1000, shown 0-100 %); `light2`: colour temperature on `dp_ct` (23, 0-1000) |
+| `fan` | switch on `dp` (60) and speed on `dp_speed` (62, `speed_min` 1 to `speed_max` 6) |
+| `temp`, `humidity` | reading on `dp`, divided by `div` (10) |
+| `sensors` (device) | one reading per label: `[dp, divisor, unit]` |
+| none | `toggle` on each boolean DP |
+
+`TuyaSend <device>,<dp>,toggle` flips a switch; sliders send the raw value. The state shown is
+the one reported back by the device (no optimistic display). The colour of `light3` is not
+offered yet. Device names containing a comma cannot be addressed by `TuyaSend`.
+
 ### Memory
 
 The driver waits for **45 KB free** to start, and requires **30 KB** to modify `tuya.json`,
@@ -189,9 +301,25 @@ these actions. Measured on a gateway running both the driver and TasmoFlow, each
 | Interface open | 65 KB | 48 KB | 19 KB |
 
 The first readings of 6 November, without `tasmota.gc()` (90.4, 66.1 then 60.6 KB), counted
-garbage that Berry had not collected yet. TasmoFlow is 2 to 4 KB above its 15 KB target: v0.1
-only starts the port 8384 server while the interface is open, and removes the unused code of
-`tf_http.be`.
+garbage that Berry had not collected yet. TasmoFlow was 2 to 4 KB above its 15 KB target. v0.1 starts the port 8384 server only while an
+interface is open, compiles `tf_http.be` at that moment, records events only while it runs, and
+removes the unused code of `tf_http.be` (chunked encoding, two helpers). Measured on 9 November
+2026 after `tasmota.gc()`, against the same 84 KB / 25 KB baseline:
+
+| Moment | Free heap | Berry `HeapUsed` | TasmoFlow cost |
+| --- | --- | --- | --- |
+| v0.1, extension loaded (API server not started) | 75 KB | 35 KB | **9 KB** |
+| v0.1, interface open (cached `import`) | 63 KB | 48 KB | 21 KB |
+| v0.1, interface open (uncached loading) | 59 KB | 48 KB | 25 KB |
+| v0.1, 5 minutes after closing it (`TFL: API server stopped`) | 69 KB | 39 KB | **15 KB** |
+
+At rest the 15 KB target is met (17 KB before). With an interface open the cost is 2 to 6 KB
+above v0.0: `tf_http.be` compiled (about 12 KB) plus the server; the free heap also depends on
+the connections open at that moment. The uncached loading works: after the server stops, 10 KB
+of the 16 KB added come back (Berry: 9 of 13 KB). **About 6 KB (Berry: 4 KB) stay allocated**
+compared with the state before the first opening; the cause is not identified yet (see
+`docs/tracking.en.md`). After the first use the cost is 15 KB, right on the target. `UfsFree` was
+148 KB of 320 KB on the same gateway.
 
 ### What TasmoFlow does not do
 
@@ -230,22 +358,30 @@ Plan:
 
 ## Test plan on the gateway
 
-Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `[ ]` to do. v0.0 is complete: the only open check belongs to v0.1.
+Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `[ ]` to do. v0.0 is complete; the open checks below belong to v0.1.
 
 - [x] Copy `TasmoFlow.tapp` to `/.extensions/` (or `/`) and restart: the log shows `TFL: TasmoFlow 0.0.1, API on port 8384` (`API sur le port 8384` in the version tested on 6 November)
 - [x] Install while running (`tasmota.load("/.extensions/TasmoFlow.tapp")` in the Berry console): the button and `/tf` answer without a restart
 - [x] The "TasmoFlow" button appears in the main menu
 - [x] With `WebPassword` set, in a private window (otherwise the browser sends the password already entered for Tasmota), `/tf` asks for the password; `curl -i "http://<gateway>/tf?r=1"` answers `401 Unauthorized`
 - [x] `http://<gateway>/tf` typed in the address bar (without the button) opens the interface
-- [x] Without internet access, `/tf` loads the local copy (Diagnostics tab: "local")
-- [x] `open(tasmota.wd + "app.js.gz", "rb")` reads the file inside the `.tapp`, and the browser decompresses the local copy
+- [x] Without internet access, `/tf` loads the local copy (Diagnostics tab: "local"); since v0.1 this copy is the light interface (banner, header "· lite"), to check again
+- [x] `open(tasmota.wd + "app.js.gz", "rb")` reads the file inside the `.tapp`, and the browser decompresses the local copy (`lite.js.gz` since v0.1)
+- [ ] v0.1: with the browser offline (or `gnatali.github.io` blocked), `/tf` shows the light interface: devices with toggles, console and diagnostics work, the Gateways and Events tabs are absent, "Retry" loads the full interface once GitHub answers
 - [x] The device list matches `ZbStatus1`
 - [x] A Zigbee button press shows up in the Events tab within 2 s
 - [x] "Toggle" switches a light on and off; "Pair" opens pairing for 60 s
 - [x] Memory, each time after `tasmota.gc()` in the Berry console: 84 KB free before installation, 67 KB with the extension loaded, 65 KB with the interface open, i.e. 17 then 19 KB (target: 15 KB, see [Memory](#memory))
 - [x] Two tabs open plus a third: the gateway stays stable (3 Chrome tabs and 1 Android)
-- [ ] An interface opened on gateway A reads gateway B's `/api/status` (B's token; screen planned for v0.1)
+- [ ] An interface opened on gateway A reads gateway B's `/api/status` (B's token, Gateways screen); with B's API server stopped, the screen wakes it through `/tf?w=1`
 - [x] With GitHub Pages enabled (tag `v0.0.1`), `/tf` loads the GitHub copy (header: "v0.0.1 · github")
 - [x] Chrome, Firefox, Safari on iPhone: the interface loads and the event stream stays open
 - [x] Matter keeps working (Google Home still controls its devices)
 - [x] The Tuya driver still starts at boot with TasmoFlow installed (`TuyaEnable`: `"State":"running"`)
+- [x] v0.1: after a restart, port 8384 does not answer until `/tf` is opened; the log shows `TFL: API server started on port 8384`, then `TFL: API server stopped` 5 minutes after the last tab is closed, and `/tf` starts it again (the port can be listened to again)
+- [ ] v0.1: `curl "http://<gateway>/tf?w=1"` answers `ok` without a password and starts the server
+- [ ] v0.1: the Tuya cards match `TuyaStatus`; a switch, a dimmer and a fan speed act on the real devices; a change made on a device (button, Smart Life) reaches the interface within 2 s
+- [ ] v0.1: with the Tuya driver disabled (`TuyaEnable 0`) or absent, the Tuya section is hidden
+- [x] v0.1: memory at rest after `tasmota.gc()`: 75 KB free, Berry 35 KB, i.e. 9 KB (target 15 KB); with an interface open 63 KB / 48 KB (cached `import`, see [Memory](#memory))
+- [x] v0.1: with the uncached loading, the memory partly returns 5 minutes after the last tab is closed: 59 KB free / Berry 48 KB with the interface open, 69 KB / 39 KB after (75 KB / 35 KB before the first opening)
+- [ ] v0.1: find what stays allocated after the first opening (6 KB free heap, 4 KB Berry), and check that `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)
