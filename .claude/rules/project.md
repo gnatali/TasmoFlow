@@ -41,7 +41,8 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
 - `main` is protected: **changes go through a pull request**. Work on a branch, push it, open a
   PR when Guillaume asks.
 - This environment cannot push tags (HTTP 403): Guillaume creates release tags `vX.Y.Z` (equal to
-  `VERSION`) on `main`; the workflow then publishes the release and GitHub Pages.
+  `VERSION`) on `main`, with git or by publishing a release with a new tag on github.com; the
+  workflow then creates (or completes) the release and publishes GitHub Pages.
 - Before pushing: `npm run build` (interface, `app/src/` to `dist/app.js`), `node --check` on `dist/app.js` and `dist/lite.js`,
   `python3 tools/pack_tapp.py` (size budgets), `node tests/e2e.js` (Playwright, simulated
   gateway; it builds first). CI also checks the Berry syntax: this environment cannot compile
