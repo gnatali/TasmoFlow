@@ -123,6 +123,11 @@ TasmoFlow gère trois familles d'appareils : Zigbee, Tuya Zigbee appairé à la 
 dans une release et l'interface sous `https://gnatali.github.io/TasmoFlow/vX.Y.Z/`. Les
 versions précédentes restent en ligne.
 
+Créer le tag soit avec git (`git tag vX.Y.Z origin/main && git push origin vX.Y.Z` : le
+workflow crée la release), soit sur github.com par **Releases → Draft a new release → Choose a
+tag → Create new tag** sur `main`, puis **Publish release** (le workflow joint `TasmoFlow.tapp`
+à cette release). GitHub n'a pas d'écran pour créer un tag sans release.
+
 Au premier tag, activer GitHub Pages une fois : **Settings → Pages → Build and deployment →
 Deploy from a branch**, branche `gh-pages`, dossier `/ (root)`.
 

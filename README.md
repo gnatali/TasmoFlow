@@ -121,6 +121,11 @@ Each `vX.Y.Z` tag (equal to the content of `VERSION`) publishes `TasmoFlow.tapp`
 and the interface under `https://gnatali.github.io/TasmoFlow/vX.Y.Z/`. Older versions stay
 online.
 
+Create the tag either with git (`git tag vX.Y.Z origin/main && git push origin vX.Y.Z`: the
+workflow creates the release), or on github.com with **Releases → Draft a new release → Choose
+a tag → Create new tag** on `main`, then **Publish release** (the workflow attaches
+`TasmoFlow.tapp` to that release). GitHub has no screen to create a tag without a release.
+
 After the first tag, enable GitHub Pages once: **Settings → Pages → Build and deployment →
 Deploy from a branch**, branch `gh-pages`, folder `/ (root)`.
 

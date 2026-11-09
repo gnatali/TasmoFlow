@@ -70,10 +70,18 @@ jobs:
       - name: Tag matches the VERSION file
         run: test "${GITHUB_REF_NAME#v}" = "$(cat VERSION)"
 
+      # The tag may come from `git push` (no release yet: create it) or from a release
+      # published on github.com with "Create new tag" (the release already exists: attach
+      # the .tapp to it).
       - name: GitHub release with TasmoFlow.tapp
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/TasmoFlow.tapp --title "TasmoFlow $GITHUB_REF_NAME" --generate-notes
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/TasmoFlow.tapp --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/TasmoFlow.tapp --title "TasmoFlow $GITHUB_REF_NAME" --generate-notes
+          fi
 
       # Cumulative gh-pages branch: every version stays published under /vX.Y.Z/,
       # because a gateway not yet updated still loads its own version.
