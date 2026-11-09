@@ -180,9 +180,19 @@ créera un avec un éditeur de correspondance, puis le chargera (`ZbLoad`).
 
 Le pilote attend **45 Ko libres** pour démarrer, et exige **30 Ko** pour modifier `tuya.json`,
 **35 Ko** pour l'import cloud. TasmoFlow vérifie la mémoire libre (`tasmota.memory()`) avant ces
-actions. Mesuré le 6 novembre 2026 sur une passerelle qui fait tourner le pilote et TasmoFlow :
-90,4 Ko libres avant TasmoFlow, 66,1 Ko après son démarrage, 60,6 Ko après 10 minutes avec
-4 onglets ouverts (sans `tasmota.gc()`).
+actions. Mesuré sur une passerelle qui fait tourner le pilote et TasmoFlow, chaque fois après
+`tasmota.gc()` (`Heap` et `HeapUsed` de Berry dans `Status 4`, 9 novembre 2026) :
+
+| Moment | Mémoire libre | `HeapUsed` de Berry | Coût de TasmoFlow |
+| --- | --- | --- | --- |
+| Avant installation | 84 Ko | 25 Ko | |
+| Extension chargée | 67 Ko | 47 Ko | 17 Ko |
+| Interface ouverte | 65 Ko | 48 Ko | 19 Ko |
+
+Les premières mesures du 6 novembre, sans `tasmota.gc()` (90,4, 66,1 puis 60,6 Ko), comptaient
+des déchets que Berry n'avait pas encore libérés. TasmoFlow dépasse de 2 à 4 Ko sa cible de
+15 Ko : la v0.1 ne démarre le serveur du port 8384 que pendant que l'interface est ouverte, et
+retire le code inutilisé de `tf_http.be`.
 
 ### Ce que TasmoFlow ne fait pas
 
@@ -222,22 +232,22 @@ Plan :
 
 ## Plan de test sur la passerelle
 
-Résultats du 6 novembre 2026 (passerelle avec le pilote Tuya), v0.0.1 avant le correctif
-du `Referer`. `[x]` validé, `[ ]` à faire ou à refaire.
+Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` validé, `[ ]` à faire.
 
 - [x] Copier `TasmoFlow.tapp` dans `/.extensions/` (ou `/`) et redémarrer : le journal affiche `TFL: TasmoFlow 0.0.1, API on port 8384` (`API sur le port 8384` dans la version testée le 6 novembre)
 - [x] Installer à chaud (`tasmota.load("/.extensions/TasmoFlow.tapp")` dans la console Berry) : le bouton et `/tf` répondent sans redémarrage
 - [x] Le bouton « TasmoFlow » apparaît dans le menu principal
-- [ ] Avec `WebPassword` défini, dans une fenêtre de navigation privée (sinon le navigateur renvoie le mot de passe déjà saisi pour Tasmota), `/tf` demande le mot de passe ; `curl -i "http://<passerelle>/tf?r=1"` répond `401 Unauthorized` (premier essai sans fenêtre privée : pas de demande)
-- [ ] `http://<passerelle>/tf` tapé dans la barre d'adresse (sans passer par le bouton) ouvre l'interface
+- [x] Avec `WebPassword` défini, dans une fenêtre de navigation privée (sinon le navigateur renvoie le mot de passe déjà saisi pour Tasmota), `/tf` demande le mot de passe ; `curl -i "http://<passerelle>/tf?r=1"` répond `401 Unauthorized`
+- [x] `http://<passerelle>/tf` tapé dans la barre d'adresse (sans passer par le bouton) ouvre l'interface
 - [x] Sans accès Internet, `/tf` charge la copie locale (onglet Diagnostic : « local »)
 - [x] `open(tasmota.wd + "app.js.gz", "rb")` lit bien le fichier dans la `.tapp`, et le navigateur décompresse la copie locale
 - [x] La liste des appareils correspond à `ZbStatus1`
 - [x] Un appui sur un bouton Zigbee apparaît dans l'onglet Événements en moins de 2 s
-- [ ] « Basculer » allume et éteint une lampe ; « Appairer » ouvre l'appairage 60 s
-- [ ] Mémoire, chaque fois après `tasmota.gc()` dans la console Berry : avant installation, après démarrage, après 10 minutes avec l'interface ouverte (cible : moins de 15 Ko consommés). Sans `tasmota.gc()` : 90,4 → 66,1 → 60,6 Ko, soit 24 puis 30 Ko
+- [x] « Basculer » allume et éteint une lampe ; « Appairer » ouvre l'appairage 60 s
+- [x] Mémoire, chaque fois après `tasmota.gc()` dans la console Berry : 84 Ko libres avant installation, 67 Ko avec l'extension chargée, 65 Ko avec l'interface ouverte, soit 17 puis 19 Ko (cible : 15 Ko, voir [Mémoire](#mémoire))
 - [x] Deux onglets ouverts plus un troisième : la passerelle reste stable (3 onglets Chrome et 1 Android)
 - [ ] Une interface ouverte sur la passerelle A lit `/api/status` de la passerelle B (jeton de B ; écran prévu en v0.1)
-- [ ] Chrome, Firefox, Safari sur iPhone : l'interface se charge et le flux d'événements reste ouvert (Chrome et Android validés)
+- [ ] GitHub Pages activé (tag `v0.0.1`), `/tf` charge la copie GitHub (onglet Diagnostic : « github »)
+- [x] Chrome, Firefox, Safari sur iPhone : l'interface se charge et le flux d'événements reste ouvert
 - [x] Matter continue de fonctionner (Google Home commande toujours ses appareils)
-- [ ] Le pilote Tuya démarre toujours au boot avec TasmoFlow installé (`TuyaEnable` : `"State":"running"`)
+- [x] Le pilote Tuya démarre toujours au boot avec TasmoFlow installé (`TuyaEnable` : `"State":"running"`)
