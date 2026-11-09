@@ -85,7 +85,7 @@ Left for v0.1 (small):
 - **Tuya sub-device names** with a comma, which `TuyaSend` cannot address.
 - **Light interface scope for v0.2**: add enabling/disabling a rule and restoring the previous
   copy (see the table in the architecture), so that rules stay manageable without GitHub.
-- **Bump `VERSION` to `0.1.0`** when Guillaume tags the release (the header still says 0.0.1).
+- **`VERSION` is `0.1.0`** (bumped before the tag, to tell builds apart). Until Guillaume tags `v0.1.0`, `gnatali.github.io/TasmoFlow/v0.1.0/app.js` does not exist (404): the gateway falls back to the light interface at once. The full interface only loads from GitHub after the tag.
 - **Checks on the gateway**: the `[ ]` items marked v0.1 in the test plan, in particular that
   the port 8384 `tcpserver` can be closed and listened to again, and `TuyaConfig` memory use.
 

@@ -90,7 +90,7 @@ Reste pour la v0.1 (petit) :
 - **Périmètre de l'interface légère en v0.2** : ajouter l'activation et la désactivation d'une
   règle et la restauration de la copie précédente (voir le tableau de l'architecture), pour que
   les règles restent gérables sans GitHub.
-- **Passer `VERSION` à `0.1.0`** quand Guillaume tague la release (l'en-tête affiche encore 0.0.1).
+- **`VERSION` vaut `0.1.0`** (passée avant le tag, pour distinguer les builds). Tant que Guillaume n'a pas tagué `v0.1.0`, `gnatali.github.io/TasmoFlow/v0.1.0/app.js` n'existe pas (404) : la passerelle retombe aussitôt sur l'interface légère. L'interface complète ne se charge depuis GitHub qu'après le tag.
 - **Vérifications sur la passerelle** : les points `[ ]` marqués v0.1 du plan de test, en
   particulier que le `tcpserver` du port 8384 peut être fermé puis ré-écouté, et la mémoire
   utilisée par `TuyaConfig`.

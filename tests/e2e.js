@@ -77,7 +77,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.waitForFunction(() => /Simulated/.test(document.querySelector('pre').textContent), null, { timeout: 3000 });
     await p.getByRole('button', { name: 'Diagnostic' }).click();
     await p.waitForSelector('dl');
-    await p.getByText('v0.0.1 · local · lite').waitFor();
+    await p.getByText(`v${VERSION} · local · lite`).waitFor();
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'lite.png') });
   });
   await test('valid GitHub copy', async p => {
