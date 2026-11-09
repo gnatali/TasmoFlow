@@ -18,7 +18,8 @@ export async function saveRule(n, text) {
   for (let i = 0; i < parts.length; i++) {
     const p = { n, i, x: parts[i] };
     if (i === parts.length - 1) p.last = 1;
-    await get('/api/rule_set', p);
+    try { await get('/api/rule_set', p); }
+    catch (e) { throw new Error(e.message + (parts.length > 1 ? ' (' + (i + 1) + '/' + parts.length + ')' : '')); }
   }
 }
 
