@@ -2,8 +2,8 @@
 
 [Français](README.fr.md) · **English**
 
-No-code web interface to control and manage a Tasmota Zigbee gateway, and to create
-automations between devices. First target: the eWeLink ZB-GW03 gateway running the
+No-code web interface to control and manage a Tasmota Zigbee gateway, its Zigbee and Tuya
+devices, and to create automations between them. First target: the eWeLink ZB-GW03 gateway running the
 [tasmota32-zbgw03-matter](https://github.com/gnatali/tasmota32-zbgw03-matter) firmware.
 
 > **Status: v0.0 prototype, not yet tested on real hardware.** It checks the architecture
@@ -21,6 +21,20 @@ automations between devices. First target: the eWeLink ZB-GW03 gateway running t
 - French and English, desktop and mobile, light and dark themes.
 
 The firmware is not modified. See [docs/architecture.md](docs/architecture.md) (French).
+
+## Roadmap
+
+TasmoFlow handles three device families: Zigbee, Tuya Zigbee paired with the gateway (TS0601)
+and local Tuya (Wi-Fi and Tuya gateway), the latter through the firmware's Tuya driver.
+
+| Version | Content |
+| --- | --- |
+| v0.0 | Prototype: architecture checked on the gateway (in test since 6 November 2026) |
+| v0.1 | Control: several gateways, Zigbee and Tuya dashboard, extension under 15 KB of RAM |
+| v0.2 | No-code automations run on the gateway, Zigbee and Tuya triggers and actions |
+| v0.3 | Advanced Zigbee and Tuya: groups, scenes, bindings, Tuya discovery and import, TS0601 plugins, Matter |
+| v0.4 | Administration: OTA, backups, network, console |
+| v1.0 | Stable release |
 
 ## Installing on the gateway
 

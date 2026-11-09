@@ -113,22 +113,102 @@ s'affiche. Trois voies :
 TasmoFlow écoute `attributes_final`, appelé une fois par message décodé
 (`xdrv_23_zigbee_2a_devices_impl.ino`).
 
+## Appareils Tuya
+
+Depuis le 9 novembre 2026, le firmware `tasmota32-zbgw03-matter` intègre un pilote Tuya
+local ([guide du pilote](https://github.com/gnatali/tasmota32-zbgw03-matter/blob/main/docs/tuya-local.fr.md),
+[exemples](https://github.com/gnatali/tasmota32-zbgw03-matter/blob/main/docs/tuya-local-examples.fr.md)).
+TasmoFlow passe toujours par ce pilote : il ne réimplémente pas le protocole Tuya et ne
+manipule jamais de clé locale.
+
+### Trois familles d'appareils dans une même liste
+
+| Famille | État | Commande | Événements |
+| --- | --- | --- | --- |
+| Zigbee appairé à la ZB-GW03 | API Berry `zigbee` | `ZbSend` | `attributes_final` |
+| Tuya Zigbee appairé à la ZB-GW03 (TS0601, cluster EF00) | API Berry `zigbee` ; DP traduits par un plugin `.zb` | `ZbSend` (écriture des DP à vérifier) | `attributes_final` |
+| Tuya Wi-Fi (protocoles 3.3, 3.4, 3.5) | `TuyaStatus` | `TuyaSend` | règle `Tuya` |
+| Sous-appareil Zigbee d'une passerelle Tuya | `TuyaStatus` | `TuyaSend` | règle `Tuya` |
+
+### API du pilote utilisée par TasmoFlow
+
+| Besoin | Commande ou événement | Réponse |
+| --- | --- | --- |
+| État du pilote | `TuyaEnable` | `{"TuyaEnable":{"Enabled":true,"State":"running"}}` (`State` : `running`, `disabled`, `waiting for Zigbee`…) |
+| État des appareils | `TuyaStatus [appareil]` | `Connected`, `Ip`, `Version`, `Dps` (DP gardés en mémoire seulement) |
+| Configuration sans les clés | `TuyaConfig [appareil]` | entrées de `tuya.json`, clé remplacée par `***` |
+| Commande | `TuyaSend <appareil>,<dp ou code>,<valeur\|toggle>` | `{"TuyaSend":"Done"}` ou l'erreur (`Device not connected`…) |
+| Activer, désactiver | `TuyaActive <nom>[,<nom>…],<0\|1>` | appareils, sous-appareils ou liaisons Matter |
+| Ajouter, modifier, supprimer | `TuyaAdd <json>` (`"key":"***"` garde la clé), `TuyaDel`, `TuyaReload` | |
+| Découverte, import | `TuyaScan [s]`, `TuyaImport [fichier] [all\|ids]`, `TuyaCloud` (identifiants enregistrés) | résultat publié à la fin : `{"TuyaScan":{...}}`, `{"TuyaCloud":{...}}` |
+| Matter | `TuyaMatter [noms]` | points de terminaison créés, `Restart 1` nécessaire |
+| Changement d'état | `tasmota.add_rule("Tuya", ...)` | `{"Tuya":{"Name":"Ventilateur","Dps":{"62":3}}}` |
+| Mesures | télémétrie `SENSOR` | `{"Tuya":{"Pince":{"Puissance":592,...}}}` |
+
+La règle Tasmota `Tuya#Dps#<dp>` ne voit pas le nom de l'appareil : TasmoFlow filtre en Berry,
+comme le recommande la documentation du pilote.
+
+### Sens des DP
+
+Le pilote ne garde que les DP utilisés : ceux des liaisons Matter (`relay`, `relay_power`,
+`light0` à `light3`, `fan`, `temp`, `humidity`), des `sensors`, les DP booléens et ceux de
+`keep`. Les liaisons Matter donnent leur sens : TasmoFlow en déduit les commandes à afficher
+(interrupteur, variateur, température de blanc, couleur, vitesse). Sans liaison, il propose la
+bascule des DP booléens. La table `codes` (appareils importés) reste dans `tuya.json` : la lire
+passe par `TuyaConfig`, qui charge tout le fichier.
+
+### Tuya Zigbee appairé à la ZB-GW03
+
+Les appareils Tuya TS0601 envoient leurs DP dans le cluster `EF00`. Sans plugin, Tasmota les
+affiche bruts (`EF00/0401`). Un plugin `.zb` du système de fichiers les traduit en attributs
+standard ; Tasmota en fournit une dizaine (`tasmota/zigbee/` de son dépôt) :
+
+```
+#Z2Tv1
+:TS0601,_TZE200_3towulqd
+EF00/0401=0406/0000   # Occupancy
+EF00/020C=0400/0000   # Illuminance
+EF00/0204=0001/0021,mul:2
+```
+
+TasmoFlow (v0.3) signalera les DP bruts, proposera un plugin de la bibliothèque de Tasmota ou en
+créera un avec un éditeur de correspondance, puis le chargera (`ZbLoad`).
+
+### Mémoire
+
+Le pilote attend **45 Ko libres** pour démarrer, et exige **30 Ko** pour modifier `tuya.json`,
+**35 Ko** pour l'import cloud. TasmoFlow vérifie la mémoire libre (`tasmota.memory()`) avant ces
+actions. Mesuré le 6 novembre 2026 sur une passerelle qui fait tourner le pilote et TasmoFlow :
+90,4 Ko libres avant TasmoFlow, 66,1 Ko après son démarrage, 60,6 Ko après 10 minutes avec
+4 onglets ouverts (sans `tasmota.gc()`).
+
+### Ce que TasmoFlow ne fait pas
+
+- Afficher, stocker ou transmettre une clé locale ou les identifiants du cloud Tuya : leur
+  saisie reste sur la page du pilote (`/tuya`).
+- Écrire dans les règles Tasmota (`Rule1` à `Rule3`), déjà utilisées pour des liens Zigbee vers
+  Tuya : elles sont affichées en lecture seule.
+- Fonctionner sans le pilote : sur un Tasmota sans pilote Tuya, ou pilote désactivé
+  (`TuyaEnable 0`), les écrans Tuya sont masqués.
+
 ## Plan de test sur la passerelle
 
-À faire sur une ZB-GW03 avec le firmware `tasmota32-zbgw03-matter` pour clore la v0.0.
+Résultats du 6 novembre 2026 (passerelle avec le pilote Tuya), v0.0.1 avant le correctif
+du `Referer`. `[x]` validé, `[ ]` à faire ou à refaire.
 
-- [ ] Copier `TasmoFlow.tapp` dans `/.extensions/` (ou `/`) et redémarrer : le journal affiche `TFL: TasmoFlow 0.0.1, API sur le port 8384`
-- [ ] Installer à chaud (`tasmota.load("/.extensions/TasmoFlow.tapp")` dans la console Berry) : le bouton et `/tf` répondent sans redémarrage
-- [ ] Le bouton « TasmoFlow » apparaît dans le menu principal
-- [ ] Avec `WebPassword` défini, dans une fenêtre de navigation privée (sinon le navigateur renvoie le mot de passe déjà saisi pour Tasmota), `/tf` demande le mot de passe ; `curl -i http://<passerelle>/tf?r=1` répond `401 Unauthorized`
+- [x] Copier `TasmoFlow.tapp` dans `/.extensions/` (ou `/`) et redémarrer : le journal affiche `TFL: TasmoFlow 0.0.1, API sur le port 8384`
+- [x] Installer à chaud (`tasmota.load("/.extensions/TasmoFlow.tapp")` dans la console Berry) : le bouton et `/tf` répondent sans redémarrage
+- [x] Le bouton « TasmoFlow » apparaît dans le menu principal
+- [ ] Avec `WebPassword` défini, dans une fenêtre de navigation privée (sinon le navigateur renvoie le mot de passe déjà saisi pour Tasmota), `/tf` demande le mot de passe ; `curl -i "http://<passerelle>/tf?r=1"` répond `401 Unauthorized` (premier essai sans fenêtre privée : pas de demande)
 - [ ] `http://<passerelle>/tf` tapé dans la barre d'adresse (sans passer par le bouton) ouvre l'interface
-- [ ] Sans accès Internet, `/tf` charge la copie locale (onglet Diagnostic : « local »)
-- [ ] `open(tasmota.wd + "app.js.gz", "rb")` lit bien le fichier dans la `.tapp`, et le navigateur décompresse la copie locale
-- [ ] La liste des appareils correspond à `ZbStatus1`
-- [ ] Un appui sur un bouton Zigbee apparaît dans l'onglet Événements en moins de 2 s
+- [x] Sans accès Internet, `/tf` charge la copie locale (onglet Diagnostic : « local »)
+- [x] `open(tasmota.wd + "app.js.gz", "rb")` lit bien le fichier dans la `.tapp`, et le navigateur décompresse la copie locale
+- [x] La liste des appareils correspond à `ZbStatus1`
+- [x] Un appui sur un bouton Zigbee apparaît dans l'onglet Événements en moins de 2 s
 - [ ] « Basculer » allume et éteint une lampe ; « Appairer » ouvre l'appairage 60 s
-- [ ] Mémoire : noter `heap_free` avant installation, après démarrage, et après 10 minutes avec l'interface ouverte, chaque fois après `tasmota.gc()` dans la console Berry (cible : moins de 15 Ko consommés)
-- [ ] Deux onglets ouverts plus un troisième : la passerelle reste stable, le plus ancien flux est fermé
-- [ ] Une interface ouverte sur la passerelle A lit `/api/status` de la passerelle B (jeton de B)
-- [ ] Chrome, Firefox, Safari sur iPhone : l'interface se charge et le flux d'événements reste ouvert
-- [ ] Matter continue de fonctionner (Google Home commande toujours ses appareils)
+- [ ] Mémoire, chaque fois après `tasmota.gc()` dans la console Berry : avant installation, après démarrage, après 10 minutes avec l'interface ouverte (cible : moins de 15 Ko consommés). Sans `tasmota.gc()` : 90,4 → 66,1 → 60,6 Ko, soit 24 puis 30 Ko
+- [x] Deux onglets ouverts plus un troisième : la passerelle reste stable (3 onglets Chrome et 1 Android)
+- [ ] Une interface ouverte sur la passerelle A lit `/api/status` de la passerelle B (jeton de B ; écran prévu en v0.1)
+- [ ] Chrome, Firefox, Safari sur iPhone : l'interface se charge et le flux d'événements reste ouvert (Chrome et Android validés)
+- [x] Matter continue de fonctionner (Google Home commande toujours ses appareils)
+- [ ] Le pilote Tuya démarre toujours au boot avec TasmoFlow installé (`TuyaEnable` : `"State":"running"`)

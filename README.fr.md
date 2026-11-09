@@ -2,8 +2,8 @@
 
 **Français** · [English](README.md)
 
-Interface web sans code pour piloter et administrer une passerelle Zigbee Tasmota, et
-créer des actions entre appareils. Première cible : la passerelle eWeLink ZB-GW03 avec le
+Interface web sans code pour piloter et administrer une passerelle Zigbee Tasmota, ses
+appareils Zigbee et Tuya, et créer des actions entre eux. Première cible : la passerelle eWeLink ZB-GW03 avec le
 firmware [tasmota32-zbgw03-matter](https://github.com/gnatali/tasmota32-zbgw03-matter).
 
 > **État : prototype v0.0, pas encore testé sur une passerelle réelle.** Il sert à
@@ -74,12 +74,16 @@ tout absent) puis le parcours de l'interface.
 
 ## Feuille de route
 
+TasmoFlow gère trois familles d'appareils : Zigbee, Tuya Zigbee appairé à la passerelle
+(TS0601) et Tuya local (Wi-Fi et passerelle Tuya), ce dernier par le pilote Tuya du firmware
+(voir [docs/architecture.md](docs/architecture.md#appareils-tuya)).
+
 | Version | Contenu |
 | --- | --- |
-| v0.0 | Prototype : architecture vérifiée sur la passerelle |
-| v0.1 | Pilotage : plusieurs passerelles, tableau de bord |
-| v0.2 | Actions sans code, exécutées sur la passerelle |
-| v0.3 | Zigbee avancé (groupes, scènes, bindings) et Matter |
+| v0.0 | Prototype : architecture vérifiée sur la passerelle (en test depuis le 6 novembre 2026) |
+| v0.1 | Pilotage : plusieurs passerelles, tableau de bord Zigbee et Tuya, extension sous 15 Ko de RAM |
+| v0.2 | Actions sans code exécutées sur la passerelle, déclencheurs et actions Zigbee et Tuya |
+| v0.3 | Zigbee et Tuya avancés : groupes, scènes, bindings, découverte et import Tuya, plugins TS0601, Matter |
 | v0.4 | Administration : OTA, sauvegardes, réseau, console |
 | v1.0 | Version stable |
 
