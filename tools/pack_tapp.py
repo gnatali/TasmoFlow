@@ -12,7 +12,12 @@ reached (the full one only lives on GitHub Pages, to spare the 320 KB file syste
 hash of app.js is written into tasmoflow.be: the /tf page refuses a GitHub copy that differs
 from the installed version's.
 
-Usage: python3 tools/pack_tapp.py [--cdn URL]
+Test build (`--dev`): the .tapp loads https://<cdn>/dev/app.js with no SRI pin and a cache-busting
+query, so one published dev/app.js can be replaced at every run without a release or a new
+.tapp. Writes dist/dev/TasmoFlow.tapp and dist/pages/dev/{app.js,TasmoFlow.tapp}. The .tapp
+only has to be installed again when extension/ or the light interface changed.
+
+Usage: python3 tools/pack_tapp.py [--cdn URL] [--dev [--build-id ID]]
 """
 
 import argparse
@@ -64,6 +69,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--cdn", default="https://gnatali.github.io/TasmoFlow/",
                         help="GitHub Pages address of the interface ('': local copy only)")
+    parser.add_argument("--dev", action="store_true", help="test build (see above)")
+    parser.add_argument("--build-id", default="", help="with --dev: id shown in the version, e.g. a commit")
     args = parser.parse_args()
     if args.cdn and not args.cdn.endswith("/"):
         args.cdn += "/"
@@ -77,7 +84,16 @@ def main():
     lite_gz = gzip.compress(LITE.read_bytes(), compresslevel=9, mtime=0)
     sri = "sha384-" + base64.b64encode(hashlib.sha384(app).digest()).decode()
 
-    values = {"VERSION": version, "VERSION_HEX": version_hex(version), "CDN": args.cdn, "SRI": sri}
+    shown = version
+    app_dir = f"v{version}"
+    if args.dev:
+        shown = f"{version}-dev" + (f".{args.build_id}" if args.build_id else "")
+        app_dir = "dev"
+        sri = ""                                # the file changes at every run: no pin
+        if not args.cdn:
+            sys.exit("--dev needs a --cdn address")
+    values = {"VERSION": shown, "VERSION_HEX": version_hex(version), "CDN": args.cdn, "APP_DIR": app_dir,
+              "SRI": sri}
     files = {
         "autoexec.be": (EXT / "autoexec.be").read_bytes(),
         "manifest.json": substitute((EXT / "manifest.json").read_text(), values, "manifest.json").encode(),
@@ -89,7 +105,9 @@ def main():
     json.loads(files["manifest.json"])          # the manifest must stay valid JSON
 
     DIST.mkdir(exist_ok=True)
-    tapp = DIST / "TasmoFlow.tapp"
+    out = DIST / "dev" if args.dev else DIST
+    out.mkdir(exist_ok=True)
+    tapp = out / "TasmoFlow.tapp"
     with zipfile.ZipFile(tapp, "w", compression=zipfile.ZIP_STORED) as z:
         for name, data in files.items():
             info = zipfile.ZipInfo(name, date_time=ZIP_DATE)
@@ -97,18 +115,20 @@ def main():
             info.external_attr = 0o644 << 16
             z.writestr(info, data)
 
-    pages = DIST / "pages" / f"v{version}"
+    pages = DIST / "pages" / app_dir
     pages.mkdir(parents=True, exist_ok=True)
     (pages / "app.js").write_bytes(app)
+    if args.dev:
+        (pages / "TasmoFlow.tapp").write_bytes(tapp.read_bytes())
 
     tapp_size = tapp.stat().st_size
-    print(f"TasmoFlow {version} ({values['VERSION_HEX']})")
+    print(f"TasmoFlow {shown} ({values['VERSION_HEX']})")
     for name, data in files.items():
         print(f"  {name:<14} {len(data):>7} B")
     print(f"  app.js (GitHub Pages only) {len(app):>7} B (uncompressed), {len(app_gz)} B gzipped / budget {MAX_APP_GZ} B")
     print(f"  {tapp.relative_to(ROOT)}: {tapp_size} B / budget {MAX_TAPP} B")
     print(f"  lite.js.gz: {len(lite_gz)} B / budget {MAX_LITE_GZ} B")
-    print(f"  SRI: {sri}")
+    print(f"  SRI: {sri or '(none, test build)'}")
 
     errors = []
     if len(lite_gz) > MAX_LITE_GZ:

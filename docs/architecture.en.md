@@ -101,6 +101,16 @@ The interface's **Gateways** screen (v0.1):
 The script guards against starting twice: the GitHub copy may arrive after the timeout, when
 the light interface is already running.
 
+### Test build
+
+`workflow_dispatch` of `build.yml` (job `preview`) publishes `dev/app.js` and `dev/TasmoFlow.tapp`
+on GitHub Pages (`tools/publish_pages.sh`, branch `gh-pages`, shared lock with the release job).
+`pack_tapp.py --dev` gives that `.tapp` `DIR = "dev"` and an empty `SRI`: the `/tf` page adds
+`?t=<millis>` to the address (never cached) and no `integrity`. The version reads
+`X.Y.Z-dev.<commit>` and the interface header shows its own build (`TF_BUILD`, esbuild `define`).
+Deliberately unpinned: for tests only, the release `.tapp` stays pinned (see "Not unpinned"
+below). Reinstalling the `.tapp` is only needed when `extension/` or the light interface changed.
+
 ### Full interface on GitHub, light interface on the gateway
 
 Decision of 9 November 2026 (option B of the analysis; it replaces "the same full copy in both

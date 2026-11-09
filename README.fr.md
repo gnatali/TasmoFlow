@@ -131,6 +131,20 @@ tag → Create new tag** sur `main`, puis **Publish release** (le workflow joint
 Au premier tag, activer GitHub Pages une fois : **Settings → Pages → Build and deployment →
 Deploy from a branch**, branche `gh-pages`, dossier `/ (root)`.
 
+### Version de test (sans release ni tag)
+
+Pour essayer une modification sur la passerelle sans release : **Actions → Build → Run
+workflow**, sur la branche à essayer. Une fois les tests passés, le workflow publie l'interface
+complète sur `https://gnatali.github.io/TasmoFlow/dev/app.js` (remplacée à chaque lancement ;
+l'en-tête affiche le build, par exemple `dev.1a2b3c4`) et une extension de test sur
+`https://gnatali.github.io/TasmoFlow/dev/TasmoFlow.tapp`.
+
+Installer cette `.tapp` une fois (elle remplace `TasmoFlow.tapp`, puis `Restart 1`). Elle charge
+l'interface `dev/` à chaque ouverture, sans épinglage SRI ni cache : un nouveau lancement
+suffit, il reste à recharger la page. Ne réinstaller la `.tapp` que si `extension/` ou
+l'interface légère ont changé (je le signale). À réserver aux essais : la `.tapp` des releases
+reste épinglée à sa version et à son empreinte.
+
 ## Licence
 
 GPL v3, comme Tasmota. `extension/tf_http.be` est une copie de `webserver_async.be` (Stephan

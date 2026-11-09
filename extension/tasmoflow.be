@@ -67,6 +67,7 @@ end
 class tasmoflow
   static var VERSION = "@@VERSION@@"
   static var CDN = "@@CDN@@"            # GitHub Pages address ('' = local copy only)
+  static var DIR = "@@APP_DIR@@"        # folder of app.js there: vX.Y.Z, or "dev" (test build, see below)
   static var SRI = "@@SRI@@"            # SRI hash (sha384) of app.js
   static var PORT = 8384
   static var IDLE_MS = 300000           # API server stopped after 5 minutes without a client
@@ -220,11 +221,17 @@ class tasmoflow
     end
     if !webserver.check_privileged_access()   return nil   end
     self.start_api()
+    var url = ''
+    if size(self.CDN) > 0
+      url = self.CDN + self.DIR + "/app.js"
+      # test build (dev folder, no SRI, replaced at every run): never served from a cache
+      if self.DIR == 'dev'    url += "?t=" + str(tasmota.millis())    end
+    end
     var cfg = {
       'version': self.VERSION,
       'port': self.PORT,
       'token': self.token,
-      'cdn': size(self.CDN) > 0 ? f"{self.CDN}v{self.VERSION}/app.js" : '',
+      'cdn': url,
       'sri': self.SRI
     }
     webserver.content_open(200, "text/html")

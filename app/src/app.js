@@ -17,7 +17,7 @@ function Header() {
     ${name ? html`<span class="gw">${name}</span>` : null}
     <span class="sp"></span>
     <span class=${'badge ' + (s.live ? 'ok' : 'bad')}>${s.live ? t('live') : t('reconnecting')}</span>
-    <span class="badge">${'v' + cfg.version + ' · ' + cfg.source + (cfg.lite ? ' · lite' : '')}</span>
+    <span class="badge">${'v' + cfg.version + ' · ' + cfg.source + (cfg.lite ? ' · lite' : '') + (__BUILD__ ? ' · ' + __BUILD__ : '')}</span>
     <button class="b" lang=${lang === 'fr' ? 'en' : 'fr'} aria-label=${lang === 'fr' ? 'English' : 'Français'} onClick=${toggleLang}>${lang === 'fr' ? 'EN' : 'FR'}</button>
   </header>`;
 }

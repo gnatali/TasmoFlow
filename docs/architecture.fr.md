@@ -105,7 +105,18 @@ L'écran **Passerelles** de l'interface (v0.1) :
 Le script se protège d'un double démarrage : la copie GitHub peut arriver après le délai,
 quand l'interface légère tourne déjà.
 
-### Interface complète sur GitHub, interface légère sur la passerelle
+### Version de test
+
+Le `workflow_dispatch` de `build.yml` (job `preview`) publie `dev/app.js` et `dev/TasmoFlow.tapp`
+sur GitHub Pages (`tools/publish_pages.sh`, branche `gh-pages`, verrou partagé avec le job de
+release). `pack_tapp.py --dev` donne à cette `.tapp` `DIR = "dev"` et un `SRI` vide : la page
+`/tf` ajoute `?t=<millis>` à l'adresse (jamais en cache) et aucun `integrity`. La version s'écrit
+`X.Y.Z-dev.<commit>` et l'en-tête de l'interface affiche son propre build (`TF_BUILD`, `define`
+d'esbuild). Volontairement non épinglée : pour les essais seulement, la `.tapp` des releases reste
+épinglée (voir « Pas de version libre » plus bas). Réinstaller la `.tapp` n'est utile que si `extension/` ou
+l'interface légère ont changé.
+
+### Interface complète
 
 Décision du 9 novembre 2026 (option B de l'analyse ; elle remplace « la même copie complète aux
 deux endroits » de la v0.0) :

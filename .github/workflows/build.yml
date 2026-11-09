@@ -83,20 +83,44 @@ jobs:
             gh release create "$GITHUB_REF_NAME" dist/TasmoFlow.tapp --title "TasmoFlow $GITHUB_REF_NAME" --generate-notes
           fi
 
-      # Cumulative gh-pages branch: every version stays published under /vX.Y.Z/,
-      # because a gateway not yet updated still loads its own version.
+      # Cumulative gh-pages branch: every version stays published under /vX.Y.Z/
       - name: Publish the interface on GitHub Pages
+        run: tools/publish_pages.sh "Interface $GITHUB_REF_NAME"
+
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
+
+  # Test build, started by hand (Actions > Build > Run workflow, on any branch): publishes the
+  # full interface at https://gnatali.github.io/TasmoFlow/dev/app.js, replaced at every run, and a
+  # test .tapp (dev/TasmoFlow.tapp) that loads it without SRI pin. No release, no tag. The .tapp
+  # only has to be installed again when extension/ or the light interface changed.
+  preview:
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build the test interface and .tapp
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git fetch origin gh-pages; then
-            git worktree add "$RUNNER_TEMP/pages" FETCH_HEAD
-            git -C "$RUNNER_TEMP/pages" checkout -B gh-pages
-          else
-            git worktree add --orphan -b gh-pages "$RUNNER_TEMP/pages"
-          fi
-          cp -r dist/pages/. "$RUNNER_TEMP/pages/"
-          touch "$RUNNER_TEMP/pages/.nojekyll"
-          git -C "$RUNNER_TEMP/pages" add -A
-          git -C "$RUNNER_TEMP/pages" commit -m "Interface $GITHUB_REF_NAME"
-          git -C "$RUNNER_TEMP/pages" push origin gh-pages
+          id="dev.$(git rev-parse --short=7 HEAD)"
+          npm ci
+          TF_BUILD="$id" npm run build
+          python3 tools/pack_tapp.py --dev --build-id "${id#dev.}"
+
+      - name: Publish dev/ on GitHub Pages
+        run: tools/publish_pages.sh "Test build ${GITHUB_REF_NAME} $(git rev-parse --short=7 HEAD)"
