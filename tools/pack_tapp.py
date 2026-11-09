@@ -83,6 +83,7 @@ def main():
         "manifest.json": substitute((EXT / "manifest.json").read_text(), values, "manifest.json").encode(),
         "tasmoflow.be": substitute((EXT / "tasmoflow.be").read_text(), values, "tasmoflow.be").encode(),
         "tf_http.be": (EXT / "tf_http.be").read_bytes(),
+        "tf_rules.be": (EXT / "tf_rules.be").read_bytes(),
         "lite.js.gz": lite_gz,
     }
     json.loads(files["manifest.json"])          # the manifest must stay valid JSON

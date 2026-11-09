@@ -9,20 +9,28 @@ Cahier des charges (en français, hors du dépôt) :
 
 ## État (9 novembre 2026)
 
+- **v0.1 publiée** : tag `v0.1.0`, `.tapp` jointe à la release, interface publiée sur GitHub
+  Pages (PR n° 1 à 3 fusionnées). Installée sur la passerelle : démarrage/arrêt du serveur,
+  mémoire et interface légère après redémarrage vérifiés ; les autres points `[ ]` du plan de
+  test restent à faire.
+- **v0.2 commencée** (branche `claude/modest-pascal-8854i4`) : étape 1 **écrite, à vérifier sur
+  la passerelle** : l'écran **Règles** (`Rule1` à `Rule3` et règles Berry, édition, copie de la
+  version précédente avant chaque écriture, restauration, activation/désactivation, aussi dans
+  l'interface légère). Passe contre la fausse passerelle (`node tests/e2e.js`, 10 tests) ; le
+  code Berry (`extension/tf_rules.be`) a seulement été relu, pas compilé. Ensuite : éditeur en
+  phrases, actions, édition des règles Berry avec contrôle de compilation, `autoexec.be`.
+
 - **v0.0 (prototype) terminée**, publiée en
   [v0.0.1](https://github.com/gnatali/TasmoFlow/releases/tag/v0.0.1) et vérifiée sur la
   passerelle (ZB-GW03 avec le pilote Tuya local). L'interface se charge depuis GitHub Pages
   (en-tête « v0.0.1 · github ») et se rabat sur la copie locale.
 - [PR #1](https://github.com/gnatali/TasmoFlow/pull/1) fusionnée (fichiers de suivi,
   `.claude/rules/`).
-- **v0.1 (pilotage) écrite, à vérifier sur la passerelle** (branche
-  `claude/modest-pascal-8854i4`, pas encore fusionnée) : interface Preact + htm, serveur d'API à
-  la demande, écran Passerelles, appareils Tuya dans le tableau de bord. Tout passe contre la
-  fausse passerelle (`node tests/e2e.js`, 9 tests) ; **rien n'a encore tourné sur une vraie
-  passerelle**, et les changements Berry ont seulement été relus, pas compilés (la CI vérifie
-  la syntaxe).
-- **Suite** : installer la `.tapp` v0.1 sur la ZB-GW03, dérouler les nouveaux points `[ ]` du
-  [plan de test](architecture.fr.md#plan-de-test-sur-la-passerelle), mesurer la mémoire ; puis la v0.2.
+- **v0.1 (pilotage)** : interface Preact + htm, serveur d'API à la demande, écran Passerelles,
+  appareils Tuya dans le tableau de bord (détails plus bas).
+- **Suite** : dérouler les points `[ ]` du
+  [plan de test](architecture.fr.md#plan-de-test-sur-la-passerelle) sur la ZB-GW03 (v0.1 et les
+  nouveaux de la v0.2), mesurer la mémoire avec l'API des règles chargée.
 
 ## Historique
 
@@ -40,6 +48,7 @@ Cahier des charges (en français, hors du dépôt) :
 | 9 nov. | Tous les points de la v0.0 validés, mémoire mesurée après `tasmota.gc()` ; tag v0.0.1 créé par Guillaume, GitHub Pages activé |
 | 9 nov. | v0.1 : **Preact + htm retenu** (même écran : 6,6 Ko gzip contre 6,3 Ko pour Lit, 5,4 Ko pour le prototype sans dépendance) ; interface assemblée avec esbuild (12,9 Ko gzip, puis 14,6 Ko avec Tuya) |
 | 9 nov. | v0.1 : **option B décidée** : interface complète sur GitHub Pages seulement (figée, SRI), interface légère (13,7 Ko gzip, appareils + console + diagnostic) dans la `.tapp` ; second point d'entrée esbuild des mêmes sources. Raison : `UfsFree` 148 Ko sur 320 Ko et une interface complète qui va grossir |
+| 9 nov. | v0.1 publiée (tag `v0.1.0`) ; v0.2 commencée : écran Règles, `tf_rules.be` (lecture, écriture par morceaux, copie de la version précédente, restauration), contrôle de syntaxe des jeux de règles dans l'interface, règles dans l'interface légère |
 | 9 nov. | v0.1 : serveur d'API à la demande (`/tf`, `/tf?w=1`, 5 minutes d'inactivité), `tf_http.be` compilé à la demande et allégé ; écran Passerelles ; appareils Tuya (`TuyaEnable`, `TuyaStatus`, `TuyaConfig`, `TuyaSend`, règle `Tuya` sur le flux d'événements) ; pilote Tuya simulé et tests |
 
 ## Mesures sur la passerelle
@@ -87,16 +96,15 @@ Reste pour la v0.1 (petit) :
 
 - **Couleur des liaisons `light3`** (`colour_data_v2`, `hhhhssssvvvv`) : pas encore proposée.
 - **Noms de sous-appareils Tuya** contenant une virgule, que `TuyaSend` ne sait pas adresser.
-- **Périmètre de l'interface légère en v0.2** : ajouter l'activation et la désactivation d'une
-  règle et la restauration de la copie précédente (voir le tableau de l'architecture), pour que
-  les règles restent gérables sans GitHub.
-- **`VERSION` vaut `0.1.0`** (passée avant le tag, pour distinguer les builds). Tant que Guillaume n'a pas tagué `v0.1.0`, `gnatali.github.io/TasmoFlow/v0.1.0/app.js` n'existe pas (404) : la passerelle retombe aussitôt sur l'interface légère. L'interface complète ne se charge depuis GitHub qu'après le tag.
+- **`VERSION` vaut `0.1.0`** jusqu'à la prochaine version : un build v0.2 ne se distingue de la
+  v0.1.0 que par l'onglet Règles (passer `VERSION` avant de tagger `v0.2.0`).
 - **Vérifications sur la passerelle** : les points `[ ]` marqués v0.1 du plan de test, en
   particulier que le `tcpserver` du port 8384 peut être fermé puis ré-écouté, et la mémoire
   utilisée par `TuyaConfig`.
 
-Ensuite la v0.2 : toutes les règles (`Rule1` à `Rule3`, Berry, actions), éditeur en phrases,
-sauvegarde avant écriture.
+v0.2, reste après l'étape 1 : éditeur en phrases (« Quand… Si… Alors… ») qui affiche les
+`on…endon` en phrases, actions (règle Tasmota ou Berry), édition des règles Berry avec contrôle
+de compilation, `autoexec.be`, signalement des conflits.
 
 ## Points à vérifier
 

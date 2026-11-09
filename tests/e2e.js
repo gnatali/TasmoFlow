@@ -67,6 +67,14 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     for (const n of ['Passerelles', 'Événements']) {
       if (await p.getByRole('button', { name: n }).count()) throw new Error(`${n} tab in the light interface`);
     }
+    // rules: read, enable/disable, restore, but no editor
+    await p.getByRole('button', { name: 'Règles' }).click();
+    const r3 = p.locator('article.card', { has: p.getByRole('heading', { name: 'Rule3' }) });
+    await r3.getByRole('button', { name: 'éteint' }).click();
+    await r3.getByRole('button', { name: 'allumé' }).waitFor({ timeout: 4000 });
+    await p.locator('article.card', { has: p.getByRole('heading', { name: 'Rule1' }) }).getByText('Button1#State=3').waitFor();
+    if (await p.locator('textarea').count()) throw new Error('rule editor in the light interface');
+    await p.getByRole('button', { name: 'Appareils' }).click();
     const lamp = p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe salon' }) });
     await lamp.getByRole('button', { name: 'Basculer' }).click();
     await p.locator('article.card', { has: p.getByRole('heading', { name: 'Ventilateur', exact: true }) })
@@ -125,6 +133,45 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.waitForSelector('dl');
     await p.getByRole('button', { name: 'English' }).click();
     await p.getByRole('button', { name: 'Devices' }).waitFor({ timeout: 2000 });
+  });
+  await test('rules: read, long text in chunks, syntax check, previous copy, restore, flags, Berry rules', async p => {
+    await openFull(p);
+    await p.getByRole('button', { name: 'Règles' }).click();
+    const card = n => p.locator('article.card', { has: p.getByRole('heading', { name: 'Rule' + n }) });
+    const r1 = card(1);
+    const box = r1.getByRole('textbox');
+    await box.waitFor({ timeout: 4000 });
+    const original = await box.inputValue();
+    if (!/Button1#State=3/.test(original)) throw new Error('Rule1 text not shown');
+    // a text that is not a rule: advice, and no saving
+    await box.fill('Power1 on');
+    await r1.getByRole('alert').filter({ hasText: 'doit commencer par' }).waitFor();
+    if (!(await r1.getByRole('button', { name: 'Enregistrer' }).isDisabled())) throw new Error('save allowed');
+    await box.fill('on Power1#State=1 do Power2 1');
+    await r1.getByRole('alert').filter({ hasText: 'endon' }).waitFor();
+    // longer than a request: sent in several chunks
+    const long = Array.from({ length: 24 }, (_, i) => `on Time#Minute=${i} do Power1 0 endon`).join('\n');
+    await box.fill(long);
+    await r1.getByText(/Plus de 512 caractères/).waitFor();
+    await r1.getByRole('button', { name: 'Enregistrer' }).click();
+    await r1.getByText(/Enregistré/).waitFor({ timeout: 4000 });
+    const stored = await p.evaluate(async t => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[0].text,
+      '0123456789abcdef0123456789abcdef');
+    if (stored !== long) throw new Error('stored text differs');
+    // the previous version is kept, and restoring it brings it back
+    await p.locator('article.card', { has: p.getByRole('heading', { name: 'Rule1' }) }).getByText('Copie précédente').click();
+    await r1.locator('details pre').getByText('Button1#State=3').waitFor();
+    p.once('dialog', d => d.accept());
+    await r1.getByRole('button', { name: 'Restaurer cette copie' }).click();
+    await r1.getByText('Copie restaurée.').waitFor({ timeout: 4000 });
+    if ((await box.inputValue()) !== original) throw new Error('restored text differs');
+    // flags and Berry rules
+    await card(2).getByRole('checkbox', { name: 'une seule fois' }).click();
+    await p.waitForFunction(async t => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[1].once,
+      '0123456789abcdef0123456789abcdef', { timeout: 4000 });
+    await p.getByRole('heading', { name: 'Règles Berry' }).waitFor();
+    await p.locator('ul.berry').getByText('Button1#State').waitFor();
+    if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'rules.png'), fullPage: true });
   });
   await test('Tuya: cards, switches, slider, readings, event back, offline device', async p => {
     await openFull(p);

@@ -9,18 +9,26 @@ Specification (French, outside the repository):
 
 ## Status (9 November 2026)
 
+- **v0.1 released**: tag `v0.1.0`, `.tapp` attached to the release, interface published on GitHub
+  Pages (PRs #1 to #3 merged). Installed on the gateway: server start/stop, memory and the
+  light interface after a restart checked; the other `[ ]` items of the test plan are left.
+- **v0.2 started** (branch `claude/modest-pascal-8854i4`): step 1 **written, to check on the
+  gateway**: the **Rules** screen (`Rule1` to `Rule3` and Berry rules, edit, copy of the previous
+  version before every write, restore, enable/disable, in the light interface too). Passes
+  against the simulated gateway (`node tests/e2e.js`, 10 tests); the Berry code
+  (`extension/tf_rules.be`) was only read, not compiled. Next: sentence editor, automations,
+  Berry rule editing with compilation check, `autoexec.be`.
+
 - **v0.0 (prototype) complete**, released as
   [v0.0.1](https://github.com/gnatali/TasmoFlow/releases/tag/v0.0.1) and checked on the
   gateway (ZB-GW03 with the local Tuya driver). The interface loads from GitHub Pages
   (header "v0.0.1 · github") and falls back to the local copy.
 - [PR #1](https://github.com/gnatali/TasmoFlow/pull/1) merged (tracking files, `.claude/rules/`).
-- **v0.1 (control) written, to be checked on the gateway** (branch
-  `claude/modest-pascal-8854i4`, not merged yet): Preact + htm interface, API server on demand,
-  Gateways screen, Tuya devices in the dashboard. Everything passes against the simulated
-  gateway (`node tests/e2e.js`, 9 tests); **nothing of it ran on a real gateway yet**, and the
-  Berry changes were only read, not compiled (the CI does the syntax check).
-- **Next**: install the v0.1 `.tapp` on the ZB-GW03, work through the new `[ ]` items of the
-  [test plan](architecture.en.md#test-plan-on-the-gateway), measure the memory; then v0.2.
+- **v0.1 (control)**: Preact + htm interface, API server on demand, Gateways screen, Tuya
+  devices in the dashboard (details below).
+- **Next**: work through the `[ ]` items of the
+  [test plan](architecture.en.md#test-plan-on-the-gateway) on the ZB-GW03 (v0.1 and the new v0.2
+  ones), measure the memory with the rule API loaded.
 
 ## History
 
@@ -38,6 +46,7 @@ Specification (French, outside the repository):
 | 9 Nov | All v0.0 checks passed, memory measured after `tasmota.gc()`; v0.0.1 tagged by Guillaume, GitHub Pages enabled |
 | 9 Nov | v0.1: **Preact + htm chosen** (same screen: 6.6 KB gzipped against 6.3 KB for Lit, 5.4 KB for the prototype without dependency); interface bundled with esbuild (12.9 KB gzipped, then 14.6 KB with Tuya) |
 | 9 Nov | v0.1: **option B decided**: full interface on GitHub Pages only (pinned, SRI), light interface (13.7 KB gzipped, devices + console + diagnostics) in the `.tapp`; second esbuild entry point of the same sources. Reason: `UfsFree` 148 KB of 320 KB and a full interface that will grow |
+| 9 Nov | v0.1 released (tag `v0.1.0`); v0.2 started: Rules screen, `tf_rules.be` (read, write in chunks, copy of the previous version, restore), syntax check of rule sets in the interface, rules in the light interface |
 | 9 Nov | v0.1: API server on demand (`/tf`, `/tf?w=1`, 5 minutes idle), `tf_http.be` compiled lazily and trimmed; Gateways screen; Tuya devices (`TuyaEnable`, `TuyaStatus`, `TuyaConfig`, `TuyaSend`, `Tuya` rule on the event stream); simulated Tuya driver and tests |
 
 ## Measurements on the gateway
@@ -83,14 +92,14 @@ Left for v0.1 (small):
 
 - **Colour of `light3`** bindings (`colour_data_v2`, `hhhhssssvvvv`): not offered yet.
 - **Tuya sub-device names** with a comma, which `TuyaSend` cannot address.
-- **Light interface scope for v0.2**: add enabling/disabling a rule and restoring the previous
-  copy (see the table in the architecture), so that rules stay manageable without GitHub.
-- **`VERSION` is `0.1.0`** (bumped before the tag, to tell builds apart). Until Guillaume tags `v0.1.0`, `gnatali.github.io/TasmoFlow/v0.1.0/app.js` does not exist (404): the gateway falls back to the light interface at once. The full interface only loads from GitHub after the tag.
+- **`VERSION` is `0.1.0`** until the next release: a build of v0.2 is only told apart from v0.1.0
+  by the Rules tab (bump `VERSION` before tagging `v0.2.0`).
 - **Checks on the gateway**: the `[ ]` items marked v0.1 in the test plan, in particular that
   the port 8384 `tcpserver` can be closed and listened to again, and `TuyaConfig` memory use.
 
-Then v0.2: all rules (`Rule1` to `Rule3`, Berry, automations), sentence editor, backup before
-writing.
+v0.2, left after step 1: sentence editor ("When... If... Then...") that shows `on...endon` as
+sentences, automations (Tasmota rule or Berry), Berry rule editing with a compilation check,
+`autoexec.be`, conflict report.
 
 ## Points to check
 

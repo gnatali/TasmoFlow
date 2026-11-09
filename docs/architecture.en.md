@@ -27,11 +27,12 @@ RAM is the critical resource, so the port 8384 server (`tf_http.be`) is not star
 (v0.1):
 
 - `/tf`, once the password check has passed, starts it. `tf_http.be` is compiled at that moment
-  (`load_tf_http()`, `introspect.module('tf_http', true)`: loaded **without cache**, so
+  (`load_module()`, `introspect.module('tf_http', true)`: loaded **without cache**, so
   `tasmota.gc()` frees it when the server stops): no RAM is spent while no interface is open.
   A plain `import` would cache the module for good, and fails at run time anyway: Tasmota only
-  keeps the `.tapp` folder in `sys.path` while it loads the extension, so `load_tf_http()` adds
-  it back around the call.
+  keeps the `.tapp` folder in `sys.path` while it loads the extension, so `load_module()` adds
+  it back around the call. `tf_rules.be` (rule API, v0.2) is loaded the same way, with the
+  server, and dropped with it.
 - `/tf?w=1` also starts it, **without password and without returning any data**. It lets an
   interface open on another gateway wake this one (see [Several gateways](#several-gateways));
   the API itself still requires the token.
@@ -113,7 +114,7 @@ places" of v0.0):
 | Source | `app/src/main.js` | `app/src/main_lite.js`: same code, fewer tabs (`boot.js`) |
 | Budget (gzipped) | 120 KB | 25 KB |
 
-Light interface, planned for v0.2: enable or disable a rule and restore the previous copy of a
+Light interface, since v0.2: enable or disable a rule and restore the previous copy of a
 rule, so that rules stay manageable without GitHub. Never in the light interface: sentence
 editor, groups, scenes, Zigbee plugins, administration (OTA), several gateways.
 
@@ -150,6 +151,9 @@ Why:
 | `GET /api/devices?t=` | Zigbee devices: address, name, model, manufacturer, LQI, battery, last message, last attributes |
 | `GET /api/cmd?t=&c=` | Runs a Tasmota command (`c`, encoded) and returns its JSON response |
 | `GET /api/events?t=&since=` | SSE stream; first sends the kept events after `since` (50 at most) |
+| `GET /api/rules?t=` | The three Tasmota rule sets (state, options, text, free space, previous copy) and the Berry rules (`tf_rules.be`) |
+| `GET /api/rule_set?t=&n=&i=&x=[&last=1]` | Writes rule set `n`, text in chunks `x` (`i` = 0, 1, 2...), applied on `last` |
+| `GET /api/rule_restore?t=&n=` | Puts the previous copy of rule set `n` back |
 
 Events carry a sequence number and a `type`: `zigbee` (`device`, `name`, `attrs`) and `tuya`
 (`name`, `dps`, from the driver's `Tuya` rule).
@@ -341,14 +345,21 @@ Berry rules and its own automations. Findings from Tasmota's code at the firmwar
 | Timers | `RuleTimer1` to `RuleTimer8` | `RuleTimer<n> <s>` |
 | Berry rules | no limit; `tasmota._rules` lists each trigger (`trig.rule`) and its id | `tasmota.add_rule`, `tasmota.remove_rule` |
 
-Plan:
+Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `extension/tf_rules.be`,
+`app/src/rules.js`, `rules_lint.js`; the sentence editor and automations come next):
 
 - **Reading.** The three rule sets (text, state, options), the loaded Berry triggers and
-  `autoexec.be`. An `on ... do ... endon` whose syntax is recognised is shown as a sentence; the
+  `autoexec.be` (only the first two so far; TasmoFlow's own `tasmoflow` Tuya rule is hidden). An `on ... do ... endon` whose syntax is recognised is shown as a sentence; the
   others stay as text.
 - **Writing.** Every change goes through a copy of the previous version on the gateway (one-click
   restore), a syntax check (Tasmota rule) or a compilation (Berry) before saving, and the
-  display of the space left in the rule set.
+  display of the space left in the rule set. Implemented: the gateway copies the current text to
+  `/tf_rule<n>.bak` (one previous copy per rule set), writes `Rule<n> <text>`, reads the rule set
+  back and puts the old text back if it differs. The text travels in chunks of 300 characters
+  (`/api/rule_set`) because the port 8384 server only reads a short request line. A restore
+  swaps the two texts, so it can be undone. The interface checks `on <trigger> do ... endon`
+  (advisory, `rules_lint.js`); the Tasmota rule engine has no syntax-check command. The Berry
+  compilation check comes with Berry editing.
 - **Engine of choice.** A TasmoFlow automation becomes either a Tasmota rule (independent of
   Berry, limited space) or Berry code (no limit, advanced conditions and timers).
 - **Conflicts.** Two rules acting on the same device are reported: for example a Tasmota rule
@@ -384,4 +395,8 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [ ] v0.1: with the Tuya driver disabled (`TuyaEnable 0`) or absent, the Tuya section is hidden
 - [x] v0.1: memory at rest after `tasmota.gc()`: 75 KB free, Berry 35 KB, i.e. 9 KB (target 15 KB); with an interface open 63 KB / 48 KB (cached `import`, see [Memory](#memory))
 - [x] v0.1: with the uncached loading, the memory partly returns 5 minutes after the last tab is closed: 59 KB free / Berry 48 KB with the interface open, 69 KB / 39 KB after (75 KB / 35 KB before the first opening)
+- [ ] v0.2: Rules screen: the three rule sets show the text of `Rule1` to `Rule3`; saving a rule of more than 600 characters (several chunks) reads back identical, even with line breaks (otherwise the old text is put back and an error is shown); "Previous copy" then "Restore" brings the old text back
+- [ ] v0.2: enabling/disabling, "once only" and "stop on error" act on the real rule set; the Berry rules list matches `Br print(tasmota._rules)`
+- [ ] v0.2: the light interface (GitHub blocked) shows the Rules tab with enable/disable and restore, without the editor
+- [ ] v0.2: memory with the rule API loaded (`tf_rules.be` is compiled with the API server): free heap and Berry after `tasmota.gc()`, interface open
 - [ ] v0.1: find what stays allocated after the first opening (6 KB free heap, 4 KB Berry), and check that `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)

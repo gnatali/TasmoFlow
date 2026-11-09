@@ -6,9 +6,10 @@ export function client(gw) {
     for (const k in params || {}) u += '&' + k + '=' + encodeURIComponent(params[k]);
     return u;
   };
-  const get = (path, params) => fetch(url(path, params)).then(r => {
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    return r.json();
-  });
+  // an error answer {"error": code} becomes the Error's message, else 'HTTP <status>'
+  const get = (path, params) => fetch(url(path, params)).then(r => r.json().catch(() => ({})).then(b => {
+    if (!r.ok) throw new Error(b.error || 'HTTP ' + r.status);
+    return b;
+  }));
   return { url, get, cmd: c => get('/api/cmd', { c }) };
 }

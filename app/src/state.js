@@ -15,6 +15,7 @@ export const S = createStore({
   gw: LOCAL,                // gateway shown
   status: null,
   devices: null,            // { "0x1234": { addr, name, model, ..., attrs: {} } }
+  rules: null,              // { rules: [{ n, on, once, stop, len, free, text, bak }], berry: [{ rule, id }] }
   tuya: null,               // { state, detail, nodes: { name: { connected, ip, version, dps } }, conf, lowMem }
   events: [],
   live: false,
@@ -29,6 +30,7 @@ let lastSeq = 0;
 let lastWake = 0;
 
 export const cmd = c => api.cmd(c);
+export const get = (path, params) => api.get(path, params);
 export const current = gw => S.get().gw === gw;
 const fail = (gw, e) => { if (current(gw)) S.set({ error: e.message }); };
 
@@ -45,6 +47,12 @@ export function loadDevices() {
     list.forEach(d => { d.attrs = d.info || {}; devices[d.addr] = d; });
     if (current(gw)) S.set({ devices });
   }).catch(e => fail(gw, e));
+}
+
+export function loadRules() {
+  const gw = S.get().gw;
+  return api.get('/api/rules').then(rules => { if (current(gw)) S.set({ rules, error: null }); })
+    .catch(e => fail(gw, e));
 }
 
 // Local Tuya devices: state of the firmware's driver, devices, then (memory permitting) their
@@ -144,6 +152,7 @@ function start() {
     if (!current(gw)) return;
     S.set({ startMs: performance.now() - T0 });
     connectEvents();
+    if (S.get().tab === 'rules') loadRules();
     return loadTuya();
   }).catch(e => fail(gw, e));
 }
@@ -154,13 +163,14 @@ export function selectGateway(id) {
   closeEvents();
   api = client(gw);
   lastSeq = 0;
-  S.set({ gw, status: null, devices: null, tuya: null, events: [], live: false, error: null });
+  S.set({ gw, status: null, devices: null, tuya: null, rules: null, events: [], live: false, error: null });
   start();
 }
 
 export function setTab(tab) {
   S.set({ tab });
   if (tab === 'diag') loadStatus();
+  if (tab === 'rules') loadRules();
 }
 
 export function addRemote(gw) {

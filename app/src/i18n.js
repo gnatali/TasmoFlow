@@ -22,6 +22,17 @@ const TEXTS = {
     memory: 'mémoire', connected: 'connecté', disconnected: 'déconnecté', on: 'allumé', off: 'éteint',
     liteBanner: "Version légère, servie par la passerelle : l'interface complète n'a pas pu être chargée depuis GitHub (pas d'accès à internet ?).", retry: 'Réessayer',
     speed: 'Vitesse', dimmer: 'Intensité', colortemp: 'Température de couleur',
+    rules: 'Règles', rule_once: 'une seule fois', rule_stop: "arrêt sur erreur", rule_chars: 'caractères', rule_free: 'libres',
+    rule_empty: '(vide)', rule_save: 'Enregistrer', rule_cancel: 'Annuler', rule_previous: 'Copie précédente', rule_restore: 'Restaurer cette copie',
+    rule_confirmRestore: 'Remplacer le texte actuel par la copie précédente ? Le texte actuel devient la copie précédente.',
+    rule_done: 'Fait.', rule_saved: 'Enregistré. La version précédente est gardée sur la passerelle.', rule_restored: 'Copie restaurée.',
+    rule_berry: 'Règles Berry', rule_noBerry: 'Aucune règle Berry enregistrée.',
+    rule_compressed: 'Plus de 512 caractères : Tasmota compresse le texte (environ 2 000 caractères au maximum).',
+    rule_tooLong: 'Texte trop long pour une série de règles (environ 2 000 caractères au maximum).',
+    rule_lintOn: 'Le texte doit commencer par « on ».', rule_lintDo: "Il manque « do » après le déclencheur.",
+    rule_lintEndon: 'Il manque « endon » à la fin du bloc.', rule_lintBody: "Il n'y a aucune commande entre « do » et « endon ».",
+    rule_backup: "Pas de place pour la copie de sauvegarde : rien n'a été modifié.", rule_write: "La passerelle n'a pas gardé le texte : l'ancien texte a été remis.",
+    rule_length: 'Texte trop long.', rule_nobackup: 'Aucune copie précédente.', rule_chunk: "Transfert interrompu, réessayez.", rule_unknown: 'Série de règles inconnue.',
     tuyaWaiting: 'Pilote Tuya en attente :', tuyaLowMem: 'Mémoire libre insuffisante pour lire la configuration Tuya : seuls les états booléens sont proposés.'
   },
   en: {
@@ -44,6 +55,17 @@ const TEXTS = {
     memory: 'memory', connected: 'connected', disconnected: 'disconnected', on: 'on', off: 'off',
     liteBanner: 'Light version, served by the gateway: the full interface could not be loaded from GitHub (no internet access?).', retry: 'Retry',
     speed: 'Speed', dimmer: 'Dimmer', colortemp: 'Colour temperature',
+    rules: 'Rules', rule_once: 'once only', rule_stop: 'stop on error', rule_chars: 'characters', rule_free: 'free',
+    rule_empty: '(empty)', rule_save: 'Save', rule_cancel: 'Cancel', rule_previous: 'Previous copy', rule_restore: 'Restore this copy',
+    rule_confirmRestore: 'Replace the current text with the previous copy? The current text becomes the previous copy.',
+    rule_done: 'Done.', rule_saved: 'Saved. The previous version is kept on the gateway.', rule_restored: 'Copy restored.',
+    rule_berry: 'Berry rules', rule_noBerry: 'No Berry rule registered.',
+    rule_compressed: 'More than 512 characters: Tasmota compresses the text (about 2,000 characters at most).',
+    rule_tooLong: 'Text too long for a rule set (about 2,000 characters at most).',
+    rule_lintOn: 'The text must start with "on".', rule_lintDo: 'A "do" is missing after the trigger.',
+    rule_lintEndon: 'An "endon" is missing at the end of the block.', rule_lintBody: 'There is no command between "do" and "endon".',
+    rule_backup: 'No room for the backup copy: nothing was changed.', rule_write: 'The gateway did not keep the text: the old text was put back.',
+    rule_length: 'Text too long.', rule_nobackup: 'No previous copy.', rule_chunk: 'Transfer interrupted, try again.', rule_unknown: 'Unknown rule set.',
     tuyaWaiting: 'Tuya driver waiting:', tuyaLowMem: 'Not enough free memory to read the Tuya configuration: only boolean states are offered.'
   }
 };

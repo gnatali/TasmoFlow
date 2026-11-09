@@ -75,6 +75,7 @@ class tasmoflow
 
   var wd                                # .tapp folder, e.g. '/.extensions/TasmoFlow.tapp#'
   var web                               # tf_http server on port 8384
+  var rules                             # tf_rules (rule API), loaded with the server
   var token
   var events                            # [ [seq, SSE text], ... ]
   var seq
@@ -262,9 +263,10 @@ class tasmoflow
 
   # Tasmota only keeps the .tapp folder in sys.path while it loads the extension, then removes
   # it: a later `import tf_http` fails ("module not found") unless the folder is added back.
+  # Loads the file `name`.be of the .tapp and returns what it returns (a class), or nil.
   # Never raises: an error here must not stop /tf from answering (Tasmota then sends nothing,
   # and the browser shows ERR_EMPTY_RESPONSE).
-  def load_tf_http()
+  def load_module(name)
     import sys
     var path = sys.path()
     var added = path.find(self.wd) == nil
@@ -274,9 +276,9 @@ class tasmoflow
       # not cached (like autoexec.be does for this extension): a cached module stays in RAM for
       # good, an uncached one is freed by tasmota.gc() once stop_api() dropped every reference
       import introspect
-      cls = introspect.module('tf_http', true)
+      cls = introspect.module(name, true)
     except .. as e, m
-      log(f"TFL: cannot load tf_http.be from '{self.wd}' ({e} {m})", 1)
+      log(f"TFL: cannot load {name}.be from '{self.wd}' ({e} {m})", 1)
     end
     var i = path.find(self.wd)
     if added && i != nil    path.remove(i)    end
@@ -286,7 +288,7 @@ class tasmoflow
   def start_api()
     self.touch()
     if self.web != nil || !tasmota.is_network_up()   return   end
-    var tf_http = self.load_tf_http()   # compiled here, the first time: no RAM before
+    var tf_http = self.load_module('tf_http')   # compiled here, the first time: no RAM before
     if tf_http == nil    return    end
     try
       self.web = tf_http(self.PORT)
@@ -300,6 +302,11 @@ class tasmoflow
     self.web.on("/api/devices", self, self.api_devices)
     self.web.on("/api/cmd", self, self.api_cmd)
     self.web.on("/api/events", self, self.api_events)
+    var tf_rules = self.load_module('tf_rules')
+    if tf_rules != nil
+      self.rules = tf_rules(self)
+      self.rules.register(self.web)
+    end
     var zb = self.zb()
     if zb != nil    zb.add_handler(self)    end
     # state changes of the firmware's Tuya driver ({"Tuya":{"Name":...,"Dps":{...}}}); the
@@ -318,6 +325,7 @@ class tasmoflow
     self.events = []
     self.web.close()
     self.web = nil
+    self.rules = nil
     tasmota.gc()                        # frees the compiled tf_http class
     log("TFL: API server stopped", 2)
   end

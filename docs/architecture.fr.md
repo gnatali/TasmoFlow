@@ -27,12 +27,13 @@ La RAM est la ressource critique : le serveur du port 8384 (`tf_http.be`) n'est 
 boot (v0.1) :
 
 - `/tf`, une fois le mot de passe vérifié, le démarre. `tf_http.be` est compilé à ce moment
-  (`load_tf_http()`, `introspect.module('tf_http', true)` : chargé **sans cache**, donc
+  (`load_module()`, `introspect.module('tf_http', true)` : chargé **sans cache**, donc
   `tasmota.gc()` le libère quand le serveur s'arrête) : aucune RAM n'est dépensée tant
   qu'aucune interface n'est ouverte. Un simple `import` mettrait le module en cache pour
   toujours, et échoue de toute façon à l'exécution : Tasmota ne garde le dossier de la `.tapp`
-  dans `sys.path` que pendant le chargement de l'extension, `load_tf_http()` le remet donc
-  autour de l'appel.
+  dans `sys.path` que pendant le chargement de l'extension, `load_module()` le remet donc
+  autour de l'appel. `tf_rules.be` (API des règles, v0.2) est chargé de la même façon, avec le
+  serveur, et libéré avec lui.
 - `/tf?w=1` le démarre aussi, **sans mot de passe et sans renvoyer aucune donnée**. Elle permet
   à une interface ouverte sur une autre passerelle de réveiller celle-ci (voir
   [Plusieurs passerelles](#plusieurs-passerelles)) ; l'API elle-même exige toujours le jeton.
@@ -117,7 +118,7 @@ deux endroits » de la v0.0) :
 | Source | `app/src/main.js` | `app/src/main_lite.js` : même code, moins d'onglets (`boot.js`) |
 | Budget (gzip) | 120 Ko | 25 Ko |
 
-Interface légère, prévu en v0.2 : activer ou désactiver une règle et restaurer la copie
+Interface légère, depuis la v0.2 : activer ou désactiver une règle et restaurer la copie
 précédente d'une règle, pour que les règles restent gérables sans GitHub. Jamais dans
 l'interface légère : éditeur de phrases, groupes, scènes, plugins Zigbee, administration (OTA),
 plusieurs passerelles.
@@ -158,6 +159,9 @@ Pourquoi :
 | `GET /api/status?t=` | Versions, mémoire libre, système de fichiers, état de Zigbee, nombre d'appareils |
 | `GET /api/devices?t=` | Appareils Zigbee : adresse, nom, modèle, fabricant, LQI, batterie, dernier message, derniers attributs |
 | `GET /api/cmd?t=&c=` | Exécute une commande Tasmota (`c`, encodée) et renvoie sa réponse JSON |
+| `GET /api/rules?t=` | Les trois jeux de règles Tasmota (état, options, texte, place libre, copie précédente) et les règles Berry (`tf_rules.be`) |
+| `GET /api/rule_set?t=&n=&i=&x=[&last=1]` | Écrit le jeu de règles `n`, texte par morceaux `x` (`i` = 0, 1, 2…), appliqué avec `last` |
+| `GET /api/rule_restore?t=&n=` | Remet la copie précédente du jeu `n` |
 | `GET /api/events?t=&since=` | Flux SSE ; renvoie d'abord les événements gardés après `since` (50 au plus) |
 
 Les événements portent un numéro de séquence et un `type` : `zigbee` (`device`, `name`,
@@ -356,14 +360,23 @@ commit `a281cece` du firmware (`tasmota/include/tasmota.h`, `xdrv_10_rules.ino`,
 | Minuteries | `RuleTimer1` à `RuleTimer8` | `RuleTimer<n> <s>` |
 | Règles Berry | sans limite ; `tasmota._rules` liste chaque déclencheur (`trig.rule`) et son identifiant | `tasmota.add_rule`, `tasmota.remove_rule` |
 
-Plan :
+Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **Règles**, `extension/tf_rules.be`,
+`app/src/rules.js`, `rules_lint.js` ; l'éditeur en phrases et les automatisations viennent ensuite) :
 
 - **Lecture.** Les trois jeux de règles (texte, état, options), les déclencheurs Berry chargés
-  et `autoexec.be`. Un `on … do … endon` dont la syntaxe est reconnue s'affiche en phrase ; les
+  et `autoexec.be` (seuls les deux premiers pour l'instant ; la règle Tuya `tasmoflow` de
+  TasmoFlow n'est pas affichée). Un `on … do … endon` dont la syntaxe est reconnue s'affiche en phrase ; les
   autres restent en texte.
 - **Écriture.** Toute modification passe par une copie de l'ancienne version sur la passerelle
   (restauration en un clic), un contrôle de syntaxe (règle Tasmota) ou une compilation (Berry)
-  avant l'enregistrement, et l'affichage de la place restante dans le jeu de règles.
+  avant l'enregistrement, et l'affichage de la place restante dans le jeu de règles. Réalisé : la
+  passerelle copie le texte actuel dans `/tf_rule<n>.bak` (une copie précédente par jeu de
+  règles), écrit `Rule<n> <texte>`, relit le jeu et remet l'ancien texte s'il diffère. Le texte
+  voyage par morceaux de 300 caractères (`/api/rule_set`), car le serveur du port 8384 ne lit
+  qu'une ligne de requête courte. Une restauration échange les deux textes : elle s'annule.
+  L'interface vérifie `on <déclencheur> do … endon` (à titre indicatif, `rules_lint.js`) ; le
+  moteur de règles de Tasmota n'a pas de commande de contrôle de syntaxe. Le contrôle par
+  compilation Berry viendra avec l'édition du Berry.
 - **Moteur au choix.** Une action TasmoFlow devient une règle Tasmota (indépendante de Berry,
   place limitée) ou du Berry (sans limite, conditions et minuteries avancées).
 - **Conflits.** Deux règles qui agissent sur le même appareil sont signalées : par exemple une
@@ -399,4 +412,8 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [ ] v0.1 : avec le pilote Tuya désactivé (`TuyaEnable 0`) ou absent, la section Tuya est masquée
 - [x] v0.1 : mémoire au repos après `tasmota.gc()` : 75 Ko libres, Berry 35 Ko, soit 9 Ko (cible : 15 Ko) ; interface ouverte 63 Ko / 48 Ko (`import` en cache, voir [Mémoire](#mémoire))
 - [x] v0.1 : avec le chargement sans cache, la mémoire revient en partie 5 minutes après la fermeture du dernier onglet : 59 Ko libres / Berry 48 Ko interface ouverte, 69 Ko / 39 Ko après (75 Ko / 35 Ko avant la première ouverture)
+- [ ] v0.2 : écran Règles : les trois jeux affichent le texte de `Rule1` à `Rule3` ; enregistrer une règle de plus de 600 caractères (plusieurs morceaux) se relit à l'identique, même avec des retours à la ligne (sinon l'ancien texte est remis et une erreur s'affiche) ; « Copie précédente » puis « Restaurer » remet l'ancien texte
+- [ ] v0.2 : l'activation/désactivation, « une seule fois » et « arrêt sur erreur » agissent sur le vrai jeu de règles ; la liste des règles Berry correspond à `Br print(tasmota._rules)`
+- [ ] v0.2 : l'interface légère (GitHub bloqué) montre l'onglet Règles avec activation/désactivation et restauration, sans l'éditeur
+- [ ] v0.2 : mémoire avec l'API des règles chargée (`tf_rules.be` est compilé avec le serveur d'API) : mémoire libre et Berry après `tasmota.gc()`, interface ouverte
 - [ ] v0.1 : trouver ce qui reste alloué après la première ouverture (6 Ko de mémoire libre, 4 Ko de Berry), et vérifier que `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)

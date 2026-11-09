@@ -6,7 +6,7 @@ Mimics the extension's two servers:
   - port --web (8080 by default): /tf page, extracted as is from
     extension/tasmoflow.be to test the real loader;
   - port --api (8384 by default): /lite.js (gzip), /api/status, /api/devices,
-    /api/cmd and /api/events (SSE), with the same CORS headers as tf_http.be.
+    /api/cmd, /api/rules, /api/rule_set, /api/rule_restore and /api/events (SSE), with the same CORS headers as tf_http.be.
 
 Three fake Zigbee devices send events every 2 seconds. Four fake Tuya devices answer
 TuyaEnable, TuyaStatus, TuyaConfig and TuyaSend like the firmware's driver (formats from
@@ -121,6 +121,55 @@ def tuya_command(c):
     return None
 
 
+# Tasmota rule sets (Rule1..Rule3) and the previous copy kept by tf_rules.be
+RULES = {n: {"on": False, "once": False, "stop": False, "text": "", "bak": None} for n in (1, 2, 3)}
+RULES[1].update(on=True, text="on Button1#State=3 do Power2 toggle endon")
+RULES[2].update(text="on Time#Minute=60 do Power1 0 endon on System#Boot do Backlog Delay 50; Power1 1 endon")
+BERRY_RULES = [{"rule": "Tuya", "id": "None"}, {"rule": "Button1#State", "id": "my_script"}]
+RULE_BUF = {"n": 0, "text": ""}
+
+
+def rule_view(n):
+    r = RULES[n]
+    return {"State": "ON" if r["on"] else "OFF", "Once": "ON" if r["once"] else "OFF",
+            "StopOnError": "ON" if r["stop"] else "OFF", "Length": len(r["text"]),
+            "Free": 511 - len(r["text"]), "Rules": r["text"]}
+
+
+def rule_command(c):
+    """Response to a Rule<n> command (None: not one)."""
+    m = re.fullmatch(r"Rule([1-3])(?: (.*))?", c, re.S)
+    if not m:
+        return None
+    n, arg = int(m.group(1)), m.group(2)
+    r = RULES[n]
+    if arg is not None:
+        arg = arg.strip()
+        flags = {"0": ("on", False), "1": ("on", True), "4": ("once", False), "5": ("once", True),
+                 "8": ("stop", False), "9": ("stop", True)}
+        if arg in flags:
+            r[flags[arg][0]] = flags[arg][1]
+        elif arg == "2":
+            r["on"] = not r["on"]
+        elif arg == '""':
+            r["text"] = ""
+        elif arg.startswith("+"):
+            r["text"] += arg[1:]
+        else:
+            r["text"] = arg
+    return {f"Rule{n}": rule_view(n)}
+
+
+def rule_apply(n, text):
+    """What tf_rules.apply() does: copy the current text, write, return an error code or None."""
+    r = RULES[n]
+    if r["text"] == text:
+        return None
+    r["bak"] = r["text"]
+    r["text"] = text
+    return None
+
+
 def simulator():
     while True:
         time.sleep(2)
@@ -215,10 +264,37 @@ class Api(BaseHTTPRequestHandler):
                             "wd": "/.extensions/TasmoFlow.tapp#"})
         elif u.path == "/api/devices":
             self.json(200, list(DEVICES.values()))
+        elif u.path == "/api/rules":
+            self.json(200, {"rules": [{"n": n, "on": r["on"], "once": r["once"], "stop": r["stop"],
+                                       "len": len(r["text"]), "free": 511 - len(r["text"]), "text": r["text"],
+                                       "bak": r["bak"]} for n, r in RULES.items()],
+                            "berry": BERRY_RULES})
+        elif u.path in ("/api/rule_set", "/api/rule_restore"):
+            n = int(q.get("n", "0") or 0)
+            err = None
+            if n not in RULES:
+                err = "rule"
+            elif u.path == "/api/rule_restore":
+                err = "nobackup" if RULES[n]["bak"] is None else rule_apply(n, RULES[n]["bak"])
+            else:
+                if int(q.get("i", "0") or 0) == 0:
+                    RULE_BUF.update(n=n, text="")
+                RULE_BUF["text"] += q.get("x", "")
+                if len(RULE_BUF["text"]) > 2200:
+                    RULE_BUF["text"] = ""
+                    err = "length"
+                elif "last" in q:
+                    text, RULE_BUF["text"] = RULE_BUF["text"], ""
+                    err = rule_apply(n, text)
+            self.json(400 if err else 200, {"error": err} if err else {"ok": True})
         elif u.path == "/api/cmd":
             c = q.get("c", "")
             if not c:
                 self.json(400, {"error": "cmd"})
+                return
+            rr = rule_command(c)
+            if rr is not None:
+                self.json(200, rr)
                 return
             tr = tuya_command(c)
             if tr is not None:

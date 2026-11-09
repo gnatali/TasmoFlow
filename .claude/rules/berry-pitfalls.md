@@ -20,6 +20,9 @@ paths:
   reloads itself (`?r=1` avoids a loop).
 - `web_add_handler()` is not called for an extension loaded after the web server started: call
   it from `init()` when `webserver.state() != 0`, and guard against a second registration.
+- The port 8384 server reads **one short request line** (a partial line over 100 bytes is
+  refused): never send long data in a query. Rule texts go in 300-character chunks
+  (`/api/rule_set`).
 - Never read a large file in one go (no PSRAM): stream it in 1 KB chunks
   (`tf_streamer`), at the client's pace (`buf_out_empty()`).
 - Files inside a `.tapp` are opened with `open(tasmota.wd + "name")`; a `.tapp` is an
@@ -29,7 +32,7 @@ paths:
 - A `.tapp`'s folder is in `sys.path` **only while Tasmota loads it** (`tasmota.load()` pushes
   then pops it, and resets `tasmota.wd`). An `import` of one of its files at run time (inside a
   method, after load) raises "module not found": push `self.wd` onto `sys.path()` around it
-  (`load_tf_http()`). The simulated gateway cannot catch this.
+  (`load_module()`, used for `tf_http` and `tf_rules`). The simulated gateway cannot catch this.
 - An exception in a `webserver.on` handler makes Tasmota send nothing (browser:
   `ERR_EMPTY_RESPONSE`): catch everything that can fail before the page is sent.
 - Uploading a new `.tapp` does not reload the running extension: restart (`Restart 1`) before
