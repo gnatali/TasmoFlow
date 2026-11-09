@@ -36,3 +36,7 @@ h2:first-child{margin-top:0}
 .msg{font-size:.85rem}
 .msg.ok{color:var(--good)}
 .msg.bad{color:var(--bad)}
+input[type=range]{min-width:8rem;flex:none;padding:0;vertical-align:middle}
+.rng{display:flex;align-items:center;gap:.5rem}
+button[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
+button:disabled{opacity:.5;cursor:default}

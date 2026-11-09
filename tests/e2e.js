@@ -24,7 +24,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
 
 (async () => {
   const TOKEN_B = 'fedcba9876543210fedcba9876543210';
-  const mocks = [mock([]), mock(['--web', '8081', '--api', '8385', '--cdn', CDN, '--sri', SRI, '--token', TOKEN_B, '--name', 'Passerelle B'])];
+  const mocks = [mock([]), mock(['--web', '8081', '--api', '8385', '--cdn', CDN, '--sri', SRI, '--token', TOKEN_B, '--name', 'Passerelle B', '--no-tuya'])];
   await wait(1000);
   const browser = await chromium.launch();
   const results = [];
@@ -103,9 +103,29 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.getByRole('button', { name: 'English' }).click();
     await p.getByRole('button', { name: 'Devices' }).waitFor({ timeout: 2000 });
   });
+  await test('Tuya: cards, switches, slider, readings, event back, offline device', async p => {
+    await p.goto('http://localhost:8080/tf');
+    const fan = p.locator('article.card', { has: p.getByRole('heading', { name: 'Ventilateur', exact: true }) });
+    await fan.waitFor({ timeout: 6000 });
+    await fan.getByRole('button', { name: 'Lumière ventilateur · éteint' }).click();
+    await fan.getByRole('button', { name: 'Lumière ventilateur · allumé' }).waitFor({ timeout: 4000 });   // state comes back through the event stream
+    await fan.getByLabel('Vitesse').fill('5');
+    await p.waitForFunction(async t => {
+      const r = await (await fetch('http://localhost:8384/api/cmd?t=' + t + '&c=TuyaStatus%20Ventilateur')).json();
+      return r.TuyaStatus.Ventilateur.Dps['62'] === 5;      // the slider's TuyaSend reached the driver
+    }, '0123456789abcdef0123456789abcdef', { timeout: 4000 });
+    await p.getByText(/Total puissance\s*592 W/).waitFor({ timeout: 2000 });
+    const door = p.locator('article.card', { has: p.getByRole('heading', { name: 'Entrée-Porche' }) });
+    await door.getByText('déconnecté').waitFor({ timeout: 2000 });
+    const lamp = p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe bureau' }) });
+    await lamp.getByLabel('Intensité').waitFor();
+    await lamp.getByLabel('Température de couleur').waitFor();
+    if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'tuya.png'), fullPage: true });
+  });
   await test('several gateways: bad link, add, test, use, still there after reload, remove', async p => {
     await p.goto('http://localhost:8080/tf');
     await cards(p);
+    await p.getByRole('heading', { name: 'Tuya' }).waitFor({ timeout: 6000 });
     await p.getByRole('button', { name: 'Passerelles' }).click();
     const link = p.getByLabel('Lien de connexion').last();
     await link.fill('pas un lien');
@@ -121,6 +141,8 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.locator('header .gw', { hasText: 'Passerelle B' }).waitFor({ timeout: 6000 });
     await p.getByRole('button', { name: 'Appareils' }).click();
     await cards(p);
+    await wait(800);
+    if (await p.getByRole('heading', { name: 'Tuya' }).count()) throw new Error('Tuya shown on a gateway without the driver');
     await p.reload();
     await p.getByRole('combobox', { name: 'Passerelle' }).waitFor({ timeout: 6000 });
     await p.getByRole('button', { name: 'Passerelles' }).click();

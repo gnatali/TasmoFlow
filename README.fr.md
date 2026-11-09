@@ -7,9 +7,11 @@ appareils Zigbee et Tuya, et créer des actions entre eux. Première cible : la 
 eWeLink ZB-GW03 avec le firmware
 [tasmota32-zbgw03-matter](https://github.com/gnatali/tasmota32-zbgw03-matter).
 
-> **État : prototype v0.0, publié en [v0.0.1](https://github.com/gnatali/TasmoFlow/releases/tag/v0.0.1)
-> et vérifié sur une vraie passerelle le 9 novembre 2026.** Il valide l'architecture avant
-> l'écriture des fonctions : voir le [plan de test](docs/architecture.fr.md#plan-de-test-sur-la-passerelle).
+> **État : v0.1 (pilotage) en cours**, au-dessus du prototype v0.0, publié en
+> [v0.0.1](https://github.com/gnatali/TasmoFlow/releases/tag/v0.0.1) et vérifié sur une vraie
+> passerelle le 9 novembre 2026. Reste à vérifier sur la passerelle :
+> [plan de test](docs/architecture.fr.md#plan-de-test-sur-la-passerelle) et
+> [suivi](docs/tracking.fr.md).
 
 ## Ce que fait la v0.0
 
@@ -21,50 +23,71 @@ eWeLink ZB-GW03 avec le firmware
   (mémoire, système de fichiers, provenance de l'interface).
 - Français et anglais, ordinateur et mobile, thèmes clair et sombre.
 
+## Ce qu'ajoute la v0.1 (en cours)
+
+- Interface reconstruite sur Preact + htm (13 Ko gzip, compilée avec esbuild).
+- Le serveur d'API du port 8384 ne tourne que pendant qu'une interface est ouverte (la RAM est
+  la ressource critique).
+- Écran **Passerelles** : utiliser plusieurs passerelles depuis une seule interface (copier le
+  lien d'une passerelle, le coller dans l'écran d'une autre).
+- Appareils Tuya locaux à côté des appareils Zigbee, par le pilote Tuya du firmware :
+  interrupteurs, variateurs, température de couleur, vitesse de ventilateur, mesures, mise à
+  jour en direct ; masqués si le pilote est absent ou désactivé.
+
 Le firmware n'est pas modifié. Fonctionnement : [docs/architecture.fr.md](docs/architecture.fr.md).
 
 ## Installation sur la passerelle
 
-1. Assembler l'extension (Python 3, sans dépendance) :
+1. Assembler l'extension (Node 22 et Python 3), ou prendre `TasmoFlow.tapp` dans une release :
 
    ```sh
+   npm ci
+   npm run build
    python3 tools/pack_tapp.py
    ```
 
-   La commande produit `dist/TasmoFlow.tapp` et affiche les tailles et leurs budgets.
+   `npm run build` assemble l'interface (`app/src/`) en `dist/app.js`. `pack_tapp.py` produit
+   `dist/TasmoFlow.tapp` et affiche les tailles et leurs budgets.
 
 2. Dans Tasmota : **Outils → Gestion du système de fichiers**, envoyer `dist/TasmoFlow.tapp`
    (à la racine, ou dans `/.extensions/`).
 3. Redémarrer la passerelle, puis ouvrir `http://<adresse de la passerelle>/tf` ou cliquer sur
    **TasmoFlow** dans le menu principal.
 
-L'API écoute sur le port **8384** de la passerelle.
+L'API écoute sur le port **8384** de la passerelle, seulement pendant qu'une interface est
+ouverte : ouvrir `/tf` la démarre, et elle s'arrête après 5 minutes sans client.
 
 Pour désinstaller : supprimer `TasmoFlow.tapp` et redémarrer.
 
 ## Développement sans passerelle
 
 ```sh
+npm ci
+npm run build
 python3 tools/pack_tapp.py --cdn ''
 python3 tools/mock_gateway.py
 ```
 
 Puis ouvrir <http://localhost:8080/tf>. La fausse passerelle sert la vraie page `/tf`,
-extraite de `extension/tasmoflow.be`, et la même API, avec trois appareils fictifs qui envoient
-des événements.
+extraite de `extension/tasmoflow.be`, et la même API, avec trois appareils Zigbee fictifs qui
+envoient des événements et quatre appareils Tuya fictifs qui répondent comme le pilote du
+firmware (`--no-tuya` : une passerelle sans le pilote).
 
-Tests de bout en bout (Playwright) : `node tests/e2e.js`. Ils lancent eux-mêmes deux fausses
-passerelles et vérifient le chargeur (GitHub, empreinte SRI fausse, GitHub lent, tout absent),
-puis un parcours de l'interface.
+Tests de bout en bout (Playwright) : `node tests/e2e.js` (compile d'abord l'interface et la
+`.tapp`). Ils lancent eux-mêmes deux fausses passerelles et vérifient le chargeur (GitHub,
+empreinte SRI fausse, GitHub lent, tout absent), un parcours de l'interface, les appareils
+Tuya et l'écran Passerelles.
 
 ## Organisation du dépôt
 
 | Chemin | Contenu |
 | --- | --- |
-| `app/app.js` | Interface, sans dépendance ni compilation (référence avant le choix Preact ou Lit) |
+| `app/src/` | Interface (Preact + htm), assemblée en `dist/app.js` par `tools/build_app.js` |
+| `package.json` | Dépendances de l'interface (`preact`, `htm`) et de sa compilation (`esbuild`) |
 | `extension/tasmoflow.be` | Extension Berry : bouton, page `/tf`, API, événements |
 | `extension/tf_http.be` | Serveur HTTP asynchrone, copié de Tasmota |
 | `extension/autoexec.be`, `manifest.json` | Point d'entrée et description de la `.tapp` |
+| `tools/build_app.js` | Assemble l'interface (`npm run build`) |
 | `tools/pack_tapp.py` | Assemblage de la `.tapp` et contrôle des budgets de taille |
 | `tools/mock_gateway.py` | Fausse passerelle pour le développement |
 | `tools/check_syntax.be` | Vérification de la syntaxe Berry |

@@ -26,8 +26,8 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
 - Single administrator, local network only, no MQTT, several gateways.
 - Sentence editor ("When... If... Then..."); automations **run on the gateway**; generated Berry
   is shown read-only; Zigbee bindings are offered when possible.
-- Interface in **French and English**, desktop and mobile equally; GPL v3; Preact or Lit
-  (choice still open, see tracking).
+- Interface in **French and English**, desktop and mobile equally; GPL v3; Preact + htm
+  (chosen 9 November 2026, esbuild).
 - Devices: Zigbee, Tuya Zigbee paired with the gateway (TS0601, `.zb` plugins) and local Tuya
   (Wi-Fi and Tuya gateway) **through the firmware's Tuya driver only** (`Tuya*` commands,
   `Tuya` rule event). Never show, store or send a Tuya local key or cloud credential.
@@ -40,7 +40,9 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
   PR when Guillaume asks.
 - This environment cannot push tags (HTTP 403): Guillaume creates release tags `vX.Y.Z` (equal to
   `VERSION`) on `main`; the workflow then publishes the release and GitHub Pages.
-- Before pushing: `node --check app/app.js`, `python3 tools/pack_tapp.py` (size budgets),
-  `node tests/e2e.js` (Playwright, simulated gateway). CI also checks the Berry syntax.
+- Before pushing: `npm run build` (interface, `app/src/` to `dist/app.js`), `node --check dist/app.js`,
+  `python3 tools/pack_tapp.py` (size budgets), `node tests/e2e.js` (Playwright, simulated
+  gateway; it builds first). CI also checks the Berry syntax: this environment cannot compile
+  Berry, so re-read Berry diffs carefully.
 - Check Tasmota internals in its source (firmware commit `TASMOTA_REF` of the firmware
   repository's workflow) before relying on them; cite the file in `docs/architecture.en.md`.

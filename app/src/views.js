@@ -2,7 +2,8 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { html } from './html.js';
 import { t, L } from './i18n.js';
-import { S, cmd, loadDevices } from './state.js';
+import { S, cmd, loadDevices, loadTuya } from './state.js';
+import { TuyaSection } from './tuya.js';
 import cfg from './config.js';
 
 function ago(sec) {
@@ -37,14 +38,18 @@ function ZigbeeCard({ d }) {
 export function DevicesView() {
   const s = S.use();
   if (!s.devices) return html`<p>${t('loading')}</p>`;
-  if (s.status && s.status.zigbee === false) return html`<p>${t('zigbeeOff')}</p>`;
+  const zigbee = !(s.status && s.status.zigbee === false);
   const list = Object.values(s.devices).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const tuya = s.tuya && s.tuya.state !== 'absent' && s.tuya.state !== 'disabled';
   return html`
     <div class="row">
-      <button class="b" onClick=${() => cmd('ZbPermitJoin 1')}>${t('pair')}</button>
-      <button class="b" onClick=${loadDevices}>${t('refresh')}</button>
+      ${zigbee ? html`<button class="b" onClick=${() => cmd('ZbPermitJoin 1')}>${t('pair')}</button>` : null}
+      <button class="b" onClick=${() => { loadDevices(); loadTuya(); }}>${t('refresh')}</button>
     </div>
-    ${list.length ? html`<div class="grid">${list.map(d => html`<${ZigbeeCard} key=${d.addr} d=${d}/>`)}</div>` : html`<p>${t('noDevice')}</p>`}`;
+    ${tuya ? html`<h2>Zigbee</h2>` : null}
+    ${!zigbee ? html`<p>${t('zigbeeOff')}</p>` :
+      list.length ? html`<div class="grid">${list.map(d => html`<${ZigbeeCard} key=${d.addr} d=${d}/>`)}</div>` : html`<p>${t('noDevice')}</p>`}
+    <${TuyaSection} tuya=${s.tuya}/>`;
 }
 
 export function EventsView() {
@@ -52,7 +57,7 @@ export function EventsView() {
   if (!events.length) return html`<p>${t('noEvent')}</p>`;
   const lang = L.get().lang;
   return html`<ol class="ev">${events.map(ev => html`<li key=${ev.seq}>
-    <span class="q">${new Date(ev.ts * 1000).toLocaleTimeString(lang)} · </span><b>${ev.name || ev.device || ev.type}</b> ${JSON.stringify(ev.attrs || ev)}
+    <span class="q">${new Date(ev.ts * 1000).toLocaleTimeString(lang)} · </span><b>${ev.name || ev.device || ev.type}</b> ${JSON.stringify(ev.attrs || ev.dps || ev)}
   </li>`)}</ol>`;
 }
 

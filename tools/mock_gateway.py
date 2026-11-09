@@ -8,7 +8,9 @@ Mimics the extension's two servers:
   - port --api (8384 by default): /app.js (gzip), /api/status, /api/devices,
     /api/cmd and /api/events (SSE), with the same CORS headers as tf_http.be.
 
-Three fake Zigbee devices send events every 2 seconds.
+Three fake Zigbee devices send events every 2 seconds. Four fake Tuya devices answer
+TuyaEnable, TuyaStatus, TuyaConfig and TuyaSend like the firmware's driver (formats from
+docs/tuya-local.en.md of the firmware repository); --no-tuya simulates a gateway without it.
 
 Usage: npm run build && python3 tools/pack_tapp.py --cdn '' && python3 tools/mock_gateway.py
        then open http://localhost:8080/tf
@@ -40,6 +42,24 @@ DEVICES = {
                "info": {"Temperature": 21.4, "Humidity": 48.2, "BatteryPercentage": 64}},
 }
 
+# Tuya driver: state (TuyaStatus) and configuration without keys (TuyaConfig)
+TUYA = {
+    "Ventilateur": {"Connected": True, "Ip": "192.168.1.20", "Version": "3.5", "Dps": {"20": False, "60": True, "62": 3}},
+    "Lampe bureau": {"Connected": True, "Ip": "192.168.1.40", "Version": "3.3", "Dps": {"20": True, "21": "white", "22": 500, "23": 300}},
+    "Pince": {"Connected": True, "Ip": "192.168.1.80", "Version": "3.5", "Dps": {"133": 592, "131": 1234}},
+    "Entrée-Porche": {"Connected": False, "Ip": "192.168.1.174", "Version": "3.3", "Dps": {}},
+}
+TUYA_CONF = {"devices": [
+    {"name": "Ventilateur", "id": "00000000000000fan001", "key": "***", "ip": "192.168.1.20", "version": "3.5",
+     "matter": [{"ep": "Ventilateur", "type": "fan", "dp": 60, "dp_speed": 62, "speed_min": 1, "speed_max": 6},
+                {"ep": "Lumière ventilateur", "type": "light0", "dp": 20}]},
+    {"name": "Lampe bureau", "id": "00000000000000lamp01", "key": "***", "ip": "192.168.1.40", "version": "3.3",
+     "matter": [{"ep": "Lampe bureau", "type": "light2", "dp": 20, "dp_mode": 21, "dp_bri": 22, "dp_ct": 23}]},
+    {"name": "Pince", "id": "00000000000000pinc01", "key": "***", "ip": "192.168.1.80", "version": "3.5",
+     "sensors": {"Total puissance": [133, 1, "W"], "Total energie": [131, 100, "kWh"]}},
+    {"name": "Entrée-Porche", "id": "00000000000000port01", "key": "***", "ip": "192.168.1.174", "version": "3.3"},
+]}
+
 events = []
 events_lock = threading.Lock()
 seq = 0
@@ -54,6 +74,45 @@ def push_event(addr, attrs):
                    "attrs": dict({"Device": addr}, **attrs, LinkQuality=d["lqi"])}
         events.append((seq, f"id: {seq}\ndata: {json.dumps(payload)}\n\n"))
         del events[:-50]
+
+
+def push_tuya(name, dps):
+    global seq
+    with events_lock:
+        seq += 1
+        payload = {"seq": seq, "type": "tuya", "ts": int(time.time()), "name": name, "dps": dps}
+        events.append((seq, f"id: {seq}\ndata: {json.dumps(payload)}\n\n"))
+        del events[:-50]
+
+
+def tuya_command(c):
+    """Response to a Tuya* command (None: not one)."""
+    word, _, arg = c.partition(" ")
+    arg = arg.strip()
+    if word == "TuyaEnable":
+        return {"TuyaEnable": {"Enabled": True, "State": "running"}}
+    if word == "TuyaConfig":
+        return {"TuyaConfig": TUYA_CONF}
+    if word == "TuyaStatus":
+        return {"TuyaStatus": {n: d for n, d in TUYA.items() if not arg or n.lower() == arg.lower()}}
+    if word == "TuyaSend":
+        name, _, rest = arg.partition(",")
+        dp, _, value = rest.partition(",")
+        d = TUYA.get(name)
+        if d is None:
+            return {"TuyaSend": "Unknown device"}
+        if not d["Connected"]:
+            return {"TuyaSend": "Device not connected"}
+        if value == "toggle":
+            if not isinstance(d["Dps"].get(dp), bool):
+                return {"TuyaSend": "toggle: DP not boolean"}
+            new = not d["Dps"][dp]
+        else:
+            new = json.loads(value)
+        d["Dps"][dp] = new
+        push_tuya(name, {dp: new})
+        return {"TuyaSend": "Done"}
+    return None
 
 
 def simulator():
@@ -151,6 +210,11 @@ class Api(BaseHTTPRequestHandler):
             if not c:
                 self.json(400, {"error": "cmd"})
                 return
+            tr = tuya_command(c)
+            if tr is not None:
+                # Tasmota answers an unknown command with {"Command":"Unknown"}
+                self.json(200, {"Command": "Unknown"} if self.server.no_tuya else tr)
+                return
             m = re.match(r'ZbSend \{"device":"(0x[0-9A-F]{4})","send":\{"Power":"Toggle"\}\}', c)
             if m and m.group(1) in DEVICES:
                 info = DEVICES[m.group(1)]["info"]
@@ -186,12 +250,13 @@ def main():
     p.add_argument("--cdn", default="", help="address of app.js to try before the local copy")
     p.add_argument("--sri", default="")
     p.add_argument("--token", default=TOKEN, help="API token (32 hexadecimal characters)")
+    p.add_argument("--no-tuya", action="store_true", help="gateway without the Tuya driver")
     p.add_argument("--name", default="ZB-GW03 (simulated)", help="DeviceName reported by /api/status")
     a = p.parse_args()
     web = ThreadingHTTPServer(("127.0.0.1", a.web), Web)
     web.api_port, web.cdn, web.sri, web.token = a.api, a.cdn, a.sri, a.token
     api = ThreadingHTTPServer(("127.0.0.1", a.api), Api)
-    api.name, api.token = a.name, a.token
+    api.name, api.token, api.no_tuya = a.name, a.token, a.no_tuya
     api.daemon_threads = True
     threading.Thread(target=simulator, daemon=True).start()
     threading.Thread(target=api.serve_forever, daemon=True).start()

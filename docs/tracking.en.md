@@ -13,11 +13,14 @@ Specification (French, outside the repository):
   [v0.0.1](https://github.com/gnatali/TasmoFlow/releases/tag/v0.0.1) and checked on the
   gateway (ZB-GW03 with the local Tuya driver). The interface loads from GitHub Pages
   (header "v0.0.1 · github") and falls back to the local copy.
-- **[PR #1](https://github.com/gnatali/TasmoFlow/pull/1) open** (branch
-  `claude/tasmota-web-interface-dumj56`): test results of 9 November, memory after
-  `tasmota.gc()`, v0.0 marked complete, these tracking files and the `.claude/rules/` modules.
-  Merge it before starting v0.1 (`main` only accepts pull requests).
-- **Next**: v0.1 (control), starting with the Preact or Lit choice.
+- [PR #1](https://github.com/gnatali/TasmoFlow/pull/1) merged (tracking files, `.claude/rules/`).
+- **v0.1 (control) written, to be checked on the gateway** (branch
+  `claude/modest-pascal-8854i4`, not merged yet): Preact + htm interface, API server on demand,
+  Gateways screen, Tuya devices in the dashboard. Everything passes against the simulated
+  gateway (`node tests/e2e.js`, 9 tests); **nothing of it ran on a real gateway yet**, and the
+  Berry changes were only read, not compiled (the CI does the syntax check).
+- **Next**: install the v0.1 `.tapp` on the ZB-GW03, work through the new `[ ]` items of the
+  [test plan](architecture.en.md#test-plan-on-the-gateway), measure the memory; then v0.2.
 
 ## History
 
@@ -33,6 +36,8 @@ Specification (French, outside the repository):
 | 9 Nov | Decision: TasmoFlow manages **all rules** (`Rule1` to `Rule3`, Berry, its own automations) |
 | 9 Nov | `CLAUDE.md` added; language rule applied (English code, docs and messages; French translation of user docs) |
 | 9 Nov | All v0.0 checks passed, memory measured after `tasmota.gc()`; v0.0.1 tagged by Guillaume, GitHub Pages enabled |
+| 9 Nov | v0.1: **Preact + htm chosen** (same screen: 6.6 KB gzipped against 6.3 KB for Lit, 5.4 KB for the prototype without dependency); interface bundled with esbuild (12.9 KB gzipped, then 14.6 KB with Tuya) |
+| 9 Nov | v0.1: API server on demand (`/tf`, `/tf?w=1`, 5 minutes idle), `tf_http.be` compiled lazily and trimmed; Gateways screen; Tuya devices (`TuyaEnable`, `TuyaStatus`, `TuyaConfig`, `TuyaSend`, `Tuya` rule on the event stream); simulated Tuya driver and tests |
 
 ## Measurements on the gateway
 
@@ -49,26 +54,31 @@ Target: 15 KB. Sizes: `TasmoFlow.tapp` 45 KB (budget 150 KB), `app.js.gz` 5.4 KB
 
 ## Decisions still open
 
-- **Preact or Lit** for the interface: build the same screen with both and compare the
-  gzipped size, then decide with Guillaume.
 - **Extension Manager catalogue**: submit TasmoFlow to Tasmota's official catalogue, or
   publish one on `gnatali.github.io/extensions/` (requires `OtaUrl` on that host), or keep the
   manual installation.
 
-## Next steps (v0.1, by priority)
+## v0.1: what is written, what is left
 
-1. **Preact or Lit** (see above).
-2. **Memory under 15 KB**: start the port 8384 server only while an interface is open (first
-   `/tf` request), stop it after a few minutes without a client; remove the unused code of
-   `tf_http.be`. Measure again after `tasmota.gc()`.
-3. **Tuya devices in the dashboard** (F7.1 to F7.3): `TuyaEnable`, `TuyaStatus`, `Tuya` rule
-   events pushed on the SSE stream (`tasmota.add_rule("Tuya", ...)`), controls derived from the
-   Matter bindings of `TuyaConfig`, `TuyaSend` (including `toggle`). Hide the Tuya screens when
-   the driver is absent or disabled.
-4. **Several gateways** (F1): list kept in the browser, screen to copy a gateway's token, check
-   that gateway A reads gateway B's API (last open item of the test plan).
-5. Then v0.2: all rules (`Rule1` to `Rule3`, Berry, automations), sentence editor, backup
-   before writing.
+Done in the code and the simulated gateway (see the [architecture](architecture.en.md)):
+
+1. **Preact + htm** (decision of 9 November), `app/src/`, `npm run build`.
+2. **Memory**: API server on demand, lazy compilation of `tf_http.be`, events recorded only
+   while it runs, unused code removed. **To measure** after `tasmota.gc()` (target 15 KB).
+3. **Tuya devices in the dashboard** (F7.1 to F7.3): switches, dimmers, colour temperature, fan
+   speed, readings, live updates, hidden without the driver.
+4. **Several gateways** (F1): Gateways screen, link to copy, wake of a stopped server.
+
+Left for v0.1 (small):
+
+- **Colour of `light3`** bindings (`colour_data_v2`, `hhhhssssvvvv`): not offered yet.
+- **Tuya sub-device names** with a comma, which `TuyaSend` cannot address.
+- **Bump `VERSION` to `0.1.0`** when Guillaume tags the release (the header still says 0.0.1).
+- **Checks on the gateway**: the `[ ]` items marked v0.1 in the test plan, in particular that
+  the port 8384 `tcpserver` can be closed and listened to again, and `TuyaConfig` memory use.
+
+Then v0.2: all rules (`Rule1` to `Rule3`, Berry, automations), sentence editor, backup before
+writing.
 
 ## Points to check
 

@@ -278,6 +278,9 @@ class tasmoflow
     self.web.on("/api/events", self, self.api_events)
     var zb = self.zb()
     if zb != nil    zb.add_handler(self)    end
+    # state changes of the firmware's Tuya driver ({"Tuya":{"Name":...,"Dps":{...}}}); the
+    # callback must be a closure, not a method, and the id lets stop_api() remove only ours
+    tasmota.add_rule("Tuya", / v -> self.tuya_event(v), 'tasmoflow')
     log(f"TFL: API server started on port {self.PORT}", 2)
   end
 
@@ -285,6 +288,7 @@ class tasmoflow
     if self.web == nil    return    end
     var zb = self.zb()
     if zb != nil    zb.remove_handler(self)    end
+    tasmota.remove_rule("Tuya", 'tasmoflow')
     for f: self.feeds   f.close()   end
     self.feeds = []
     self.events = []
@@ -407,6 +411,14 @@ class tasmoflow
     var d = zb != nil ? zb.find(idx) : nil
     var name = d != nil ? d.name : nil
     self.push_event("zigbee", format('"device":"0x%04X","name":%s,"attrs":%s', idx, json.dump(name), str(attr_list)))
+  end
+
+  # Tuya driver rule: v is {"Name": device, "Dps": {dp: value}}
+  def tuya_event(v)
+    if self.web == nil || !isinstance(v, map)   return   end
+    var dps = v.find('Dps')
+    if !isinstance(dps, map)   return   end
+    self.push_event("tuya", format('"name":%s,"dps":%s', json.dump(v.find('Name')), json.dump(dps)))
   end
 
   def every_second()

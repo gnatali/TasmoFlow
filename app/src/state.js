@@ -4,6 +4,7 @@ import { createStore } from './store.js';
 import { client } from './api.js';
 import cfg from './config.js';
 import { loadRemotes, saveRemotes } from './remotes.js';
+import { indexConfig, MIN_HEAP_KB } from './tuya_model.js';
 
 const T0 = performance.now();
 export const LOCAL = { id: 'local', name: '', api: cfg.api, token: cfg.token };
@@ -14,6 +15,7 @@ export const S = createStore({
   gw: LOCAL,                // gateway shown
   status: null,
   devices: null,            // { "0x1234": { addr, name, model, ..., attrs: {} } }
+  tuya: null,               // { state, detail, nodes: { name: { connected, ip, version, dps } }, conf, lowMem }
   events: [],
   live: false,
   error: null,
@@ -43,6 +45,31 @@ export function loadDevices() {
     list.forEach(d => { d.attrs = d.info || {}; devices[d.addr] = d; });
     if (current(gw)) S.set({ devices });
   }).catch(e => fail(gw, e));
+}
+
+// Local Tuya devices: state of the firmware's driver, devices, then (memory permitting) their
+// configuration, which tells what each DP means. Sequential: each command loads the driver's data.
+export async function loadTuya() {
+  const gw = S.get().gw;
+  const a = api;
+  const set = tuya => { if (current(gw)) S.set({ tuya }); };
+  try {
+    const e = (await a.cmd('TuyaEnable')).TuyaEnable;
+    if (!e || typeof e !== 'object') return set({ state: 'absent' });      // {"Command":"Unknown"}
+    if (!e.Enabled) return set({ state: 'disabled' });
+    if (e.State !== 'running') return set({ state: 'waiting', detail: e.State });
+    const nodes = {};
+    const st = (await a.cmd('TuyaStatus')).TuyaStatus;
+    for (const n in st || {}) {
+      const d = st[n];
+      nodes[n] = { connected: !!d.Connected, ip: d.Ip || '', version: d.Version || '', dps: d.Dps || {} };
+    }
+    const status = await a.get('/api/status');
+    const heap = status.memory && status.memory.heap_free;
+    let conf = null;
+    if (heap == null || heap >= MIN_HEAP_KB) conf = indexConfig((await a.cmd('TuyaConfig')).TuyaConfig);
+    set({ state: 'running', nodes, conf, lowMem: !conf });
+  } catch (err) { fail(gw, err); }
 }
 
 // A gateway's API server only runs while an interface is open (memory): the main server's
@@ -83,9 +110,16 @@ function connectEvents() {
     if (!current(gw) || ev.seq <= lastSeq) return;      // already received before a reconnection
     lastSeq = ev.seq;
     let unknown = false;
+    let unknownTuya = false;
     S.set(s => {
       const events = [ev, ...s.events].slice(0, 100);
       let devices = s.devices;
+      let tuya = s.tuya;
+      if (ev.type === 'tuya' && tuya && tuya.nodes) {
+        const n = tuya.nodes[ev.name];
+        if (n) tuya = { ...tuya, nodes: { ...tuya.nodes, [ev.name]: { ...n, connected: true, dps: { ...n.dps, ...ev.dps } } } };
+        else unknownTuya = true;
+      }
       if (ev.type === 'zigbee' && devices) {
         const d = devices[ev.device];
         if (d) {
@@ -93,9 +127,10 @@ function connectEvents() {
             lqi: ev.attrs.LinkQuality != null ? ev.attrs.LinkQuality : d.lqi, seenAt: Date.now() } };
         } else unknown = true;
       }
-      return { events, devices };
+      return { events, devices, tuya };
     });
     if (unknown) loadDevices();                         // new or renamed device
+    if (unknownTuya) loadTuya();
   };
 }
 
@@ -109,6 +144,7 @@ function start() {
     if (!current(gw)) return;
     S.set({ startMs: performance.now() - T0 });
     connectEvents();
+    return loadTuya();
   }).catch(e => fail(gw, e));
 }
 
@@ -118,7 +154,7 @@ export function selectGateway(id) {
   closeEvents();
   api = client(gw);
   lastSeq = 0;
-  S.set({ gw, status: null, devices: null, events: [], live: false, error: null });
+  S.set({ gw, status: null, devices: null, tuya: null, events: [], live: false, error: null });
   start();
 }
 

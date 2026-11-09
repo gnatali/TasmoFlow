@@ -19,9 +19,9 @@ const TEXTS = {
     add: 'Ajouter une passerelle', name: 'Nom', pasteLink: 'Lien copié depuis cette passerelle : adresse:port#jeton',
     invalidLink: 'Lien invalide : attendu adresse[:port]#jeton (32 caractères hexadécimaux).',
     duplicate: 'Cette passerelle est déjà dans la liste.', ok: 'joignable', waking: 'réveil de la passerelle…',
-    memory: 'mémoire', zigbee: 'Zigbee', tuya: 'Tuya', tuyaOff: 'Pilote Tuya désactivé ou absent.',
-    unknown: 'inconnu', connected: 'connecté', disconnected: 'déconnecté', on: 'allumé', off: 'éteint',
-    speed: 'vitesse', dimmer: 'intensité', colortemp: 'température de couleur', family: 'famille'
+    memory: 'mémoire', connected: 'connecté', disconnected: 'déconnecté', on: 'allumé', off: 'éteint',
+    speed: 'Vitesse', dimmer: 'Intensité', colortemp: 'Température de couleur',
+    tuyaWaiting: 'Pilote Tuya en attente :', tuyaLowMem: 'Mémoire libre insuffisante pour lire la configuration Tuya : seuls les états booléens sont proposés.'
   },
   en: {
     devices: 'Devices', events: 'Events', console: 'Console', gateways: 'Gateways', diag: 'Diagnostics',
@@ -40,9 +40,9 @@ const TEXTS = {
     add: 'Add a gateway', name: 'Name', pasteLink: 'Link copied from that gateway: address:port#token',
     invalidLink: 'Invalid link: expected address[:port]#token (32 hexadecimal characters).',
     duplicate: 'This gateway is already in the list.', ok: 'reachable', waking: 'waking the gateway…',
-    memory: 'memory', zigbee: 'Zigbee', tuya: 'Tuya', tuyaOff: 'Tuya driver disabled or missing.',
-    unknown: 'unknown', connected: 'connected', disconnected: 'disconnected', on: 'on', off: 'off',
-    speed: 'speed', dimmer: 'dimmer', colortemp: 'colour temperature', family: 'family'
+    memory: 'memory', connected: 'connected', disconnected: 'disconnected', on: 'on', off: 'off',
+    speed: 'Speed', dimmer: 'Dimmer', colortemp: 'Colour temperature',
+    tuyaWaiting: 'Tuya driver waiting:', tuyaLowMem: 'Not enough free memory to read the Tuya configuration: only boolean states are offered.'
   }
 };
 
