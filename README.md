@@ -71,6 +71,8 @@ then a walkthrough of the interface.
 | `tests/e2e.js` | End-to-end tests in Chromium, against the simulated gateway |
 | `.github/workflows/build.yml` | Checks, build, release and publication on GitHub Pages |
 | `docs/architecture.en.md` | Architecture, findings from Tasmota's code, test plan |
+| `docs/tracking.en.md` | Progress, measurements, open decisions and next steps |
+| `CLAUDE.md`, `.claude/rules/` | Instructions for Claude Code |
 
 ## Roadmap
 

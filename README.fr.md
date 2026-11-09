@@ -71,6 +71,8 @@ puis un parcours de l'interface.
 | `tests/e2e.js` | Tests de bout en bout dans Chromium, contre la fausse passerelle |
 | `.github/workflows/build.yml` | Contrôles, assemblage, release et publication sur GitHub Pages |
 | `docs/architecture.fr.md` | Architecture, constats tirés du code de Tasmota, plan de test |
+| `docs/tracking.fr.md` | Avancement, mesures, décisions ouvertes et prochaines étapes |
+| `CLAUDE.md`, `.claude/rules/` | Instructions pour Claude Code |
 
 ## Feuille de route
 
