@@ -24,6 +24,7 @@ export const S = createStore({
 let api = client(LOCAL);
 let es = null;
 let lastSeq = 0;
+let lastWake = 0;
 
 export const cmd = c => api.cmd(c);
 export const current = gw => S.get().gw === gw;
@@ -72,7 +73,10 @@ function connectEvents() {
   const gw = S.get().gw;
   es = new EventSource(api.url('/api/events', { since: lastSeq }));
   es.onopen = () => S.set({ live: true });
-  es.onerror = () => S.set({ live: false });
+  es.onerror = () => {
+    S.set({ live: false });
+    if (Date.now() - lastWake > 10000) { lastWake = Date.now(); wake(gw); }   // restarted gateway
+  };
   es.onmessage = m => {
     let ev;
     try { ev = JSON.parse(m.data); } catch (e) { return; }
