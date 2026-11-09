@@ -230,7 +230,7 @@ Plan:
 
 ## Test plan on the gateway
 
-Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `[ ]` to do.
+Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `[ ]` to do. v0.0 is complete: the only open check belongs to v0.1.
 
 - [x] Copy `TasmoFlow.tapp` to `/.extensions/` (or `/`) and restart: the log shows `TFL: TasmoFlow 0.0.1, API on port 8384` (`API sur le port 8384` in the version tested on 6 November)
 - [x] Install while running (`tasmota.load("/.extensions/TasmoFlow.tapp")` in the Berry console): the button and `/tf` answer without a restart
@@ -245,7 +245,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] Memory, each time after `tasmota.gc()` in the Berry console: 84 KB free before installation, 67 KB with the extension loaded, 65 KB with the interface open, i.e. 17 then 19 KB (target: 15 KB, see [Memory](#memory))
 - [x] Two tabs open plus a third: the gateway stays stable (3 Chrome tabs and 1 Android)
 - [ ] An interface opened on gateway A reads gateway B's `/api/status` (B's token; screen planned for v0.1)
-- [ ] With GitHub Pages enabled (tag `v0.0.1`), `/tf` loads the GitHub copy (Diagnostics tab: "github")
+- [x] With GitHub Pages enabled (tag `v0.0.1`), `/tf` loads the GitHub copy (header: "v0.0.1 · github")
 - [x] Chrome, Firefox, Safari on iPhone: the interface loads and the event stream stays open
 - [x] Matter keeps working (Google Home still controls its devices)
 - [x] The Tuya driver still starts at boot with TasmoFlow installed (`TuyaEnable`: `"State":"running"`)

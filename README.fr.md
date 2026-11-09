@@ -7,9 +7,9 @@ appareils Zigbee et Tuya, et créer des actions entre eux. Première cible : la 
 eWeLink ZB-GW03 avec le firmware
 [tasmota32-zbgw03-matter](https://github.com/gnatali/tasmota32-zbgw03-matter).
 
-> **État : prototype v0.0, en test sur une vraie passerelle depuis le 6 novembre 2026.** Il
-> sert à vérifier l'architecture avant d'écrire les fonctions. Résultats et vérifications
-> restantes : voir le [plan de test](docs/architecture.fr.md#plan-de-test-sur-la-passerelle).
+> **État : prototype v0.0, publié en [v0.0.1](https://github.com/gnatali/TasmoFlow/releases/tag/v0.0.1)
+> et vérifié sur une vraie passerelle le 9 novembre 2026.** Il valide l'architecture avant
+> l'écriture des fonctions : voir le [plan de test](docs/architecture.fr.md#plan-de-test-sur-la-passerelle).
 
 ## Ce que fait la v0.0
 
@@ -80,7 +80,7 @@ TasmoFlow gère trois familles d'appareils : Zigbee, Tuya Zigbee appairé à la 
 
 | Version | Contenu |
 | --- | --- |
-| v0.0 | Prototype : architecture vérifiée sur la passerelle (en test depuis le 6 novembre 2026) |
+| v0.0 | Prototype : architecture vérifiée sur la passerelle (terminé, v0.0.1, 9 novembre 2026) |
 | v0.1 | Pilotage : plusieurs passerelles, tableau de bord Zigbee et Tuya, extension sous 15 Ko de RAM |
 | v0.2 | Toutes les règles (`Rule1` à `Rule3`, Berry, actions TasmoFlow) : lecture, éditeur en phrases, sauvegarde avant écriture ; déclencheurs et actions Zigbee et Tuya |
 | v0.3 | Zigbee et Tuya avancés : groupes, scènes, bindings, découverte et import Tuya, plugins TS0601, Matter |
