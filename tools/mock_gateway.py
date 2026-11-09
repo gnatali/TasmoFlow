@@ -10,7 +10,7 @@ Mimics the extension's two servers:
 
 Three fake Zigbee devices send events every 2 seconds.
 
-Usage: python3 tools/pack_tapp.py --cdn '' && python3 tools/mock_gateway.py
+Usage: npm run build && python3 tools/pack_tapp.py --cdn '' && python3 tools/mock_gateway.py
        then open http://localhost:8080/tf
 """
 
@@ -70,13 +70,13 @@ def simulator():
             push_event("0x3C4D", {"Power": DEVICES["0x3C4D"]["info"]["Power"], "Endpoint": 1})
 
 
-def loader_html(api_port, cdn, sri):
+def loader_html(api_port, cdn, sri, token):
     """Rebuilds the /tf page from the strings of page_tf() in tasmoflow.be."""
     src = (ROOT / "extension" / "tasmoflow.be").read_text()
     body = src[src.index("def page_tf()"):]
     body = body[body.index("check_privileged_access"):]
     body = body[body.index("webserver.content_open"):body.index("webserver.content_close")]
-    cfg = {"version": (ROOT / "VERSION").read_text().strip(), "port": api_port, "token": TOKEN,
+    cfg = {"version": (ROOT / "VERSION").read_text().strip(), "port": api_port, "token": token,
            "cdn": cdn, "sri": sri}
     parts = []
     for call in re.findall(r"webserver\.content_send\((.*?)\)\n", body, re.S):
@@ -96,7 +96,7 @@ class Web(BaseHTTPRequestHandler):
         if self.path.split("?")[0] != "/tf":
             self.send_error(404)
             return
-        html = loader_html(self.server.api_port, self.server.cdn, self.server.sri).encode()
+        html = loader_html(self.server.api_port, self.server.cdn, self.server.sri, self.server.token).encode()
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
         self.end_headers()
@@ -129,17 +129,17 @@ class Api(BaseHTTPRequestHandler):
         q = dict(urllib.parse.parse_qsl(u.query, keep_blank_values=True))
         if u.path == "/app.js":
             self.head(200, "application/javascript", [("Content-Encoding", "gzip")])
-            self.wfile.write(gzip.compress((ROOT / "app" / "app.js").read_bytes()))
+            self.wfile.write(gzip.compress((ROOT / "dist" / "app.js").read_bytes()))
             return
         if not u.path.startswith("/api/"):
             self.head(500, "text/plain")
             self.wfile.write(b"Unsupported")
             return
-        if q.get("t") != TOKEN:
+        if q.get("t") != self.server.token:
             self.json(403, {"error": "token"})
             return
         if u.path == "/api/status":
-            self.json(200, {"tasmoflow": (ROOT / "VERSION").read_text().strip(), "device_name": "ZB-GW03 (simulated)",
+            self.json(200, {"tasmoflow": (ROOT / "VERSION").read_text().strip(), "device_name": self.server.name,
                             "firmware": {"Version": "16.0.0.2(zbgw03-matter)"}, "memory": {"heap_free": 62},
                             "ufs_size_kb": 320, "ufs_free_kb": 180, "uptime_s": int(time.monotonic()),
                             "zigbee": True, "zigbee_devices": len(DEVICES), "events_seq": seq, "feeds": 1,
@@ -185,10 +185,13 @@ def main():
     p.add_argument("--api", type=int, default=8384)
     p.add_argument("--cdn", default="", help="address of app.js to try before the local copy")
     p.add_argument("--sri", default="")
+    p.add_argument("--token", default=TOKEN, help="API token (32 hexadecimal characters)")
+    p.add_argument("--name", default="ZB-GW03 (simulated)", help="DeviceName reported by /api/status")
     a = p.parse_args()
     web = ThreadingHTTPServer(("127.0.0.1", a.web), Web)
-    web.api_port, web.cdn, web.sri = a.api, a.cdn, a.sri
+    web.api_port, web.cdn, web.sri, web.token = a.api, a.cdn, a.sri, a.token
     api = ThreadingHTTPServer(("127.0.0.1", a.api), Api)
+    api.name, api.token = a.name, a.token
     api.daemon_threads = True
     threading.Thread(target=simulator, daemon=True).start()
     threading.Thread(target=api.serve_forever, daemon=True).start()

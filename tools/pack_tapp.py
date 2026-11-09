@@ -26,7 +26,7 @@ import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXT = ROOT / "extension"
-APP = ROOT / "app" / "app.js"
+APP = ROOT / "dist" / "app.js"      # built by `npm run build` from app/src/
 DIST = ROOT / "dist"
 
 # budgets from the specification (non-functional requirements)
@@ -66,6 +66,8 @@ def main():
         args.cdn += "/"
 
     version = (ROOT / "VERSION").read_text().strip()
+    if not APP.exists():
+        sys.exit(f"{APP.relative_to(ROOT)} missing: run `npm ci && npm run build` first")
     app = APP.read_bytes()
     app_gz = gzip.compress(app, compresslevel=9, mtime=0)
     sri = "sha384-" + base64.b64encode(hashlib.sha384(app).digest()).decode()

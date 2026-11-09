@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // End-to-end tests: /tf loader and interface, against tools/mock_gateway.py.
-// Usage: python3 tools/pack_tapp.py && node tests/e2e.js [screenshot folder]
+// Usage: node tests/e2e.js [screenshot folder]   (builds the interface and the .tapp first)
 const { chromium } = require('playwright');
 const { spawn, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const APP = fs.readFileSync(path.join(ROOT, 'app', 'app.js'));
+execFileSync('node', [path.join(ROOT, 'tools', 'build_app.js')], { stdio: 'inherit' });
+const APP = fs.readFileSync(path.join(ROOT, 'dist', 'app.js'));
 const VERSION = fs.readFileSync(path.join(ROOT, 'VERSION'), 'utf8').trim();
 const CDN = `https://gnatali.github.io/TasmoFlow/v${VERSION}/app.js`;
 const SHOTS = process.argv[2];
@@ -22,7 +23,8 @@ const wait = ms => new Promise(f => setTimeout(f, ms));
 const jsBody = body => ({ body, contentType: 'application/javascript', headers: { 'access-control-allow-origin': '*' } });
 
 (async () => {
-  const mocks = [mock([]), mock(['--web', '8081', '--api', '8385', '--cdn', CDN, '--sri', SRI])];
+  const TOKEN_B = 'fedcba9876543210fedcba9876543210';
+  const mocks = [mock([]), mock(['--web', '8081', '--api', '8385', '--cdn', CDN, '--sri', SRI, '--token', TOKEN_B, '--name', 'Passerelle B'])];
   await wait(1000);
   const browser = await chromium.launch();
   const results = [];
@@ -100,6 +102,31 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.waitForSelector('dl');
     await p.getByRole('button', { name: 'English' }).click();
     await p.getByRole('button', { name: 'Devices' }).waitFor({ timeout: 2000 });
+  });
+  await test('several gateways: bad link, add, test, use, still there after reload, remove', async p => {
+    await p.goto('http://localhost:8080/tf');
+    await cards(p);
+    await p.getByRole('button', { name: 'Passerelles' }).click();
+    const link = p.getByLabel('Lien de connexion').last();
+    await link.fill('pas un lien');
+    await p.locator('form button[type=submit]').click();
+    await p.getByRole('alert').waitFor({ timeout: 2000 });
+    await p.getByLabel('Nom', { exact: true }).fill('Chambre');
+    await link.fill('localhost:8385#' + TOKEN_B);
+    await p.locator('form button[type=submit]').click();
+    await p.getByRole('button', { name: 'Tester' }).click();
+    await p.getByText(/joignable · Passerelle B/).waitFor({ timeout: 6000 });
+    await p.getByRole('button', { name: 'Utiliser' }).click();
+    await p.getByRole('combobox', { name: 'Passerelle' }).waitFor();
+    await p.locator('header .gw', { hasText: 'Passerelle B' }).waitFor({ timeout: 6000 });
+    await p.getByRole('button', { name: 'Appareils' }).click();
+    await cards(p);
+    await p.reload();
+    await p.getByRole('combobox', { name: 'Passerelle' }).waitFor({ timeout: 6000 });
+    await p.getByRole('button', { name: 'Passerelles' }).click();
+    p.once('dialog', d => d.accept());
+    await p.getByRole('button', { name: 'Supprimer' }).click();
+    await p.getByText('Aucune autre passerelle').waitFor({ timeout: 2000 });
   });
   {
     const ctx = await browser.newContext({ locale: 'fr-FR', viewport: { width: 360, height: 760 }, colorScheme: 'dark' });
