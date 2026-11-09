@@ -186,10 +186,37 @@ actions. Mesuré le 6 novembre 2026 sur une passerelle qui fait tourner le pilot
 
 - Afficher, stocker ou transmettre une clé locale ou les identifiants du cloud Tuya : leur
   saisie reste sur la page du pilote (`/tuya`).
-- Écrire dans les règles Tasmota (`Rule1` à `Rule3`), déjà utilisées pour des liens Zigbee vers
-  Tuya : elles sont affichées en lecture seule.
 - Fonctionner sans le pilote : sur un Tasmota sans pilote Tuya, ou pilote désactivé
   (`TuyaEnable 0`), les écrans Tuya sont masqués.
+
+## Règles
+
+TasmoFlow gère toutes les règles de la passerelle (décision du 9 novembre 2026) : les jeux de
+règles Tasmota, les règles Berry et ses propres actions. Constats tirés du code de Tasmota au
+commit `a281cece` du firmware (`tasmota/include/tasmota.h`, `xdrv_10_rules.ino`,
+`embedded/tasmota_class.be`) :
+
+| Élément | Limite | Commandes |
+| --- | --- | --- |
+| Jeux de règles Tasmota | 3 (`Rule1` à `Rule3`), 512 caractères chacun ; au-delà, compression Unishox jusqu'à 2 Ko environ | `Rule<n> <texte>`, `Rule<n> +<texte>` (ajout), `Rule<n> ""` (effacer) ; `0`/`1`/`2` arrêt, marche, bascule ; `4`/`5`/`6` option « une fois » ; `8`/`9`/`10` option « arrêt sur erreur » |
+| Variables | `Var1` à `Var16` (perdues au redémarrage), `Mem1` à `Mem16` (gardées) | `Var<n>`, `Mem<n>` |
+| Minuteries | `RuleTimer1` à `RuleTimer8` | `RuleTimer<n> <s>` |
+| Règles Berry | sans limite ; `tasmota._rules` liste chaque déclencheur (`trig.rule`) et son identifiant | `tasmota.add_rule`, `tasmota.remove_rule` |
+
+Plan :
+
+- **Lecture.** Les trois jeux de règles (texte, état, options), les déclencheurs Berry chargés
+  et `autoexec.be`. Un `on … do … endon` dont la syntaxe est reconnue s'affiche en phrase ; les
+  autres restent en texte.
+- **Écriture.** Toute modification passe par une copie de l'ancienne version sur la passerelle
+  (restauration en un clic), un contrôle de syntaxe (règle Tasmota) ou une compilation (Berry)
+  avant l'enregistrement, et l'affichage de la place restante dans le jeu de règles.
+- **Moteur au choix.** Une action TasmoFlow devient une règle Tasmota (indépendante de Berry,
+  place limitée) ou du Berry (sans limite, conditions et minuteries avancées).
+- **Conflits.** Deux règles qui agissent sur le même appareil sont signalées : par exemple une
+  règle Tasmota et une automatisation Google Home qui basculent la même lampe s'annulent.
+- **Protection anti-plantage.** Après plusieurs plantages rapides, Tasmota démarre sans Berry
+  et désactive toutes les règles : TasmoFlow le signale et propose de les réactiver.
 
 ## Plan de test sur la passerelle
 

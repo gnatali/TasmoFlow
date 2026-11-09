@@ -31,7 +31,7 @@ and local Tuya (Wi-Fi and Tuya gateway), the latter through the firmware's Tuya 
 | --- | --- |
 | v0.0 | Prototype: architecture checked on the gateway (in test since 6 November 2026) |
 | v0.1 | Control: several gateways, Zigbee and Tuya dashboard, extension under 15 KB of RAM |
-| v0.2 | No-code automations run on the gateway, Zigbee and Tuya triggers and actions |
+| v0.2 | All rules (`Rule1` to `Rule3`, Berry, TasmoFlow automations): reading, sentence editor, backup before writing; Zigbee and Tuya triggers and actions |
 | v0.3 | Advanced Zigbee and Tuya: groups, scenes, bindings, Tuya discovery and import, TS0601 plugins, Matter |
 | v0.4 | Administration: OTA, backups, network, console |
 | v1.0 | Stable release |

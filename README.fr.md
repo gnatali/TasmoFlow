@@ -82,7 +82,7 @@ TasmoFlow gère trois familles d'appareils : Zigbee, Tuya Zigbee appairé à la 
 | --- | --- |
 | v0.0 | Prototype : architecture vérifiée sur la passerelle (en test depuis le 6 novembre 2026) |
 | v0.1 | Pilotage : plusieurs passerelles, tableau de bord Zigbee et Tuya, extension sous 15 Ko de RAM |
-| v0.2 | Actions sans code exécutées sur la passerelle, déclencheurs et actions Zigbee et Tuya |
+| v0.2 | Toutes les règles (`Rule1` à `Rule3`, Berry, actions TasmoFlow) : lecture, éditeur en phrases, sauvegarde avant écriture ; déclencheurs et actions Zigbee et Tuya |
 | v0.3 | Zigbee et Tuya avancés : groupes, scènes, bindings, découverte et import Tuya, plugins TS0601, Matter |
 | v0.4 | Administration : OTA, sauvegardes, réseau, console |
 | v1.0 | Version stable |
