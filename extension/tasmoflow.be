@@ -260,10 +260,32 @@ class tasmoflow
     self.idle_at = tasmota.millis(self.IDLE_MS)
   end
 
+  # Tasmota only keeps the .tapp folder in sys.path while it loads the extension, then removes
+  # it: a later `import tf_http` fails ("module not found") unless the folder is added back.
+  # Never raises: an error here must not stop /tf from answering (Tasmota then sends nothing,
+  # and the browser shows ERR_EMPTY_RESPONSE).
+  def load_tf_http()
+    import sys
+    var path = sys.path()
+    var added = path.find(self.wd) == nil
+    if added    path.push(self.wd)    end
+    var cls = nil
+    try
+      import tf_http
+      cls = tf_http
+    except .. as e, m
+      log(f"TFL: cannot load tf_http.be from '{self.wd}' ({e} {m})", 1)
+    end
+    var i = path.find(self.wd)
+    if added && i != nil    path.remove(i)    end
+    return cls
+  end
+
   def start_api()
     self.touch()
     if self.web != nil || !tasmota.is_network_up()   return   end
-    import tf_http                      # compiled here, the first time: no RAM before
+    var tf_http = self.load_tf_http()   # compiled here, the first time: no RAM before
+    if tf_http == nil    return    end
     try
       self.web = tf_http(self.PORT)
     except .. as e, m
