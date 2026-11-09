@@ -9,7 +9,7 @@
     ${n?d`<span class="gw">${n}</span>`:null}
     <span class="sp"></span>
     <span class=${"badge "+(e.live?"ok":"bad")}>${e.live?c("live"):c("reconnecting")}</span>
-    <span class="badge">${"v"+w.version+" \xB7 "+w.source+(w.lite?" \xB7 lite":"")+" \xB7 dev.86786e6"}</span>
+    <span class="badge">${"v"+w.version+" \xB7 "+w.source+(w.lite?" \xB7 lite":"")+" \xB7 dev.6a9a767"}</span>
     <button class="b" lang=${t==="fr"?"en":"fr"} aria-label=${t==="fr"?"English":"Fran\xE7ais"} onClick=${ut}>${t==="fr"?"EN":"FR"}</button>
   </header>`}function Tt(e){return function(){let{tab:n,error:r}=m.use();R.use();let a=e[n];return d`
       <${nn}/>
@@ -62,7 +62,7 @@
       <dt>${c("ufs")}</dt><dd>${t.ufs_free_kb!=null?t.ufs_free_kb+" / "+t.ufs_size_kb+" Ko":"?"}</dd>
     </dl>
     <h3>/api/status</h3>
-    <pre>${JSON.stringify(t,null,2)}</pre>`}function Mt(e){let t=e.trim();for(;t;){let n=/^on\s+(\S[^]*?)\s+do(?=\s|$)/i.exec(t);if(!/^on\s/i.test(t))return"lintOn";if(!n)return"lintDo";t=t.slice(n[0].length);let r=/\bendon\b/i.exec(t);if(!r)return"lintEndon";if(!t.slice(0,r.index).trim())return"lintBody";t=t.slice(r.index+r[0].length).trim()}return null}function Ot(e,t){let n=[];for(let r=0;r<e.length;r+=t)n.push(e.slice(r,r+t));return n.length?n:[""]}var cn=300,un=512,_n=2e3;async function dn(e,t){let n=Ot(t,cn);for(let r=0;r<n.length;r++){let a={n:e,i:r,x:n[r]};r===n.length-1&&(a.last=1),await Ae("/api/rule_set",a)}}var pn=e=>c("rule_"+e)==="rule_"+e?e:c("rule_"+e);function fn({r:e,note:t,setNote:n}){let[r,a]=L(e.text),[o,i]=L(!1),s=r.trim()!==e.text,_=s?Mt(r):null,p=r.trim().length>_n,u=async(y,v)=>{i(!0);try{await v(),await pe(),n({n:e.n,ok:!0,text:c(y)})}catch(k){n({n:e.n,ok:!1,text:pn(k.message)})}i(!1)},h=(y,v)=>u("rule_done",()=>I("Rule"+e.n+" "+v[y?1:0])),f=()=>u("rule_saved",()=>dn(e.n,r.trim())),l=()=>{confirm(c("rule_confirmRestore"))&&u("rule_restored",()=>Ae("/api/rule_restore",{n:e.n}))},g=t&&t.n===e.n?t:null;return d`<article class="card">
+    <pre>${JSON.stringify(t,null,2)}</pre>`}function Mt(e){let t=e.trim();for(;t;){let n=/^on\s+(\S[^]*?)\s+do(?=\s|$)/i.exec(t);if(!/^on\s/i.test(t))return"lintOn";if(!n)return"lintDo";t=t.slice(n[0].length);let r=/\bendon\b/i.exec(t);if(!r)return"lintEndon";if(!t.slice(0,r.index).trim())return"lintBody";t=t.slice(r.index+r[0].length).trim()}return null}function Ot(e,t){let n=[];for(let r=0;r<e.length;r+=t)n.push(e.slice(r,r+t));return n.length?n:[""]}var cn=300,un=512,_n=2e3;async function dn(e,t){let n=Ot(t,cn);for(let r=0;r<n.length;r++){let a={n:e,i:r,x:n[r]};r===n.length-1&&(a.last=1);try{await Ae("/api/rule_set",a)}catch(o){throw new Error(o.message+(n.length>1?" ("+(r+1)+"/"+n.length+")":""))}}}var pn=e=>c("rule_"+e)==="rule_"+e?e:c("rule_"+e);function fn({r:e,note:t,setNote:n}){let[r,a]=L(e.text),[o,i]=L(!1),s=r.trim()!==e.text,_=s?Mt(r):null,p=r.trim().length>_n,u=async(y,v)=>{i(!0);try{await v(),await pe(),n({n:e.n,ok:!0,text:c(y)})}catch(k){n({n:e.n,ok:!1,text:pn(k.message)})}i(!1)},h=(y,v)=>u("rule_done",()=>I("Rule"+e.n+" "+v[y?1:0])),f=()=>u("rule_saved",()=>dn(e.n,r.trim())),l=()=>{confirm(c("rule_confirmRestore"))&&u("rule_restored",()=>Ae("/api/rule_restore",{n:e.n}))},g=t&&t.n===e.n?t:null;return d`<article class="card">
     <h3>${"Rule"+e.n}</h3>
     <div class="row tight">
       <button class="b" aria-pressed=${e.on} disabled=${o} onClick=${()=>h(!e.on,["0","1"])}>${e.on?c("on"):c("off")}</button>
