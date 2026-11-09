@@ -276,13 +276,17 @@ le 9 novembre 2026 après `tasmota.gc()`, sur la même base de 84 Ko / 25 Ko :
 | Moment | Mémoire libre | `HeapUsed` de Berry | Coût de TasmoFlow |
 | --- | --- | --- | --- |
 | v0.1, extension chargée (serveur d'API non démarré) | 75 Ko | 35 Ko | **9 Ko** |
-| v0.1, interface ouverte | 63 Ko | 48 Ko | 21 Ko |
+| v0.1, interface ouverte (`import` en cache) | 63 Ko | 48 Ko | 21 Ko |
+| v0.1, interface ouverte (chargement sans cache) | 59 Ko | 48 Ko | 25 Ko |
+| v0.1, 5 minutes après sa fermeture (`TFL: API server stopped`) | 69 Ko | 39 Ko | **15 Ko** |
 
 Au repos, la cible de 15 Ko est tenue (17 Ko avant). Avec une interface ouverte, le coût dépasse
-de 2 Ko celui de la v0.0 : `tf_http.be` compilé (environ 12 Ko) plus le serveur. La seconde ligne
-a été mesurée avec un `import` mis en cache, qui garde ce code en RAM après l'arrêt du serveur ;
-le chargement sans cache qui l'a remplacé **n'est pas encore mesuré** : refaire avec l'interface
-ouverte, puis 5 minutes après sa fermeture (`TFL: API server stopped`), après `tasmota.gc()`.
+de 2 à 6 Ko celui de la v0.0 : `tf_http.be` compilé (environ 12 Ko) plus le serveur ; la mémoire
+libre dépend aussi des connexions ouvertes à ce moment. Le chargement sans cache fonctionne :
+après l'arrêt du serveur, 10 Ko des 16 Ko ajoutés reviennent (Berry : 9 sur 13 Ko). **Environ 6 Ko
+(Berry : 4 Ko) restent alloués** par rapport à l'état d'avant la première ouverture ; la cause
+n'est pas encore identifiée (voir `docs/tracking.fr.md`). Après la première utilisation, le coût
+est de 15 Ko, pile sur la cible. `UfsFree` valait 148 Ko sur 320 Ko sur la même passerelle.
 
 ### Ce que TasmoFlow ne fait pas
 
@@ -341,9 +345,10 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] Chrome, Firefox, Safari sur iPhone : l'interface se charge et le flux d'événements reste ouvert
 - [x] Matter continue de fonctionner (Google Home commande toujours ses appareils)
 - [x] Le pilote Tuya démarre toujours au boot avec TasmoFlow installé (`TuyaEnable` : `"State":"running"`)
-- [ ] v0.1 : après un redémarrage, le port 8384 ne répond pas tant que `/tf` n'est pas ouverte ; le journal affiche `TFL: API server started on port 8384`, puis `TFL: API server stopped` 5 minutes après la fermeture du dernier onglet, et `/tf` le redémarre (le port peut être de nouveau écouté)
+- [x] v0.1 : après un redémarrage, le port 8384 ne répond pas tant que `/tf` n'est pas ouverte ; le journal affiche `TFL: API server started on port 8384`, puis `TFL: API server stopped` 5 minutes après la fermeture du dernier onglet, et `/tf` le redémarre (le port peut être de nouveau écouté)
 - [ ] v0.1 : `curl "http://<passerelle>/tf?w=1"` répond `ok` sans mot de passe et démarre le serveur
 - [ ] v0.1 : les cartes Tuya correspondent à `TuyaStatus` ; un interrupteur, un variateur et une vitesse de ventilateur agissent sur les vrais appareils ; un changement fait sur un appareil (bouton, Smart Life) arrive dans l'interface en moins de 2 s
 - [ ] v0.1 : avec le pilote Tuya désactivé (`TuyaEnable 0`) ou absent, la section Tuya est masquée
 - [x] v0.1 : mémoire au repos après `tasmota.gc()` : 75 Ko libres, Berry 35 Ko, soit 9 Ko (cible : 15 Ko) ; interface ouverte 63 Ko / 48 Ko (`import` en cache, voir [Mémoire](#mémoire))
-- [ ] v0.1 : avec le chargement sans cache, la mémoire revient vers 75 Ko libres 5 minutes après la fermeture du dernier onglet ; `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)
+- [x] v0.1 : avec le chargement sans cache, la mémoire revient en partie 5 minutes après la fermeture du dernier onglet : 59 Ko libres / Berry 48 Ko interface ouverte, 69 Ko / 39 Ko après (75 Ko / 35 Ko avant la première ouverture)
+- [ ] v0.1 : trouver ce qui reste alloué après la première ouverture (6 Ko de mémoire libre, 4 Ko de Berry), et vérifier que `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)

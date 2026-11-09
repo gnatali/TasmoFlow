@@ -49,7 +49,9 @@ After `tasmota.gc()`, gateway running the Tuya driver (9 November 2026):
 | Extension loaded | 67 KB | 47 KB | 17 KB |
 | Interface open | 65 KB | 48 KB | 19 KB |
 | **v0.1**, extension loaded (API server not started) | 75 KB | 35 KB | **9 KB** |
-| **v0.1**, interface open | 63 KB | 48 KB | 21 KB |
+| **v0.1**, interface open (cached `import`) | 63 KB | 48 KB | 21 KB |
+| **v0.1**, interface open (uncached loading) | 59 KB | 48 KB | 25 KB |
+| **v0.1**, 5 minutes after closing it | 69 KB | 39 KB | **15 KB** |
 
 Target: 15 KB. Sizes: `TasmoFlow.tapp` 45 KB (budget 150 KB), `app.js.gz` 5.4 KB (budget
 120 KB).
@@ -66,9 +68,12 @@ Done in the code and the simulated gateway (see the [architecture](architecture.
 
 1. **Preact + htm** (decision of 9 November), `app/src/`, `npm run build`.
 2. **Memory**: API server on demand, lazy uncached loading of `tf_http.be`, events recorded
-   only while it runs, unused code removed. **Measured at rest: 9 KB** (target 15 KB); with an
-   interface open 21 KB. **To measure**: that the memory returns to about 75 KB free after the
-   server stops (uncached loading, written after the measurement).
+   only while it runs, unused code removed. **Measured: 9 KB at rest, 15 KB after the first use**
+   (target 15 KB), 25 KB with an interface open. The uncached loading gives back 10 KB of 16 KB
+   when the server stops; **6 KB (Berry: 4 KB) stay allocated, cause unknown**. Suspects, to
+   separate with the Berry console: the Tuya driver keeping data after `TuyaConfig` /
+   `TuyaStatus` (run them by hand, then `Br tasmota.gc()`), modules loaded at first use
+   (`re`, `introspect`, `sys`), or a reference still holding the `tf_http` class.
 3. **Tuya devices in the dashboard** (F7.1 to F7.3): switches, dimmers, colour temperature, fan
    speed, readings, live updates, hidden without the driver.
 4. **Several gateways** (F1): Gateways screen, link to copy, wake of a stopped server.

@@ -267,13 +267,17 @@ removes the unused code of `tf_http.be` (chunked encoding, two helpers). Measure
 | Moment | Free heap | Berry `HeapUsed` | TasmoFlow cost |
 | --- | --- | --- | --- |
 | v0.1, extension loaded (API server not started) | 75 KB | 35 KB | **9 KB** |
-| v0.1, interface open | 63 KB | 48 KB | 21 KB |
+| v0.1, interface open (cached `import`) | 63 KB | 48 KB | 21 KB |
+| v0.1, interface open (uncached loading) | 59 KB | 48 KB | 25 KB |
+| v0.1, 5 minutes after closing it (`TFL: API server stopped`) | 69 KB | 39 KB | **15 KB** |
 
-At rest the 15 KB target is met (17 KB before). With an interface open the cost is 2 KB above
-v0.0: `tf_http.be` compiled (about 12 KB) plus the server. The second table row was measured
-with a cached `import`, which keeps that code in RAM after the server stops; the uncached
-loading that replaced it is **not measured yet**: repeat with the interface open, then 5 minutes
-after closing it (`TFL: API server stopped`), after `tasmota.gc()`.
+At rest the 15 KB target is met (17 KB before). With an interface open the cost is 2 to 6 KB
+above v0.0: `tf_http.be` compiled (about 12 KB) plus the server; the free heap also depends on
+the connections open at that moment. The uncached loading works: after the server stops, 10 KB
+of the 16 KB added come back (Berry: 9 of 13 KB). **About 6 KB (Berry: 4 KB) stay allocated**
+compared with the state before the first opening; the cause is not identified yet (see
+`docs/tracking.en.md`). After the first use the cost is 15 KB, right on the target. `UfsFree` was
+148 KB of 320 KB on the same gateway.
 
 ### What TasmoFlow does not do
 
@@ -331,9 +335,10 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] Chrome, Firefox, Safari on iPhone: the interface loads and the event stream stays open
 - [x] Matter keeps working (Google Home still controls its devices)
 - [x] The Tuya driver still starts at boot with TasmoFlow installed (`TuyaEnable`: `"State":"running"`)
-- [ ] v0.1: after a restart, port 8384 does not answer until `/tf` is opened; the log shows `TFL: API server started on port 8384`, then `TFL: API server stopped` 5 minutes after the last tab is closed, and `/tf` starts it again (the port can be listened to again)
+- [x] v0.1: after a restart, port 8384 does not answer until `/tf` is opened; the log shows `TFL: API server started on port 8384`, then `TFL: API server stopped` 5 minutes after the last tab is closed, and `/tf` starts it again (the port can be listened to again)
 - [ ] v0.1: `curl "http://<gateway>/tf?w=1"` answers `ok` without a password and starts the server
 - [ ] v0.1: the Tuya cards match `TuyaStatus`; a switch, a dimmer and a fan speed act on the real devices; a change made on a device (button, Smart Life) reaches the interface within 2 s
 - [ ] v0.1: with the Tuya driver disabled (`TuyaEnable 0`) or absent, the Tuya section is hidden
 - [x] v0.1: memory at rest after `tasmota.gc()`: 75 KB free, Berry 35 KB, i.e. 9 KB (target 15 KB); with an interface open 63 KB / 48 KB (cached `import`, see [Memory](#memory))
-- [ ] v0.1: with the uncached loading, the memory returns to about 75 KB free 5 minutes after the last tab is closed; `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)
+- [x] v0.1: with the uncached loading, the memory partly returns 5 minutes after the last tab is closed: 59 KB free / Berry 48 KB with the interface open, 69 KB / 39 KB after (75 KB / 35 KB before the first opening)
+- [ ] v0.1: find what stays allocated after the first opening (6 KB free heap, 4 KB Berry), and check that `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)
