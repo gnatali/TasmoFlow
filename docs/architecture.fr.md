@@ -15,11 +15,11 @@ confirmer sur une vraie ZB-GW03 (voir le [plan de test](#plan-de-test-sur-la-pas
 | Port | Serveur | Rôle |
 | --- | --- | --- |
 | 80 | Serveur web de Tasmota | Bouton « TasmoFlow » du menu principal, page `/tf` protégée par le mot de passe web |
-| 8384 | `tf_http.be`, serveur asynchrone Berry | API JSON, flux d'événements, copie locale de l'interface ; en-têtes CORS et `Content-Encoding` ; [seulement pendant qu'une interface est ouverte](#serveur-dapi-à-la-demande) |
+| 8384 | `tf_http.be`, serveur asynchrone Berry | API JSON, flux d'événements, interface légère ; en-têtes CORS et `Content-Encoding` ; [seulement pendant qu'une interface est ouverte](#serveur-dapi-à-la-demande) |
 
 La page `/tf` transmet à l'interface l'adresse de l'API et un jeton de 128 bits, créé au
 premier démarrage et gardé dans `persist`. Toutes les routes `/api/*` exigent ce jeton
-(paramètre `t`) ; seule `/app.js` est publique.
+(paramètre `t`) ; seule `/lite.js` est publique.
 
 ### Serveur d'API à la demande
 
@@ -67,7 +67,7 @@ Conséquences :
 - **Plusieurs passerelles** : une interface ouverte sur la passerelle A peut appeler l'API
   de la passerelle B, puisque le port 8384 envoie `Access-Control-Allow-Origin: *`. Il lui
   faut le jeton de B (voir ci-dessous).
-- **Copie locale compressée** : servie avec `Content-Encoding: gzip`, le navigateur la
+- **Interface légère compressée** : servie avec `Content-Encoding: gzip`, le navigateur la
   décompresse lui-même.
 - **Temps réel** : `/api/events` garde la connexion ouverte et pousse chaque message Zigbee
   dès sa réception, sans interrogation régulière.
@@ -97,17 +97,64 @@ L'écran **Passerelles** de l'interface (v0.1) :
 2. La page charge `https://gnatali.github.io/TasmoFlow/vX.Y.Z/app.js` avec l'empreinte SRI
    calculée à l'assemblage. Une page HTTP peut charger un script HTTPS.
 3. Si GitHub ne répond pas en 3 s, ou si l'empreinte ne correspond pas, la page charge
-   `http://<passerelle>:8384/app.js`, la copie gzip contenue dans la `.tapp`.
+   `http://<passerelle>:8384/lite.js`, l'**interface légère** contenue, en gzip, dans la
+   `.tapp`. Un bandeau le signale et propose de réessayer.
 4. Si les deux échouent, la page l'affiche.
 
 Le script se protège d'un double démarrage : la copie GitHub peut arriver après le délai,
-quand la copie locale tourne déjà.
+quand l'interface légère tourne déjà.
+
+### Interface complète sur GitHub, interface légère sur la passerelle
+
+Décision du 9 novembre 2026 (option B de l'analyse ; elle remplace « la même copie complète aux
+deux endroits » de la v0.0) :
+
+| | Interface complète (`dist/app.js`) | Interface légère (`dist/lite.js`) |
+| --- | --- | --- |
+| Où | GitHub Pages seulement, `vX.Y.Z/`, figée par la `.tapp` avec son empreinte SRI | Dans la `.tapp` sous le nom `lite.js.gz`, servie sur le port 8384 |
+| Utilisée | Normalement | Quand le navigateur ne joint pas GitHub (pas d'internet, GitHub en panne, empreinte fausse) |
+| Contenu | Tout : appareils, événements, console, Passerelles, puis règles, éditeur en phrases, scènes, administration | Appareils (Zigbee et Tuya, interrupteurs, curseurs, appairage), console, diagnostic, français et anglais |
+| Source | `app/src/main.js` | `app/src/main_lite.js` : même code, moins d'onglets (`boot.js`) |
+| Budget (gzip) | 120 Ko | 25 Ko |
+
+Interface légère, prévu en v0.2 : activer ou désactiver une règle et restaurer la copie
+précédente d'une règle, pour que les règles restent gérables sans GitHub. Jamais dans
+l'interface légère : éditeur de phrases, groupes, scènes, plugins Zigbee, administration (OTA),
+plusieurs passerelles.
+
+Pourquoi :
+
+- C'est le **navigateur**, pas la passerelle, qui a besoin d'internet pour charger l'interface
+  complète. Les règles et automatisations tournent sur la passerelle : sans internet rien ne
+  s'arrête, seule l'édition est indisponible. Les pages de Tasmota restent le dernier recours
+  (liste Zigbee, console, `/tuya`, Matter).
+- **Système de fichiers** : `UfsFree` valait 148 Ko sur 320 Ko (9 novembre 2026), et l'interface
+  complète va grossir (éditeur de règles et de phrases, scènes, administration). Une copie
+  complète locale mangerait la place dont ont besoin les copies de règles (avant chaque
+  écriture), `tuya.json.bak` et les imports.
+- **Pas de version libre** : l'interface complète reste figée à la version installée avec son
+  empreinte SRI. Une interface non figée exécuterait ce que GitHub sert, dans un navigateur qui
+  détient le jeton et le contrôle total de Tasmota. La mettre à jour demande toujours une
+  nouvelle `.tapp`. Un bouton « mettre à jour l'interface » pourrait plus tard écrire la
+  nouvelle version et son empreinte dans `persist` après accord de l'utilisateur : il
+  découplerait les deux en gardant SRI (l'interface complète devrait alors rester compatible
+  avec les anciennes API).
+- **Gardé en local, léger** : GitHub (compte, Pages, dépôt) ne doit pas être un point de
+  défaillance unique pour piloter la passerelle.
+- L'interface légère est un autre point d'entrée des mêmes sources : pas de seconde base de
+  code, même client d'API, même modèle Tuya, mêmes textes. Aujourd'hui elle n'est que 1 Ko plus
+  petite (13,7 contre 14,9 Ko gzip) ; l'écart grandira avec l'interface complète.
+- L'interface complète ne peut pas passer sur `https://gnatali.github.io` pour gérer les
+  passerelles depuis un seul endroit : une page HTTPS qui appelle `http://<passerelle>` est
+  bloquée (contenu mixte, Private Network Access). Elle doit rester chargée par la page HTTP de
+  la passerelle.
+- Qui ne veut aucun GitHub (`pack_tapp.py --cdn ''`) n'a que l'interface légère.
 
 ## API du port 8384
 
 | Route | Réponse |
 | --- | --- |
-| `GET /app.js` | Copie locale de l'interface (gzip), envoyée par blocs de 1 Ko |
+| `GET /lite.js` | Interface légère (gzip), envoyée par blocs de 1 Ko |
 | `GET /api/status?t=` | Versions, mémoire libre, système de fichiers, état de Zigbee, nombre d'appareils |
 | `GET /api/devices?t=` | Appareils Zigbee : adresse, nom, modèle, fabricant, LQI, batterie, dernier message, derniers attributs |
 | `GET /api/cmd?t=&c=` | Exécute une commande Tasmota (`c`, encodée) et renvoie sa réponse JSON |
@@ -333,8 +380,9 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] Le bouton « TasmoFlow » apparaît dans le menu principal
 - [x] Avec `WebPassword` défini, dans une fenêtre de navigation privée (sinon le navigateur renvoie le mot de passe déjà saisi pour Tasmota), `/tf` demande le mot de passe ; `curl -i "http://<passerelle>/tf?r=1"` répond `401 Unauthorized`
 - [x] `http://<passerelle>/tf` tapé dans la barre d'adresse (sans passer par le bouton) ouvre l'interface
-- [x] Sans accès Internet, `/tf` charge la copie locale (onglet Diagnostic : « local »)
-- [x] `open(tasmota.wd + "app.js.gz", "rb")` lit bien le fichier dans la `.tapp`, et le navigateur décompresse la copie locale
+- [x] Sans accès Internet, `/tf` charge la copie locale (onglet Diagnostic : « local ») ; depuis la v0.1 cette copie est l'interface légère (bandeau, en-tête « · lite »), à revérifier
+- [x] `open(tasmota.wd + "app.js.gz", "rb")` lit bien le fichier dans la `.tapp`, et le navigateur décompresse la copie locale (`lite.js.gz` depuis la v0.1)
+- [ ] v0.1 : navigateur hors ligne (ou `gnatali.github.io` bloqué), `/tf` affiche l'interface légère : les appareils avec leurs bascules, la console et le diagnostic fonctionnent, les onglets Passerelles et Événements sont absents, « Réessayer » charge l'interface complète dès que GitHub répond
 - [x] La liste des appareils correspond à `ZbStatus1`
 - [x] Un appui sur un bouton Zigbee apparaît dans l'onglet Événements en moins de 2 s
 - [x] « Basculer » allume et éteint une lampe ; « Appairer » ouvre l'appairage 60 s

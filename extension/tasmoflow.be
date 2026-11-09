@@ -6,11 +6,11 @@
 # Two servers:
 #
 # - port 80, Tasmota's web server: "TasmoFlow" button in the main menu and /tf page,
-#   protected by the web password, which loads the interface from GitHub Pages
-#   (pinned version, SRI hash) or, failing that, from the local copy.
+#   protected by the web password, which loads the full interface from GitHub Pages
+#   (pinned version, SRI hash) or, failing that, the light interface kept in the .tapp.
 #
 # - port 8384, Berry asynchronous server (tf_http.be): JSON API, event stream
-#   (Server-Sent Events) and local copy of the interface. The main server cannot add
+#   (Server-Sent Events) and light interface. The main server cannot add
 #   HTTP headers from Berry (neither CORS nor Content-Encoding): this second port can,
 #   without rebuilding the firmware.
 #
@@ -32,8 +32,8 @@ import string
 import json
 
 #################################################################################
-# Sends a file in 1 KB chunks, at the client's pace: the local copy of the interface
-# (about 100 KB) must never be loaded into RAM in one go.
+# Sends a file in 1 KB chunks, at the client's pace: a file of the .tapp must never be
+# loaded into RAM in one go.
 #################################################################################
 class tf_streamer
   var cnx, f, cb
@@ -244,7 +244,7 @@ class tasmoflow
           's.onload=function(){clearTimeout(t);};s.onerror=onerr;'
           'document.head.appendChild(s);}'
         'function local(){if(fell)return;fell=true;clearTimeout(t);'
-          'add(c.api+"/app.js","",function(){'
+          'add(c.api+"/lite.js","",function(){'
             'box.textContent="TasmoFlow: interface not found (port "+c.port+")";});}'
         'if(c.cdn){add(c.cdn,c.sri,local);t=setTimeout(local,3000);}'
         'else{local();}'
@@ -295,7 +295,7 @@ class tasmoflow
       return
     end
     self.web.set_cors(true)
-    self.web.on("/app.js", self, self.send_app)
+    self.web.on("/lite.js", self, self.send_lite)
     self.web.on("/api/status", self, self.api_status)
     self.web.on("/api/devices", self, self.api_devices)
     self.web.on("/api/cmd", self, self.api_cmd)
@@ -322,14 +322,14 @@ class tasmoflow
     log("TFL: API server stopped", 2)
   end
 
-  # local copy of the interface, stored gzipped in the .tapp
-  def send_app(cnx, uri, verb)
+  # light interface, stored gzipped in the .tapp (the full one only lives on GitHub Pages)
+  def send_lite(cnx, uri, verb)
     self.touch()
     var f
     try
-      f = open(self.wd + "app.js.gz", "rb")
+      f = open(self.wd + "lite.js.gz", "rb")
     except ..
-      cnx.send(404, "text/plain", "app.js.gz missing")
+      cnx.send(404, "text/plain", "lite.js.gz missing")
       cnx.content_stop()
       return
     end

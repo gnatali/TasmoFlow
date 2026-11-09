@@ -17,7 +17,8 @@ firmware.
 
 - Adds a **TasmoFlow** button to the Tasmota main menu and a `/tf` page.
 - Loads the interface from GitHub Pages (pinned version, SRI hash), or from the extension's
-  local copy if GitHub does not answer within 3 s.
+  light interface kept in the extension if GitHub does not answer within 3 s (since v0.1, the
+  full interface only lives on GitHub Pages).
 - Lists Zigbee devices and updates them live.
 - Toggles a light, opens pairing, sends a Tasmota command, shows diagnostics (memory, file
   system, where the interface came from).
@@ -25,7 +26,9 @@ firmware.
 
 ## What v0.1 adds (in progress)
 
-- Interface rebuilt on Preact + htm (13 KB gzipped, built with esbuild).
+- Interface rebuilt on Preact + htm, built with esbuild into two bundles from the same
+  sources: the **full** one (14.9 KB gzipped, GitHub Pages) and a **light** one (13.7 KB, in the
+  `.tapp`: devices, console, diagnostics) that the gateway serves when GitHub cannot be reached.
 - The port 8384 API server only runs while an interface is open (RAM is the critical resource).
 - **Gateways** screen: use several gateways from one interface (copy a gateway's link, paste it
   in another one's screen).
@@ -45,7 +48,8 @@ The firmware is not modified. How it works: [docs/architecture.en.md](docs/archi
    python3 tools/pack_tapp.py
    ```
 
-   `npm run build` bundles the interface (`app/src/`) into `dist/app.js`. `pack_tapp.py` writes
+   `npm run build` bundles the interface (`app/src/`) into `dist/app.js` (full, for GitHub
+   Pages) and `dist/lite.js` (light, kept in the `.tapp`). `pack_tapp.py` writes
    `dist/TasmoFlow.tapp` and prints the sizes and their budgets.
 
 2. In Tasmota: **Tools → Manage File system**, upload `dist/TasmoFlow.tapp` (to the root, or
@@ -63,11 +67,11 @@ To uninstall: delete `TasmoFlow.tapp` and restart.
 ```sh
 npm ci
 npm run build
-python3 tools/pack_tapp.py --cdn ''
-python3 tools/mock_gateway.py
+python3 tools/mock_gateway.py --full
 ```
 
-Then open <http://localhost:8080/tf>. The simulated gateway serves the real `/tf` page,
+Then open <http://localhost:8080/tf> (without `--full`, only the light interface is found, as
+when GitHub cannot be reached). The simulated gateway serves the real `/tf` page,
 extracted from `extension/tasmoflow.be`, and the same API, with three fake Zigbee devices
 sending events and four fake Tuya devices answering like the firmware's driver (`--no-tuya`:
 a gateway without the driver).
@@ -81,7 +85,7 @@ the Gateways screen.
 
 | Path | Content |
 | --- | --- |
-| `app/src/` | Interface (Preact + htm), bundled into `dist/app.js` by `tools/build_app.js` |
+| `app/src/` | Interface (Preact + htm), bundled by `tools/build_app.js` into `dist/app.js` (full, `main.js`) and `dist/lite.js` (light, `main_lite.js`) |
 | `package.json` | Dependencies of the interface (`preact`, `htm`) and of its build (`esbuild`) |
 | `extension/tasmoflow.be` | Berry extension: button, `/tf` page, API, events |
 | `extension/tf_http.be` | Asynchronous HTTP server, copied from Tasmota |

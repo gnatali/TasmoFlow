@@ -15,11 +15,11 @@ real ZB-GW03 (see the [test plan](#test-plan-on-the-gateway)).
 | Port | Server | Role |
 | --- | --- | --- |
 | 80 | Tasmota's web server | "TasmoFlow" button in the main menu, `/tf` page protected by the web password |
-| 8384 | `tf_http.be`, Berry asynchronous server | JSON API, event stream, local copy of the interface; CORS and `Content-Encoding` headers; [only while an interface is open](#api-server-on-demand) |
+| 8384 | `tf_http.be`, Berry asynchronous server | JSON API, event stream, light interface; CORS and `Content-Encoding` headers; [only while an interface is open](#api-server-on-demand) |
 
 The `/tf` page gives the interface the API address and a 128-bit token, created at first
 start and kept in `persist`. Every `/api/*` route requires this token (`t` parameter); only
-`/app.js` is public.
+`/lite.js` is public.
 
 ### API server on demand
 
@@ -65,8 +65,8 @@ Consequences:
 
 - **Several gateways**: an interface opened on gateway A can call gateway B's API, since
   port 8384 sends `Access-Control-Allow-Origin: *`. It needs B's token (see below).
-- **Compressed local copy**: served with `Content-Encoding: gzip`, the browser decompresses
-  it itself.
+- **Compressed light interface**: served with `Content-Encoding: gzip`, the browser
+  decompresses it itself.
 - **Real time**: `/api/events` keeps the connection open and pushes each Zigbee message as
   soon as it arrives, without polling.
 
@@ -93,17 +93,59 @@ The interface's **Gateways** screen (v0.1):
 2. The page loads `https://gnatali.github.io/TasmoFlow/vX.Y.Z/app.js` with the SRI hash
    computed at build time. An HTTP page may load an HTTPS script.
 3. If GitHub does not answer within 3 s, or if the hash does not match, the page loads
-   `http://<gateway>:8384/app.js`, the gzipped copy held in the `.tapp`.
+   `http://<gateway>:8384/lite.js`, the **light interface** held, gzipped, in the `.tapp`. It
+   says so in a banner and offers to retry.
 4. If both fail, the page says so.
 
 The script guards against starting twice: the GitHub copy may arrive after the timeout, when
-the local copy is already running.
+the light interface is already running.
+
+### Full interface on GitHub, light interface on the gateway
+
+Decision of 9 November 2026 (option B of the analysis; it replaces "the same full copy in both
+places" of v0.0):
+
+| | Full interface (`dist/app.js`) | Light interface (`dist/lite.js`) |
+| --- | --- | --- |
+| Where | GitHub Pages only, `vX.Y.Z/`, pinned by the `.tapp` with its SRI hash | In the `.tapp` as `lite.js.gz`, served on port 8384 |
+| Used | Normally | When the browser cannot reach GitHub (no internet, GitHub down, wrong hash) |
+| Content | Everything: devices, events, console, Gateways, and later rules, sentence editor, scenes, administration | Devices (Zigbee and Tuya, switches, sliders, pairing), console, diagnostics, French and English |
+| Source | `app/src/main.js` | `app/src/main_lite.js`: same code, fewer tabs (`boot.js`) |
+| Budget (gzipped) | 120 KB | 25 KB |
+
+Light interface, planned for v0.2: enable or disable a rule and restore the previous copy of a
+rule, so that rules stay manageable without GitHub. Never in the light interface: sentence
+editor, groups, scenes, Zigbee plugins, administration (OTA), several gateways.
+
+Why:
+
+- The **browser**, not the gateway, needs internet to load the full interface. Rules and
+  automations run on the gateway: without internet nothing stops, only editing is unavailable.
+  Tasmota's own pages stay the last resort (Zigbee list, console, `/tuya`, Matter).
+- **File system**: `UfsFree` was 148 KB of 320 KB (9 November 2026), and the full interface
+  will grow (rule and sentence editor, scenes, administration). A full local copy would eat the
+  room that rule backups (copy before every write), `tuya.json.bak` and imports need.
+- **Not unpinned**: the full interface stays pinned to the installed version with its SRI hash.
+  An unpinned interface would run whatever GitHub serves in a browser holding the gateway's
+  token and full control of Tasmota. Updating it still means a new `.tapp`. A later "update the
+  interface" button could write the new version and its hash to `persist` after the user's
+  approval, which would decouple the two while keeping SRI (the full interface would then have
+  to stay compatible with older APIs).
+- **Kept local, light**: GitHub (account, Pages, repository) must not be a single point of
+  failure for controlling the gateway.
+- The light interface is another entry point of the same sources, so no second code base:
+  same API client, same Tuya model, same texts. Today it is only 1 KB smaller (13.7 against
+  14.9 KB gzipped); the gap grows with the full interface.
+- The full interface cannot be moved to `https://gnatali.github.io` to manage gateways from
+  one place: an HTTPS page calling `http://<gateway>` is blocked (mixed content, Private
+  Network Access). It must stay loaded by the gateway's HTTP page.
+- Users who want no GitHub at all (`pack_tapp.py --cdn ''`) only get the light interface.
 
 ## Port 8384 API
 
 | Route | Response |
 | --- | --- |
-| `GET /app.js` | Local copy of the interface (gzip), sent in 1 KB chunks |
+| `GET /lite.js` | Light interface (gzip), sent in 1 KB chunks |
 | `GET /api/status?t=` | Versions, free memory, file system, Zigbee state, number of devices |
 | `GET /api/devices?t=` | Zigbee devices: address, name, model, manufacturer, LQI, battery, last message, last attributes |
 | `GET /api/cmd?t=&c=` | Runs a Tasmota command (`c`, encoded) and returns its JSON response |
@@ -323,8 +365,9 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] The "TasmoFlow" button appears in the main menu
 - [x] With `WebPassword` set, in a private window (otherwise the browser sends the password already entered for Tasmota), `/tf` asks for the password; `curl -i "http://<gateway>/tf?r=1"` answers `401 Unauthorized`
 - [x] `http://<gateway>/tf` typed in the address bar (without the button) opens the interface
-- [x] Without internet access, `/tf` loads the local copy (Diagnostics tab: "local")
-- [x] `open(tasmota.wd + "app.js.gz", "rb")` reads the file inside the `.tapp`, and the browser decompresses the local copy
+- [x] Without internet access, `/tf` loads the local copy (Diagnostics tab: "local"); since v0.1 this copy is the light interface (banner, header "· lite"), to check again
+- [x] `open(tasmota.wd + "app.js.gz", "rb")` reads the file inside the `.tapp`, and the browser decompresses the local copy (`lite.js.gz` since v0.1)
+- [ ] v0.1: with the browser offline (or `gnatali.github.io` blocked), `/tf` shows the light interface: devices with toggles, console and diagnostics work, the Gateways and Events tabs are absent, "Retry" loads the full interface once GitHub answers
 - [x] The device list matches `ZbStatus1`
 - [x] A Zigbee button press shows up in the Events tab within 2 s
 - [x] "Toggle" switches a light on and off; "Pair" opens pairing for 60 s

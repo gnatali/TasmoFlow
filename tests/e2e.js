@@ -24,7 +24,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
 
 (async () => {
   const TOKEN_B = 'fedcba9876543210fedcba9876543210';
-  const mocks = [mock([]), mock(['--web', '8081', '--api', '8385', '--cdn', CDN, '--sri', SRI, '--token', TOKEN_B, '--name', 'Passerelle B', '--no-tuya'])];
+  const mocks = [mock(['--cdn', CDN, '--sri', SRI]), mock(['--web', '8081', '--api', '8385', '--cdn', CDN, '--sri', SRI, '--token', TOKEN_B, '--name', 'Passerelle B', '--no-tuya'])];
   await wait(1000);
   const browser = await chromium.launch();
   const results = [];
@@ -46,15 +46,39 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     }
     await ctx.close();
   }
+  // the full interface, as GitHub Pages serves it, through the first simulated gateway
+  async function openFull(p) {
+    await p.route(CDN, r => r.fulfill(jsBody(APP)));
+    await p.goto('http://localhost:8080/tf');
+    await expectSource(p, 'github');
+  }
   async function expectSource(p, s) {
     await cards(p);
     const got = await src(p);
     if (got !== s) throw new Error(`source ${got}, expected ${s}`);
   }
 
-  await test('no GitHub: local copy', async p => {
+  await test('no GitHub: light local copy (devices, toggle, console, diagnostics; no Gateways tab)', async p => {
+    await p.route(CDN, r => r.abort());
     await p.goto('http://localhost:8080/tf');
     await expectSource(p, 'local');
+    await p.getByRole('status').filter({ hasText: 'Version légère' }).waitFor({ timeout: 2000 });
+    await p.getByRole('button', { name: 'Réessayer' }).waitFor();
+    for (const n of ['Passerelles', 'Événements']) {
+      if (await p.getByRole('button', { name: n }).count()) throw new Error(`${n} tab in the light interface`);
+    }
+    const lamp = p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe salon' }) });
+    await lamp.getByRole('button', { name: 'Basculer' }).click();
+    await p.locator('article.card', { has: p.getByRole('heading', { name: 'Ventilateur', exact: true }) })
+      .getByRole('button', { name: /Lumière ventilateur/ }).waitFor({ timeout: 6000 });
+    await p.getByRole('button', { name: 'Console' }).click();
+    await p.locator('input').fill('ZbInfo');
+    await p.keyboard.press('Enter');
+    await p.waitForFunction(() => /Simulated/.test(document.querySelector('pre').textContent), null, { timeout: 3000 });
+    await p.getByRole('button', { name: 'Diagnostic' }).click();
+    await p.waitForSelector('dl');
+    await p.getByText('v0.0.1 · local · lite').waitFor();
+    if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'lite.png') });
   });
   await test('valid GitHub copy', async p => {
     await p.route(CDN, r => r.fulfill(jsBody(APP)));
@@ -76,13 +100,12 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
   });
   await test('GitHub and local copy missing: message', async p => {
     await p.route(CDN, r => r.abort());
-    await p.route('http://localhost:8385/app.js', r => r.abort());
+    await p.route('http://localhost:8385/lite.js', r => r.abort());
     await p.goto('http://localhost:8081/tf');
     await p.waitForFunction(() => /not found/.test(document.body.textContent), null, { timeout: 4000 });
   });
   await test('walkthrough: toggle, events, console, diagnostics, English', async p => {
-    await p.goto('http://localhost:8080/tf');
-    await cards(p);
+    await openFull(p);
     await p.waitForSelector('.badge.ok', { timeout: 5000 });
     const lamp = () => p.locator('article.card', { hasText: 'Lampe salon' });
     const before = /Power 1/.test((await lamp().innerText()).replace(/\n/g, ' '));
@@ -104,7 +127,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.getByRole('button', { name: 'Devices' }).waitFor({ timeout: 2000 });
   });
   await test('Tuya: cards, switches, slider, readings, event back, offline device', async p => {
-    await p.goto('http://localhost:8080/tf');
+    await openFull(p);
     const fan = p.locator('article.card', { has: p.getByRole('heading', { name: 'Ventilateur', exact: true }) });
     await fan.waitFor({ timeout: 6000 });
     await fan.getByRole('button', { name: 'Lumière ventilateur · éteint' }).click();
@@ -123,8 +146,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'tuya.png'), fullPage: true });
   });
   await test('several gateways: bad link, add, test, use, still there after reload, remove', async p => {
-    await p.goto('http://localhost:8080/tf');
-    await cards(p);
+    await openFull(p);
     await p.getByRole('heading', { name: 'Tuya' }).waitFor({ timeout: 6000 });
     await p.getByRole('button', { name: 'Passerelles' }).click();
     const link = p.getByLabel('Lien de connexion').last();
@@ -153,8 +175,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
   {
     const ctx = await browser.newContext({ locale: 'fr-FR', viewport: { width: 360, height: 760 }, colorScheme: 'dark' });
     const p = await ctx.newPage();
-    await p.goto('http://localhost:8080/tf');
-    await cards(p);
+    await openFull(p);
     const overflow = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     results.push(['mobile 360 px without overflow', !overflow]);
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'mobile-dark.png'), fullPage: true });

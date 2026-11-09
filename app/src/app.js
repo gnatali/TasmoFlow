@@ -3,10 +3,6 @@ import { html } from './html.js';
 import { t, L, toggleLang } from './i18n.js';
 import { S, setTab, selectGateway } from './state.js';
 import cfg from './config.js';
-import { DevicesView, EventsView, ConsoleView, DiagView } from './views.js';
-import { GatewaysView } from './gateways.js';
-
-const TABS = { devices: DevicesView, events: EventsView, console: ConsoleView, gateways: GatewaysView, diag: DiagView };
 
 function Header() {
   const s = S.use();
@@ -21,20 +17,24 @@ function Header() {
     ${name ? html`<span class="gw">${name}</span>` : null}
     <span class="sp"></span>
     <span class=${'badge ' + (s.live ? 'ok' : 'bad')}>${s.live ? t('live') : t('reconnecting')}</span>
-    <span class="badge">${'v' + cfg.version + ' · ' + cfg.source}</span>
+    <span class="badge">${'v' + cfg.version + ' · ' + cfg.source + (cfg.lite ? ' · lite' : '')}</span>
     <button class="b" lang=${lang === 'fr' ? 'en' : 'fr'} aria-label=${lang === 'fr' ? 'English' : 'Français'} onClick=${toggleLang}>${lang === 'fr' ? 'EN' : 'FR'}</button>
   </header>`;
 }
 
-export function App() {
-  const { tab, error } = S.use();
-  L.use();
-  const View = TABS[tab];
-  return html`
-    <${Header}/>
-    <nav aria-label="TasmoFlow">${Object.keys(TABS).map(k => html`<button key=${k} aria-current=${tab === k ? 'page' : null} onClick=${() => setTab(k)}>${t(k)}</button>`)}</nav>
-    <main aria-live="polite">
-      ${error ? html`<p class="badge bad">${t('error') + ' : ' + error}</p>` : null}
-      <${View}/>
-    </main>`;
+// tabs: { id: component }, in display order
+export function createApp(tabs) {
+  return function App() {
+    const { tab, error } = S.use();
+    L.use();
+    const View = tabs[tab];
+    return html`
+      <${Header}/>
+      <nav aria-label="TasmoFlow">${Object.keys(tabs).map(k => html`<button key=${k} aria-current=${tab === k ? 'page' : null} onClick=${() => setTab(k)}>${t(k)}</button>`)}</nav>
+      <main aria-live="polite">
+        ${cfg.lite ? html`<p class="lite" role="status">${t('liteBanner')} <button class="b" onClick=${() => location.reload()}>${t('retry')}</button></p>` : null}
+        ${error ? html`<p class="badge bad">${t('error') + ' : ' + error}</p>` : null}
+        <${View}/>
+      </main>`;
+  };
 }

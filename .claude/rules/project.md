@@ -18,8 +18,10 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
 
 ## Decisions (do not reopen without Guillaume)
 
-- Interface served **by the gateway** (`/tf` page), code loaded from GitHub Pages (pinned
-  version + SRI) with a gzipped local copy in the `.tapp` as fallback. **Firmware untouched**:
+- Interface served **by the gateway** (`/tf` page): the **full** interface is loaded from GitHub
+  Pages (pinned version + SRI), a **light** one (devices, console, diagnostics; same sources,
+  `app/src/main_lite.js`) is kept gzipped in the `.tapp` and served when GitHub is unreachable
+  (decision of 9 November 2026, see `docs/architecture.en.md`). **Firmware untouched**:
   TasmoFlow is a Berry extension (`.tapp`), no `USE_CORS`, no rebuild.
 - Second server on **port 8384** (`extension/tf_http.be`, copy of Tasmota's
   `webserver_async.be`) for the JSON API, CORS, gzip and Server-Sent Events.
@@ -40,7 +42,7 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
   PR when Guillaume asks.
 - This environment cannot push tags (HTTP 403): Guillaume creates release tags `vX.Y.Z` (equal to
   `VERSION`) on `main`; the workflow then publishes the release and GitHub Pages.
-- Before pushing: `npm run build` (interface, `app/src/` to `dist/app.js`), `node --check dist/app.js`,
+- Before pushing: `npm run build` (interface, `app/src/` to `dist/app.js`), `node --check` on `dist/app.js` and `dist/lite.js`,
   `python3 tools/pack_tapp.py` (size budgets), `node tests/e2e.js` (Playwright, simulated
   gateway; it builds first). CI also checks the Berry syntax: this environment cannot compile
   Berry, so re-read Berry diffs carefully.

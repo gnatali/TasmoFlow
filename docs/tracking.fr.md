@@ -39,6 +39,7 @@ Cahier des charges (en français, hors du dépôt) :
 | 9 nov. | `CLAUDE.md` ajouté ; règle de langue appliquée (code, docs et messages en anglais ; traduction française de la documentation utilisateur) |
 | 9 nov. | Tous les points de la v0.0 validés, mémoire mesurée après `tasmota.gc()` ; tag v0.0.1 créé par Guillaume, GitHub Pages activé |
 | 9 nov. | v0.1 : **Preact + htm retenu** (même écran : 6,6 Ko gzip contre 6,3 Ko pour Lit, 5,4 Ko pour le prototype sans dépendance) ; interface assemblée avec esbuild (12,9 Ko gzip, puis 14,6 Ko avec Tuya) |
+| 9 nov. | v0.1 : **option B décidée** : interface complète sur GitHub Pages seulement (figée, SRI), interface légère (13,7 Ko gzip, appareils + console + diagnostic) dans la `.tapp` ; second point d'entrée esbuild des mêmes sources. Raison : `UfsFree` 148 Ko sur 320 Ko et une interface complète qui va grossir |
 | 9 nov. | v0.1 : serveur d'API à la demande (`/tf`, `/tf?w=1`, 5 minutes d'inactivité), `tf_http.be` compilé à la demande et allégé ; écran Passerelles ; appareils Tuya (`TuyaEnable`, `TuyaStatus`, `TuyaConfig`, `TuyaSend`, règle `Tuya` sur le flux d'événements) ; pilote Tuya simulé et tests |
 
 ## Mesures sur la passerelle
@@ -86,6 +87,9 @@ Reste pour la v0.1 (petit) :
 
 - **Couleur des liaisons `light3`** (`colour_data_v2`, `hhhhssssvvvv`) : pas encore proposée.
 - **Noms de sous-appareils Tuya** contenant une virgule, que `TuyaSend` ne sait pas adresser.
+- **Périmètre de l'interface légère en v0.2** : ajouter l'activation et la désactivation d'une
+  règle et la restauration de la copie précédente (voir le tableau de l'architecture), pour que
+  les règles restent gérables sans GitHub.
 - **Passer `VERSION` à `0.1.0`** quand Guillaume tague la release (l'en-tête affiche encore 0.0.1).
 - **Vérifications sur la passerelle** : les points `[ ]` marqués v0.1 du plan de test, en
   particulier que le `tcpserver` du port 8384 peut être fermé puis ré-écouté, et la mémoire

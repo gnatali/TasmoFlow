@@ -29,6 +29,7 @@ jobs:
           npm ci
           npm run build
           node --check dist/app.js
+          node --check dist/lite.js
 
       - name: Berry syntax
         run: |

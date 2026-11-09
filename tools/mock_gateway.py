@@ -5,19 +5,25 @@
 Mimics the extension's two servers:
   - port --web (8080 by default): /tf page, extracted as is from
     extension/tasmoflow.be to test the real loader;
-  - port --api (8384 by default): /app.js (gzip), /api/status, /api/devices,
+  - port --api (8384 by default): /lite.js (gzip), /api/status, /api/devices,
     /api/cmd and /api/events (SSE), with the same CORS headers as tf_http.be.
 
 Three fake Zigbee devices send events every 2 seconds. Four fake Tuya devices answer
 TuyaEnable, TuyaStatus, TuyaConfig and TuyaSend like the firmware's driver (formats from
 docs/tuya-local.en.md of the firmware repository); --no-tuya simulates a gateway without it.
 
-Usage: npm run build && python3 tools/pack_tapp.py --cdn '' && python3 tools/mock_gateway.py
+Without --cdn the page only finds the light interface (/lite.js), like a browser that cannot
+reach GitHub Pages. --full also serves the full interface (dist/app.js) from the API port,
+with its SRI hash, in place of GitHub Pages.
+
+Usage: npm run build && python3 tools/mock_gateway.py --full
        then open http://localhost:8080/tf
 """
 
 import argparse
+import base64
 import gzip
+import hashlib
 import json
 import pathlib
 import random
@@ -186,9 +192,13 @@ class Api(BaseHTTPRequestHandler):
     def do_GET(self):
         u = urllib.parse.urlsplit(self.path)
         q = dict(urllib.parse.parse_qsl(u.query, keep_blank_values=True))
-        if u.path == "/app.js":
+        if u.path == "/app.js":       # stands for GitHub Pages with --full
+            self.head(200, "application/javascript")
+            self.wfile.write((ROOT / "dist" / "app.js").read_bytes())
+            return
+        if u.path == "/lite.js":      # the light interface; the full one comes from --cdn
             self.head(200, "application/javascript", [("Content-Encoding", "gzip")])
-            self.wfile.write(gzip.compress((ROOT / "dist" / "app.js").read_bytes()))
+            self.wfile.write(gzip.compress((ROOT / "dist" / "lite.js").read_bytes()))
             return
         if not u.path.startswith("/api/"):
             self.head(500, "text/plain")
@@ -249,10 +259,14 @@ def main():
     p.add_argument("--api", type=int, default=8384)
     p.add_argument("--cdn", default="", help="address of app.js to try before the local copy")
     p.add_argument("--sri", default="")
+    p.add_argument("--full", action="store_true", help="serve the full interface from the API port, as --cdn would")
     p.add_argument("--token", default=TOKEN, help="API token (32 hexadecimal characters)")
     p.add_argument("--no-tuya", action="store_true", help="gateway without the Tuya driver")
     p.add_argument("--name", default="ZB-GW03 (simulated)", help="DeviceName reported by /api/status")
     a = p.parse_args()
+    if a.full:
+        a.cdn = f"http://localhost:{a.api}/app.js"
+        a.sri = "sha384-" + base64.b64encode(hashlib.sha384((ROOT / "dist" / "app.js").read_bytes()).digest()).decode()
     web = ThreadingHTTPServer(("127.0.0.1", a.web), Web)
     web.api_port, web.cdn, web.sri, web.token = a.api, a.cdn, a.sri, a.token
     api = ThreadingHTTPServer(("127.0.0.1", a.api), Api)

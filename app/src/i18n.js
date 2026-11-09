@@ -20,6 +20,7 @@ const TEXTS = {
     invalidLink: 'Lien invalide : attendu adresse[:port]#jeton (32 caractères hexadécimaux).',
     duplicate: 'Cette passerelle est déjà dans la liste.', ok: 'joignable', waking: 'réveil de la passerelle…',
     memory: 'mémoire', connected: 'connecté', disconnected: 'déconnecté', on: 'allumé', off: 'éteint',
+    liteBanner: "Version légère, servie par la passerelle : l'interface complète n'a pas pu être chargée depuis GitHub (pas d'accès à internet ?).", retry: 'Réessayer',
     speed: 'Vitesse', dimmer: 'Intensité', colortemp: 'Température de couleur',
     tuyaWaiting: 'Pilote Tuya en attente :', tuyaLowMem: 'Mémoire libre insuffisante pour lire la configuration Tuya : seuls les états booléens sont proposés.'
   },
@@ -41,6 +42,7 @@ const TEXTS = {
     invalidLink: 'Invalid link: expected address[:port]#token (32 hexadecimal characters).',
     duplicate: 'This gateway is already in the list.', ok: 'reachable', waking: 'waking the gateway…',
     memory: 'memory', connected: 'connected', disconnected: 'disconnected', on: 'on', off: 'off',
+    liteBanner: 'Light version, served by the gateway: the full interface could not be loaded from GitHub (no internet access?).', retry: 'Retry',
     speed: 'Speed', dimmer: 'Dimmer', colortemp: 'Colour temperature',
     tuyaWaiting: 'Tuya driver waiting:', tuyaLowMem: 'Not enough free memory to read the Tuya configuration: only boolean states are offered.'
   }

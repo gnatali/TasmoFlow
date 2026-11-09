@@ -37,6 +37,7 @@ Specification (French, outside the repository):
 | 9 Nov | `CLAUDE.md` added; language rule applied (English code, docs and messages; French translation of user docs) |
 | 9 Nov | All v0.0 checks passed, memory measured after `tasmota.gc()`; v0.0.1 tagged by Guillaume, GitHub Pages enabled |
 | 9 Nov | v0.1: **Preact + htm chosen** (same screen: 6.6 KB gzipped against 6.3 KB for Lit, 5.4 KB for the prototype without dependency); interface bundled with esbuild (12.9 KB gzipped, then 14.6 KB with Tuya) |
+| 9 Nov | v0.1: **option B decided**: full interface on GitHub Pages only (pinned, SRI), light interface (13.7 KB gzipped, devices + console + diagnostics) in the `.tapp`; second esbuild entry point of the same sources. Reason: `UfsFree` 148 KB of 320 KB and a full interface that will grow |
 | 9 Nov | v0.1: API server on demand (`/tf`, `/tf?w=1`, 5 minutes idle), `tf_http.be` compiled lazily and trimmed; Gateways screen; Tuya devices (`TuyaEnable`, `TuyaStatus`, `TuyaConfig`, `TuyaSend`, `Tuya` rule on the event stream); simulated Tuya driver and tests |
 
 ## Measurements on the gateway
@@ -82,6 +83,8 @@ Left for v0.1 (small):
 
 - **Colour of `light3`** bindings (`colour_data_v2`, `hhhhssssvvvv`): not offered yet.
 - **Tuya sub-device names** with a comma, which `TuyaSend` cannot address.
+- **Light interface scope for v0.2**: add enabling/disabling a rule and restoring the previous
+  copy (see the table in the architecture), so that rules stay manageable without GitHub.
 - **Bump `VERSION` to `0.1.0`** when Guillaume tags the release (the header still says 0.0.1).
 - **Checks on the gateway**: the `[ ]` items marked v0.1 in the test plan, in particular that
   the port 8384 `tcpserver` can be closed and listened to again, and `TuyaConfig` memory use.
