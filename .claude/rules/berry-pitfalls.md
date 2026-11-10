@@ -20,9 +20,11 @@ paths:
   reloads itself (`?r=1` avoids a loop).
 - `web_add_handler()` is not called for an extension loaded after the web server started: call
   it from `init()` when `webserver.state() != 0`, and guard against a second registration.
-- The port 8384 server reads **one short request line** (a partial line over 100 bytes is
-  refused): never send long data in a query. Rule texts go in 300-character chunks
-  (`/api/rule_set`).
+- **Never put long data in a URL** of the port 8384 server: a request line of 152 characters
+  made the gateway restart (`Software reset CPU`, browser: `ERR_CONNECTION_RESET`; 112 passed).
+  Probably the request-line regex of `tf_http.be`. Long data goes in a POST body
+  (`cnx.body()`, `Content-Length`, 3,000 bytes at most): `/api/cmd` and `/api/rule_set`. The
+  simulated gateway cuts the connection on a request line over 120 characters.
 - `tasmota.cmd()` returns a **map only if the answer is valid JSON**, else the raw string (see
   `exec_rules` in `tasmota_class.be`): calling `.find()` on it raises. `Rule<n>` copies the rule
   text as is, so a line break or a quote can make its answer invalid (`tf_rules.rule()` cuts

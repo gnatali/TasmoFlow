@@ -36,11 +36,3 @@ export function showRule(text) {
   }
   return out.join('\n');
 }
-
-// Cuts a text into pieces small enough for a short request line (the gateway's API server
-// only reads one packet of it): chunks of `size` characters, at least one.
-export function chunks(text, size) {
-  const out = [];
-  for (let o = 0; o < text.length; o += size) out.push(text.slice(o, o + size));
-  return out.length ? out : [''];
-}

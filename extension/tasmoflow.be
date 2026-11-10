@@ -401,11 +401,12 @@ class tasmoflow
     cnx.content_stop()
   end
 
-  # any Tasmota command: /api/cmd?t=...&c=ZbSend%20...
+  # any Tasmota command: POST /api/cmd?t=... with the command as the body (a URL of more than
+  # about 130 characters made the gateway restart), or GET /api/cmd?t=...&c=ZbInfo for a short one
   def api_cmd(cnx, uri, verb)
     var q = self.authorized(cnx, uri)
     if q == nil   return   end
-    var c = q.find('c', '')
+    var c = verb == 'POST' ? cnx.body() : q.find('c', '')
     if size(c) == 0
       self.send_json(cnx, 400, '{"error":"cmd"}')
       return

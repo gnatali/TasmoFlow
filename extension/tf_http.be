@@ -60,9 +60,11 @@ class webserver_async
     var buf_out
     var phase                                       # parsing phase: 0/ status line, 1/ headers, 2/ payload
     # request
-    var req_verb                                    # verb for request (we support only GET)
+    var req_verb                                    # verb for request (GET, or POST with a small body)
     var req_uri                                     # URI for request
     var req_version                                 # HTTP version for request
+    var req_len                                     # Content-Length of the request (POST body), 0 if none
+    var dispatched                                  # true once the request was handed to its handler
     var header_host                                 # 'Host' header - useful for redirections
     # response
     var resp_headers                                # (string) aggregate headers
@@ -96,6 +98,8 @@ class webserver_async
       self.buf_in_offset = 0
       self.buf_out = bytes()
       self.phase = 0              # 0 = status line
+      self.req_len = 0
+      self.dispatched = false
       # util
       self.close_after_send = false
       # response
@@ -314,6 +318,8 @@ class webserver_async
 
       if (header_key == "Host")
         self.header_host = header_value
+      elif (header_key == "Content-Length" || header_key == "content-length")
+        self.req_len = int(header_value)
       end
     end
 
@@ -333,9 +339,23 @@ class webserver_async
     # Payload is in `self.buf_in`
     #
     def parse_http_payload()
-      # log(f"WEB: parsing payload '{bytes().fromstring(self.buf_in).tohex()}'")
-      # dispatch request before parsing payload
+      if self.dispatched    return    end
+      # TasmoFlow: a POST body is handed over whole, once all of it has arrived. A long URL
+      # made the gateway restart (see docs/architecture.en.md), long data goes in a body.
+      if self.req_len > self.server.MAX_BODY
+        self.close()
+        self.buf_in = ''
+        return
+      end
+      if size(self.buf_in) < self.req_len    return    end     # the rest comes later
+      self.dispatched = true
       self.server.dispatch(self, self.req_uri, self.req_verb)
+    end
+
+    # POST body (the first Content-Length bytes of the payload) as a string
+    def body()
+      if self.req_len <= 0    return ''    end
+      return self.buf_in[0 .. self.req_len - 1].asstring()
     end
 
 
@@ -512,6 +532,7 @@ class webserver_async
   static var re_http_srv          = re.compilebytes("^(\\w+) (\\S+) HTTP\\/(\\d\\.\\d)\r\n")
   static var re_http_srv_header   = re.compilebytes("([A-Za-z0-9-]+): (.*?)\r\n")
   static var re_http_srv_body     = re.compilebytes("\r\n")
+  static var MAX_BODY = 3000                      # largest POST body accepted (a rule set: 2200)
 
   #############################################################
   # init

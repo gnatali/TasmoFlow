@@ -9,9 +9,7 @@
 # Routes (all need the `t` token):
 #   /api/rules                 the three Tasmota rule sets (state, text, free space, previous
 #                              copy) and the Berry rules registered with tasmota.add_rule()
-#   /api/rule_set?n=1&i=0&x=.. sends the new text of rule set n. A rule can be 512 characters
-#                              or more, and the port 8384 server only reads a short request
-#                              line: the text arrives in chunks (i = 0, 1, 2...)
+#   POST /api/rule_set?n=1     sends the new text of rule set n, in the request body
 #   /api/rule_apply?n=1&step=  applies it: step bak, then put, then check (see step())
 #   /api/rule_restore?n=1      puts the previous copy back (the current text becomes the new
 #                              previous copy, so a restore can be undone)
@@ -27,7 +25,7 @@ class tf_rules
   static var MAX_LEN = 2200             # Tasmota stores up to about 2 KB (Unishox compression)
 
   var tf                                # the tasmoflow instance
-  var buf                               # text being received, chunk by chunk
+  var buf                               # new text received (POST body), until applied
   var n                                 # rule set it is for
 
   def init(tf)
@@ -177,6 +175,10 @@ class tf_rules
   def api_rule_set(cnx, uri, verb)
     var q = self.tf.authorized(cnx, uri)
     if q == nil   return   end
+    if verb != 'POST'
+      self.answer(cnx, "method")
+      return
+    end
     try
       self.rule_set(cnx, q)
     except .. as e, m
@@ -185,22 +187,16 @@ class tf_rules
     end
   end
 
+  # POST /api/rule_set?n=1, the new text in the body (a URL of more than about 130 characters
+  # made the gateway restart: long data never goes in a URL)
   def rule_set(cnx, q)
     var n = int(q.find('n', '0'))
-    var i = int(q.find('i', '0'))
     if n < 1 || n > 3
       self.answer(cnx, "rule")
       return
     end
-    if i == 0
-      self.buf = ''
-      self.n = n
-    elif n != self.n || i < 0
-      self.buf = ''
-      self.answer(cnx, "chunk")
-      return
-    end
-    self.buf += q.find('x', '')
+    self.n = n
+    self.buf = cnx.body()
     if size(self.buf) > self.MAX_LEN
       self.buf = ''
       self.answer(cnx, "length")

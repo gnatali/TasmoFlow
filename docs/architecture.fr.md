@@ -169,9 +169,9 @@ Pourquoi :
 | `GET /lite.js` | Interface légère (gzip), envoyée par blocs de 1 Ko |
 | `GET /api/status?t=` | Versions, mémoire libre, système de fichiers, état de Zigbee, nombre d'appareils |
 | `GET /api/devices?t=` | Appareils Zigbee : adresse, nom, modèle, fabricant, LQI, batterie, dernier message, derniers attributs |
-| `GET /api/cmd?t=&c=` | Exécute une commande Tasmota (`c`, encodée) et renvoie sa réponse JSON |
+| `POST /api/cmd?t=` | Exécute la commande Tasmota du corps et renvoie sa réponse JSON (`GET /api/cmd?t=&c=` marche encore pour une commande courte) |
 | `GET /api/rules?t=` | Les trois jeux de règles Tasmota (état, options, texte, place libre, copie précédente) et les règles Berry (`tf_rules.be`) |
-| `GET /api/rule_set?t=&n=&i=&x=` | Envoie le nouveau texte du jeu `n` par morceaux `x` (`i` = 0, 1, 2…) |
+| `POST /api/rule_set?t=&n=` | Envoie le nouveau texte du jeu `n` (corps de la requête) |
 | `GET /api/rule_apply?t=&n=&step=` | L'applique en trois requêtes : `bak` (copie du texte actuel), `put` (`Rule<n>`), `check` (relecture) ; en cas d'échec l'interface appelle `rule_restore` |
 | `GET /api/rule_restore?t=&n=` | Remet la copie précédente du jeu `n` |
 | `GET /api/events?t=&since=` | Flux SSE ; renvoie d'abord les événements gardés après `since` (50 au plus) |
@@ -383,12 +383,8 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   (restauration en un clic), un contrôle de syntaxe (règle Tasmota) ou une compilation (Berry)
   avant l'enregistrement, et l'affichage de la place restante dans le jeu de règles. Réalisé : la
   passerelle copie le texte actuel dans `/tf_rule<n>.bak` (une copie précédente par jeu de
-  règles), écrit `Rule<n> <texte>`, relit le jeu et remet l'ancien texte s'il diffère. L'écriture est découpée en requêtes séparées (morceaux, `bak`, `put`, `check`) pour identifier l'étape qui fait redémarrer la passerelle (9 novembre 2026 : une écriture de 67 caractères sur une règle non vide a fait redémarrer la passerelle, `RestartReason` « Software reset CPU » ; les mêmes commandes tapées dans la console fonctionnent). Le texte
-  voyage par morceaux de 300 caractères (`/api/rule_set`), car le serveur du port 8384 ne lit
-  qu'une ligne de requête courte. Une restauration échange les deux textes : elle s'annule. **Aucun saut de ligne ne part vers
-  la passerelle** : un texte de deux lignes envoyé avec `Rule<n>` faisait couper la connexion à la
-  passerelle (9 novembre 2026, cause non établie : probablement le saut de ligne dans la commande
-  ou dans la réponse JSON invalide). Un jeu de règles est stocké sur une ligne et affiché avec un
+  règles), écrit `Rule<n> <texte>`, relit le jeu et remet l'ancien texte s'il diffère. Le nouveau texte voyage dans un **corps de requête POST** (`/api/rule_set`, `Content-Length`, 3 000 octets au plus ; `tf_http.be` le remet une fois complet). L'écriture est découpée en requêtes séparées (`rule_set`, puis `bak`, `put`, `check`) pour nommer l'étape qui échoue. **Jamais de données longues dans une URL** (9 novembre 2026) : une ligne de requête de 152 caractères ou plus a fait redémarrer la passerelle (`RestartReason` « Software reset CPU », `ERR_CONNECTION_RESET`), 112 caractères passaient ; une requête `/api/rule_set` avec un texte de 67 caractères suffisait, alors que les mêmes commandes tapées dans la console fonctionnaient. Cause soupçonnée, non prouvée : l'expression régulière de la ligne de requête de `tf_http.be` (`\S+`) qui épuise la pile. `/api/cmd` prend donc aussi sa commande dans un corps POST, que l'interface utilise toujours. Une restauration échange les deux textes : elle s'annule. **Aucun saut de ligne ne part vers
+  la passerelle** (par prudence : les premiers échecs ont été attribués aux sauts de ligne, mais l'URL trop longue était la cause ; un texte avec sauts de ligne n'a jamais été essayé en POST, et la réponse de Tasmota à `Rule<n>` peut alors être du JSON invalide, que `tf_rules.rule()` sait lire). Un jeu de règles est stocké sur une ligne et affiché avec un
   bloc `on … endon` par ligne (`showRule()`, `flatRule()`).
   L'interface vérifie `on <déclencheur> do … endon` (à titre indicatif, `rules_lint.js`) ; le
   moteur de règles de Tasmota n'a pas de commande de contrôle de syntaxe. Le contrôle par
@@ -428,7 +424,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [ ] v0.1 : avec le pilote Tuya désactivé (`TuyaEnable 0`) ou absent, la section Tuya est masquée
 - [x] v0.1 : mémoire au repos après `tasmota.gc()` : 75 Ko libres, Berry 35 Ko, soit 9 Ko (cible : 15 Ko) ; interface ouverte 63 Ko / 48 Ko (`import` en cache, voir [Mémoire](#mémoire))
 - [x] v0.1 : avec le chargement sans cache, la mémoire revient en partie 5 minutes après la fermeture du dernier onglet : 59 Ko libres / Berry 48 Ko interface ouverte, 69 Ko / 39 Ko après (75 Ko / 35 Ko avant la première ouverture)
-- [ ] v0.2 : écran Règles : les trois jeux affichent le texte de `Rule1` à `Rule3` ; enregistrer une règle de plus de 600 caractères (plusieurs morceaux) se relit à l'identique quand elle est saisie sur plusieurs lignes (stockée sur une ligne, affichée un bloc par ligne ; sinon l'ancien texte est remis et une erreur s'affiche) ; « Copie précédente » puis « Restaurer » remet l'ancien texte
+- [ ] v0.2 : écran Règles : les trois jeux affichent le texte de `Rule1` à `Rule3` ; enregistrer une règle de plus de 600 caractères (corps POST) se relit à l'identique quand elle est saisie sur plusieurs lignes (stockée sur une ligne, affichée un bloc par ligne ; sinon l'ancien texte est remis et une erreur s'affiche) ; « Copie précédente » puis « Restaurer » remet l'ancien texte
 - [ ] v0.2 : l'activation/désactivation, « une seule fois » et « arrêt sur erreur » agissent sur le vrai jeu de règles ; la liste des règles Berry correspond à `Br print(tasmota._rules)`
 - [ ] v0.2 : l'interface légère (GitHub bloqué) montre l'onglet Règles avec activation/désactivation et restauration, sans l'éditeur
 - [ ] v0.2 : mémoire avec l'API des règles chargée (`tf_rules.be` est compilé avec le serveur d'API) : mémoire libre et Berry après `tasmota.gc()`, interface ouverte

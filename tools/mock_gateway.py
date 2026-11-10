@@ -239,8 +239,31 @@ class Api(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(obj).encode())
 
     def do_GET(self):
+        self.route(None)
+
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length", "0") or 0)
+        if n > 3000:                  # tf_http.be's MAX_BODY
+            self.close_connection = True
+            return
+        self.route(self.rfile.read(n).decode())
+
+    def route(self, body):
+        if len(self.path) > 120:
+            # the real gateway restarts on a request line of more than about 130 characters
+            # (9 November 2026): the connection is cut, so no test can pass with a long URL
+            self.close_connection = True
+            self.connection.close()
+            return
         u = urllib.parse.urlsplit(self.path)
         q = dict(urllib.parse.parse_qsl(u.query, keep_blank_values=True))
+        if body is not None and u.path == "/api/cmd":
+            q["c"] = body             # POST: the command is the body
+        if body is not None and u.path == "/api/rule_set":
+            q.update(i="0", x=body)   # POST: the new text is the body
+        elif u.path == "/api/rule_set":
+            self.json(400, {"error": "method"})
+            return
         if u.path == "/app.js":       # stands for GitHub Pages with --full
             self.head(200, "application/javascript")
             self.wfile.write((ROOT / "dist" / "app.js").read_bytes())

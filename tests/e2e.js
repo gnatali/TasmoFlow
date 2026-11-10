@@ -134,7 +134,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.getByRole('button', { name: 'English' }).click();
     await p.getByRole('button', { name: 'Devices' }).waitFor({ timeout: 2000 });
   });
-  await test('rules: read, long text in chunks, syntax check, previous copy, restore, flags, Berry rules', async p => {
+  await test('rules: read, long text in a POST, syntax check, previous copy, restore, flags, Berry rules', async p => {
     await openFull(p);
     await p.getByRole('button', { name: 'Règles' }).click();
     const card = n => p.locator('article.card', { has: p.getByRole('heading', { name: 'Rule' + n }) });
@@ -149,7 +149,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     if (!(await r1.getByRole('button', { name: 'Enregistrer' }).isDisabled())) throw new Error('save allowed');
     await box.fill('on Power1#State=1 do Power2 1');
     await r1.getByRole('alert').filter({ hasText: 'endon' }).waitFor();
-    // longer than a request: sent in several chunks
+    // longer than a request line: sent in a POST body
     const long = Array.from({ length: 24 }, (_, i) => `on Time#Minute=${i} do Power1 0 endon`).join('\n');
     await box.fill(long);
     await r1.getByText(/Plus de 512 caractères/).waitFor();

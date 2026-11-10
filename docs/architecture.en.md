@@ -159,10 +159,10 @@ Why:
 | `GET /lite.js` | Light interface (gzip), sent in 1 KB chunks |
 | `GET /api/status?t=` | Versions, free memory, file system, Zigbee state, number of devices |
 | `GET /api/devices?t=` | Zigbee devices: address, name, model, manufacturer, LQI, battery, last message, last attributes |
-| `GET /api/cmd?t=&c=` | Runs a Tasmota command (`c`, encoded) and returns its JSON response |
+| `POST /api/cmd?t=` | Runs the Tasmota command in the body and returns its JSON response (`GET /api/cmd?t=&c=` still works for a short command) |
 | `GET /api/events?t=&since=` | SSE stream; first sends the kept events after `since` (50 at most) |
 | `GET /api/rules?t=` | The three Tasmota rule sets (state, options, text, free space, previous copy) and the Berry rules (`tf_rules.be`) |
-| `GET /api/rule_set?t=&n=&i=&x=` | Sends the new text of rule set `n` in chunks `x` (`i` = 0, 1, 2...) |
+| `POST /api/rule_set?t=&n=` | Sends the new text of rule set `n` (request body) |
 | `GET /api/rule_apply?t=&n=&step=` | Applies it in three requests: `bak` (copy of the current text), `put` (`Rule<n>`), `check` (read back); on failure the interface calls `rule_restore` |
 | `GET /api/rule_restore?t=&n=` | Puts the previous copy of rule set `n` back |
 
@@ -366,11 +366,11 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   restore), a syntax check (Tasmota rule) or a compilation (Berry) before saving, and the
   display of the space left in the rule set. Implemented: the gateway copies the current text to
   `/tf_rule<n>.bak` (one previous copy per rule set), writes `Rule<n> <text>`, reads the rule set
-  back and puts the old text back if it differs. Writing is split into separate requests (chunks, `bak`, `put`, `check`) so that a step that restarts the gateway is identified (9 November 2026: a write of 67 characters over a non-empty rule made the gateway restart, `RestartReason` "Software reset CPU"; the same commands typed in the console work). The text travels in chunks of 300 characters
-  (`/api/rule_set`) because the port 8384 server only reads a short request line. A restore
-  swaps the two texts, so it can be undone. **No line break goes to the gateway**: a two-line
-  text sent with `Rule<n>` made the gateway drop the connection (9 November 2026, cause not
-  established: probably the line break in the command or in the invalid JSON answer). A rule
+  back and puts the old text back if it differs. The new text travels in a **POST body** (`/api/rule_set`, `Content-Length`, at most 3,000 bytes; `tf_http.be` hands it over once complete). Writing is split into separate requests (`rule_set`, then `bak`, `put`, `check`) so that a failing step is named in the error. **Never put long data in a URL** (9 November 2026): a request line of 152 characters or more made the gateway restart (`RestartReason` "Software reset CPU", `ERR_CONNECTION_RESET`), 112 characters passed; a request of `/api/rule_set` with a 67-character text was enough, while the same commands typed in the console worked. Suspected cause, not proven: the regular expression of the request line in `tf_http.be` (`\S+`) exhausting the stack. `/api/cmd` therefore also takes its command in a POST body, which the interface always uses. A restore
+  swaps the two texts, so it can be undone. **No line break goes to the gateway** (kept out of caution:
+  the first failures were put down to line breaks, but the long URL was the cause; a text with line
+  breaks was never tried through a POST, and Tasmota's answer to `Rule<n>` may then be invalid JSON,
+  which `tf_rules.rule()` copes with). A rule
   set is stored on one line and shown with one `on ... endon` block per line
   (`showRule()`, `flatRule()`). The interface checks `on <trigger> do ... endon`
   (advisory, `rules_lint.js`); the Tasmota rule engine has no syntax-check command. The Berry
@@ -410,7 +410,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [ ] v0.1: with the Tuya driver disabled (`TuyaEnable 0`) or absent, the Tuya section is hidden
 - [x] v0.1: memory at rest after `tasmota.gc()`: 75 KB free, Berry 35 KB, i.e. 9 KB (target 15 KB); with an interface open 63 KB / 48 KB (cached `import`, see [Memory](#memory))
 - [x] v0.1: with the uncached loading, the memory partly returns 5 minutes after the last tab is closed: 59 KB free / Berry 48 KB with the interface open, 69 KB / 39 KB after (75 KB / 35 KB before the first opening)
-- [ ] v0.2: Rules screen: the three rule sets show the text of `Rule1` to `Rule3`; saving a rule of more than 600 characters (several chunks) reads back identical when typed on several lines (stored on one line, shown one block per line; otherwise the old text is put back and an error is shown); "Previous copy" then "Restore" brings the old text back
+- [ ] v0.2: Rules screen: the three rule sets show the text of `Rule1` to `Rule3`; saving a rule of more than 600 characters (POST body) reads back identical when typed on several lines (stored on one line, shown one block per line; otherwise the old text is put back and an error is shown); "Previous copy" then "Restore" brings the old text back
 - [ ] v0.2: enabling/disabling, "once only" and "stop on error" act on the real rule set; the Berry rules list matches `Br print(tasmota._rules)`
 - [ ] v0.2: the light interface (GitHub blocked) shows the Rules tab with enable/disable and restore, without the editor
 - [ ] v0.2: memory with the rule API loaded (`tf_rules.be` is compiled with the API server): free heap and Berry after `tasmota.gc()`, interface open

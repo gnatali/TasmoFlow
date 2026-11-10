@@ -31,6 +31,7 @@ let lastWake = 0;
 
 export const cmd = c => api.cmd(c);
 export const get = (path, params) => api.get(path, params);
+export const post = (path, params, body) => api.post(path, params, body);
 export const current = gw => S.get().gw === gw;
 const fail = (gw, e) => { if (current(gw)) S.set({ error: e.message }); };
 

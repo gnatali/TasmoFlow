@@ -5,24 +5,23 @@
 import { useState } from 'preact/hooks';
 import { html } from './html.js';
 import { t } from './i18n.js';
-import { S, cmd, get, loadRules } from './state.js';
+import { S, cmd, get, post, loadRules } from './state.js';
 import cfg from './config.js';
-import { lintRule, chunks, flatRule, showRule } from './rules_lint.js';
+import { lintRule, flatRule, showRule } from './rules_lint.js';
 
-const CHUNK = 300;           // characters per request (the port 8384 server reads a short request line)
 const SOFT_LIMIT = 512;      // beyond it Tasmota compresses the text (up to about 2 KB)
 const HARD_LIMIT = 2000;
 
-// Sends the text in chunks, then applies it in three requests (copy of the previous text,
+// Sends the text (POST body), then applies it in three requests (copy of the previous text,
 // write, read back): the step is named in the error, and a text that did not stay is replaced
 // by the copy. Each step is its own request so that one that makes the gateway restart is known.
 export async function saveRule(n, text) {
-  const parts = chunks(text, CHUNK);
   const step = async (what, p) => {
     try { await get(what, p); }
-    catch (e) { throw new Error(e.message + ' (' + (p.step || (p.i + 1) + '/' + parts.length) + ')'); }
+    catch (e) { throw new Error(e.message + ' (' + p.step + ')'); }
   };
-  for (let i = 0; i < parts.length; i++) await step('/api/rule_set', { n, i, x: parts[i] });
+  try { await post('/api/rule_set', { n }, text); }
+  catch (e) { throw new Error(e.message + ' (text)'); }
   await step('/api/rule_apply', { n, step: 'bak' });
   try {
     await step('/api/rule_apply', { n, step: 'put' });
