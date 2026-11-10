@@ -13,13 +13,23 @@ const CHUNK = 300;           // characters per request (the port 8384 server rea
 const SOFT_LIMIT = 512;      // beyond it Tasmota compresses the text (up to about 2 KB)
 const HARD_LIMIT = 2000;
 
+// Sends the text in chunks, then applies it in three requests (copy of the previous text,
+// write, read back): the step is named in the error, and a text that did not stay is replaced
+// by the copy. Each step is its own request so that one that makes the gateway restart is known.
 export async function saveRule(n, text) {
   const parts = chunks(text, CHUNK);
-  for (let i = 0; i < parts.length; i++) {
-    const p = { n, i, x: parts[i] };
-    if (i === parts.length - 1) p.last = 1;
-    try { await get('/api/rule_set', p); }
-    catch (e) { throw new Error(e.message + (parts.length > 1 ? ' (' + (i + 1) + '/' + parts.length + ')' : '')); }
+  const step = async (what, p) => {
+    try { await get(what, p); }
+    catch (e) { throw new Error(e.message + ' (' + (p.step || (p.i + 1) + '/' + parts.length) + ')'); }
+  };
+  for (let i = 0; i < parts.length; i++) await step('/api/rule_set', { n, i, x: parts[i] });
+  await step('/api/rule_apply', { n, step: 'bak' });
+  try {
+    await step('/api/rule_apply', { n, step: 'put' });
+    await step('/api/rule_apply', { n, step: 'check' });
+  } catch (e) {
+    await get('/api/rule_restore', { n }).catch(() => {});
+    throw e;
   }
 }
 

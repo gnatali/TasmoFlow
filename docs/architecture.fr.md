@@ -171,7 +171,8 @@ Pourquoi :
 | `GET /api/devices?t=` | Appareils Zigbee : adresse, nom, modèle, fabricant, LQI, batterie, dernier message, derniers attributs |
 | `GET /api/cmd?t=&c=` | Exécute une commande Tasmota (`c`, encodée) et renvoie sa réponse JSON |
 | `GET /api/rules?t=` | Les trois jeux de règles Tasmota (état, options, texte, place libre, copie précédente) et les règles Berry (`tf_rules.be`) |
-| `GET /api/rule_set?t=&n=&i=&x=[&last=1]` | Écrit le jeu de règles `n`, texte par morceaux `x` (`i` = 0, 1, 2…), appliqué avec `last` |
+| `GET /api/rule_set?t=&n=&i=&x=` | Envoie le nouveau texte du jeu `n` par morceaux `x` (`i` = 0, 1, 2…) |
+| `GET /api/rule_apply?t=&n=&step=` | L'applique en trois requêtes : `bak` (copie du texte actuel), `put` (`Rule<n>`), `check` (relecture) ; en cas d'échec l'interface appelle `rule_restore` |
 | `GET /api/rule_restore?t=&n=` | Remet la copie précédente du jeu `n` |
 | `GET /api/events?t=&since=` | Flux SSE ; renvoie d'abord les événements gardés après `since` (50 au plus) |
 
@@ -382,7 +383,7 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   (restauration en un clic), un contrôle de syntaxe (règle Tasmota) ou une compilation (Berry)
   avant l'enregistrement, et l'affichage de la place restante dans le jeu de règles. Réalisé : la
   passerelle copie le texte actuel dans `/tf_rule<n>.bak` (une copie précédente par jeu de
-  règles), écrit `Rule<n> <texte>`, relit le jeu et remet l'ancien texte s'il diffère. Le texte
+  règles), écrit `Rule<n> <texte>`, relit le jeu et remet l'ancien texte s'il diffère. L'écriture est découpée en requêtes séparées (morceaux, `bak`, `put`, `check`) pour identifier l'étape qui fait redémarrer la passerelle (9 novembre 2026 : une écriture de 67 caractères sur une règle non vide a fait redémarrer la passerelle, `RestartReason` « Software reset CPU » ; les mêmes commandes tapées dans la console fonctionnent). Le texte
   voyage par morceaux de 300 caractères (`/api/rule_set`), car le serveur du port 8384 ne lit
   qu'une ligne de requête courte. Une restauration échange les deux textes : elle s'annule. **Aucun saut de ligne ne part vers
   la passerelle** : un texte de deux lignes envoyé avec `Rule<n>` faisait couper la connexion à la

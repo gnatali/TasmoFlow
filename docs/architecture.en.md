@@ -162,7 +162,8 @@ Why:
 | `GET /api/cmd?t=&c=` | Runs a Tasmota command (`c`, encoded) and returns its JSON response |
 | `GET /api/events?t=&since=` | SSE stream; first sends the kept events after `since` (50 at most) |
 | `GET /api/rules?t=` | The three Tasmota rule sets (state, options, text, free space, previous copy) and the Berry rules (`tf_rules.be`) |
-| `GET /api/rule_set?t=&n=&i=&x=[&last=1]` | Writes rule set `n`, text in chunks `x` (`i` = 0, 1, 2...), applied on `last` |
+| `GET /api/rule_set?t=&n=&i=&x=` | Sends the new text of rule set `n` in chunks `x` (`i` = 0, 1, 2...) |
+| `GET /api/rule_apply?t=&n=&step=` | Applies it in three requests: `bak` (copy of the current text), `put` (`Rule<n>`), `check` (read back); on failure the interface calls `rule_restore` |
 | `GET /api/rule_restore?t=&n=` | Puts the previous copy of rule set `n` back |
 
 Events carry a sequence number and a `type`: `zigbee` (`device`, `name`, `attrs`) and `tuya`
@@ -365,7 +366,7 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   restore), a syntax check (Tasmota rule) or a compilation (Berry) before saving, and the
   display of the space left in the rule set. Implemented: the gateway copies the current text to
   `/tf_rule<n>.bak` (one previous copy per rule set), writes `Rule<n> <text>`, reads the rule set
-  back and puts the old text back if it differs. The text travels in chunks of 300 characters
+  back and puts the old text back if it differs. Writing is split into separate requests (chunks, `bak`, `put`, `check`) so that a step that restarts the gateway is identified (9 November 2026: a write of 67 characters over a non-empty rule made the gateway restart, `RestartReason` "Software reset CPU"; the same commands typed in the console work). The text travels in chunks of 300 characters
   (`/api/rule_set`) because the port 8384 server only reads a short request line. A restore
   swaps the two texts, so it can be undone. **No line break goes to the gateway**: a two-line
   text sent with `Rule<n>` made the gateway drop the connection (9 November 2026, cause not

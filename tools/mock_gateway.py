@@ -6,7 +6,7 @@ Mimics the extension's two servers:
   - port --web (8080 by default): /tf page, extracted as is from
     extension/tasmoflow.be to test the real loader;
   - port --api (8384 by default): /lite.js (gzip), /api/status, /api/devices,
-    /api/cmd, /api/rules, /api/rule_set, /api/rule_restore and /api/events (SSE), with the same CORS headers as tf_http.be.
+    /api/cmd, /api/rules, /api/rule_set, /api/rule_apply, /api/rule_restore and /api/events (SSE), with the same CORS headers as tf_http.be.
 
 Three fake Zigbee devices send events every 2 seconds. Four fake Tuya devices answer
 TuyaEnable, TuyaStatus, TuyaConfig and TuyaSend like the firmware's driver (formats from
@@ -269,6 +269,18 @@ class Api(BaseHTTPRequestHandler):
                                        "len": len(r["text"]), "free": 511 - len(r["text"]), "text": r["text"],
                                        "bak": r["bak"]} for n, r in RULES.items()],
                             "berry": BERRY_RULES})
+        elif u.path == "/api/rule_apply":
+            n = int(q.get("n", "0") or 0)
+            err = "chunk" if n != RULE_BUF["n"] else None
+            if err is None and q.get("step") == "bak":
+                RULES[n]["bak"] = RULES[n]["text"]
+            elif err is None and q.get("step") == "put":
+                RULES[n]["text"] = RULE_BUF["text"]
+            elif err is None and q.get("step") == "check":
+                RULE_BUF["text"] = ""
+            elif err is None:
+                err = "step"
+            self.json(400 if err else 200, {"error": err} if err else {"ok": True})
         elif u.path in ("/api/rule_set", "/api/rule_restore"):
             n = int(q.get("n", "0") or 0)
             err = None
@@ -283,9 +295,6 @@ class Api(BaseHTTPRequestHandler):
                 if len(RULE_BUF["text"]) > 2200:
                     RULE_BUF["text"] = ""
                     err = "length"
-                elif "last" in q:
-                    text, RULE_BUF["text"] = RULE_BUF["text"], ""
-                    err = rule_apply(n, text)
             self.json(400 if err else 200, {"error": err} if err else {"ok": True})
         elif u.path == "/api/cmd":
             c = q.get("c", "")

@@ -9,15 +9,15 @@
 # Routes (all need the `t` token):
 #   /api/rules                 the three Tasmota rule sets (state, text, free space, previous
 #                              copy) and the Berry rules registered with tasmota.add_rule()
-#   /api/rule_set?n=1&i=0&x=.. writes rule set n. A rule can be 512 characters or more, and
-#                              the port 8384 server only reads a short request line: the text
-#                              arrives in chunks (i = 0, 1, 2...), `last=1` on the final one
-#                              applies it
+#   /api/rule_set?n=1&i=0&x=.. sends the new text of rule set n. A rule can be 512 characters
+#                              or more, and the port 8384 server only reads a short request
+#                              line: the text arrives in chunks (i = 0, 1, 2...)
+#   /api/rule_apply?n=1&step=  applies it: step bak, then put, then check (see step())
 #   /api/rule_restore?n=1      puts the previous copy back (the current text becomes the new
 #                              previous copy, so a restore can be undone)
 #
 # Every write first copies the current text to /tf_rule<n>.bak, writes with `Rule<n>`, reads
-# the rule set back and, if it differs, puts the old text back.
+# the rule set back and, if it differs, the client restores the copy.
 ###################################################################################
 
 import json
@@ -84,29 +84,56 @@ class tf_rules
     f.close()
   end
 
-  # Replaces rule set n by `text`. Returns nil if it worked, else an error code.
-  def apply(n, text)
-    var r = self.rule(n)
-    if r == nil    return "unknown"    end
-    var old = r.find('Rules', '')
-    if old == text    return nil    end
-    try
-      self.write_bak(n, old)
-    except ..
-      return "backup"                   # no room for the copy: nothing was changed
-    end
-    try
-      tasmota.cmd(size(text) > 0 ? f"Rule{n} {text}" : f'Rule{n} ""', true)
-    except .. as e, m
-      return f"exception {e}: {m}"
-    end
-    r = self.rule(n)
-    if r == nil || r.find('Rules', '') != text
+  # Writing is split in three steps, each one called by its own HTTP request (the text is kept
+  # in self.buf between them): a gateway that restarts during a step shows which one it was.
+  #   bak    copy the current text to /tf_rule<n>.bak
+  #   put    `Rule<n> <text>`
+  #   check  read the rule set back: it must equal the text, else "write"
+  # Each returns nil if it worked, else an error code. Never raises.
+  def step(n, what)
+    var text = self.buf
+    if what == 'bak'
+      var r = self.rule(n)
+      if r == nil    return "unknown"    end
       try
-        tasmota.cmd(size(old) > 0 ? f"Rule{n} {old}" : f'Rule{n} ""', true)
+        self.write_bak(n, r.find('Rules', ''))
       except ..
+        return "backup"                 # no room for the copy: nothing was changed
       end
-      return "write"
+    elif what == 'put'
+      try
+        tasmota.cmd(size(text) > 0 ? f"Rule{n} {text}" : f'Rule{n} ""', true)
+      except .. as e, m
+        return f"exception {e}: {m}"
+      end
+    elif what == 'check'
+      var r = self.rule(n)
+      if r == nil || r.find('Rules', '') != text    return "write"    end
+      self.buf = ''
+    else
+      return "step"
+    end
+    return nil
+  end
+
+  # Replaces rule set n by `text` in one go (restore). Returns nil or an error code; if the
+  # text did not stay, the previous copy (made by the first step) is put back.
+  def apply(n, text)
+    self.buf = text
+    self.n = n
+    for what: ['bak', 'put', 'check']
+      var err = self.step(n, what)
+      if err != nil
+        if what != 'bak'
+          try
+            self.buf = self.read_bak(n)
+            self.step(n, 'put')
+          except ..
+          end
+        end
+        self.buf = ''
+        return err
+      end
     end
     return nil
   end
@@ -179,13 +206,23 @@ class tf_rules
       self.answer(cnx, "length")
       return
     end
-    if q.find('last') == nil
-      self.answer(cnx, nil)
-      return
+    self.answer(cnx, nil)               # the text is applied by /api/rule_apply, step by step
+  end
+
+  # /api/rule_apply?n=1&step=bak|put|check
+  def api_rule_apply(cnx, uri, verb)
+    var q = self.tf.authorized(cnx, uri)
+    if q == nil   return   end
+    try
+      var n = int(q.find('n', '0'))
+      if n < 1 || n > 3 || n != self.n
+        self.answer(cnx, "chunk")
+        return
+      end
+      self.answer(cnx, self.step(n, q.find('step', '')))
+    except .. as e, m
+      self.answer(cnx, f"exception {e}: {m}")
     end
-    var text = self.buf
-    self.buf = ''
-    self.answer(cnx, self.apply(n, text))
   end
 
   def api_rule_restore(cnx, uri, verb)
@@ -207,6 +244,7 @@ class tf_rules
   def register(web)
     web.on("/api/rules", self, self.api_rules)
     web.on("/api/rule_set", self, self.api_rule_set)
+    web.on("/api/rule_apply", self, self.api_rule_apply)
     web.on("/api/rule_restore", self, self.api_rule_restore)
   end
 end
