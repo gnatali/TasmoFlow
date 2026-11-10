@@ -64,6 +64,9 @@ After `tasmota.gc()`, gateway running the Tuya driver (9 November 2026):
 | **v0.1**, interface open (cached `import`) | 63 KB | 48 KB | 21 KB |
 | **v0.1**, interface open (uncached loading) | 59 KB | 48 KB | 25 KB |
 | **v0.1**, 5 minutes after closing it | 69 KB | 39 KB | **15 KB** |
+| **v0.2** step 1 (Rules, POST), interface open (10 November) | 52 KB | 55 KB | 32 KB |
+
+`tf_rules.be` and the POST body add 7 KB to an open interface (25 to 32 KB). The Tuya driver needs 45 KB free to start: 52 KB leaves 7 KB. To measure next: at rest and 5 minutes after closing, with the rule API in place.
 
 Target: 15 KB. Sizes: `TasmoFlow.tapp` 45 KB (budget 150 KB), `app.js.gz` 5.4 KB (budget
 120 KB).

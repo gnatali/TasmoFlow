@@ -66,6 +66,9 @@ Après `tasmota.gc()`, passerelle avec le pilote Tuya (9 novembre 2026) :
 | **v0.1**, interface ouverte (`import` en cache) | 63 Ko | 48 Ko | 21 Ko |
 | **v0.1**, interface ouverte (chargement sans cache) | 59 Ko | 48 Ko | 25 Ko |
 | **v0.1**, 5 minutes après sa fermeture | 69 Ko | 39 Ko | **15 Ko** |
+| **v0.2** étape 1 (Règles, POST), interface ouverte (10 novembre) | 52 Ko | 55 Ko | 32 Ko |
+
+`tf_rules.be` et le corps POST ajoutent 7 Ko à une interface ouverte (25 à 32 Ko). Le pilote Tuya demande 45 Ko libres pour démarrer : 52 Ko laissent 7 Ko de marge. À mesurer ensuite : au repos et 5 minutes après la fermeture, avec l'API des règles en place.
 
 Cible : 15 Ko. Tailles : `TasmoFlow.tapp` 45 Ko (budget 150 Ko), `app.js.gz` 5,4 Ko (budget
 120 Ko).
