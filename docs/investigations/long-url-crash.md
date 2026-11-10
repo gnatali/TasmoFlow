@@ -3,6 +3,27 @@
 Brief for a new session. English only (internal working note, not user documentation). Read
 `CLAUDE.md`, `.claude/rules/project.md` and `.claude/rules/berry-pitfalls.md` first.
 
+## Result (10 November 2026)
+
+- **Hypothesis 1 confirmed by the source** (firmware commit `TASMOTA_REF`
+  43d9409e67c4a28adac34925e1a1c6813f315ce0): `re.match2()` (`be_re_lib.c`) runs re1.5's
+  `recursiveloop()`, which calls itself at every `Split`/`RSplit`; a greedy `+` compiles to
+  `L: e; RSplit L` (`compilecode.c`), so `(\S+)` takes one C frame per URI character, and
+  `re1_5_stack_chk()` is an empty macro. The loop task's stack is 8 KB (`SET_ESP32_STACK_SIZE`).
+  The lazy `(.*?)` of the headers stays at a constant depth, which explains why long headers
+  never crashed. Details and file list: `docs/architecture.en.md`, "Request parsing without
+  regular expressions".
+- **Fix candidate A done** in `extension/tf_http.be` (branch `ccr-77cdec39-duy9lp`, from the
+  same commit as `claude/tf-http-long-url`): request line and headers parsed with
+  `string.find()`, no `re`. Limits: request line 512 characters (`414 uri_too_long`), headers
+  4 KB (`431 headers_too_long`), body 3,000 bytes (`413 body_too_long`), invalid line
+  `400 bad_request`; the answers are JSON like the API's errors, then the connection closes.
+- `tests/tf_http_test.be` runs the parser on standard Berry in CI (`berry -s`): 112 to 900
+  characters, byte-by-byte delivery, POST bodies, invalid lines, odd headers.
+- **Left**: Guillaume's check on the gateway (test build, `.tapp` to install again,
+  `Restart 1`): 130, 90, 50, 190, 512 answer; 900 answers `{"error":"uri_too_long"}`; no
+  restart. Then `tools/mock_gateway.py` can stop cutting request lines over 120 characters.
+
 ## The problem
 
 A request to the port 8384 server (`extension/tf_http.be`, a copy of Tasmota's

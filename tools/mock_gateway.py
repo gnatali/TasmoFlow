@@ -250,8 +250,10 @@ class Api(BaseHTTPRequestHandler):
 
     def route(self, body):
         if len(self.path) > 120:
-            # the real gateway restarts on a request line of more than about 130 characters
-            # (9 November 2026): the connection is cut, so no test can pass with a long URL
+            # the real gateway restarted on a request line of more than about 130 characters
+            # (9 November 2026; tf_http.be no longer uses a regular expression since 10
+            # November): the connection is cut, so no test can pass with a long URL. Kept until
+            # the fix is checked on the gateway, then: answer 414 over 512 characters, as it does
             self.close_connection = True
             self.connection.close()
             return

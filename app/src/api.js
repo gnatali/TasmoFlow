@@ -11,7 +11,8 @@ export function client(gw) {
     if (!r.ok) throw new Error(b.error || 'HTTP ' + r.status);
     return b;
   }));
-  // POST, for anything long: a URL of more than about 130 characters made the gateway restart.
+  // POST, for anything long: the gateway refuses a request line over 512 characters (and,
+  // before 10 November 2026, restarted from about 130).
   // text/plain keeps it a "simple" cross-origin request (no preflight).
   const post = (path, params, body) => fetch(url(path, params), { method: 'POST', body, headers: { 'Content-Type': 'text/plain' } })
     .then(r => r.json().catch(() => ({})).then(b => {

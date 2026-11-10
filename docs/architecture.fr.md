@@ -179,8 +179,44 @@ Pourquoi :
 Les événements portent un numéro de séquence et un `type` : `zigbee` (`device`, `name`,
 `attrs`) et `tuya` (`name`, `dps`, issu de la règle `Tuya` du pilote).
 
-Le serveur asynchrone ne traite que `GET` : les commandes passent dans l'adresse. Une
-requête `GET` sans en-tête personnalisé n'entraîne pas de requête préalable `OPTIONS`.
+Le serveur asynchrone traite `GET` et `POST` (un corps de 3 000 octets au plus, lu d'après
+`Content-Length` et remis une fois complet). Ni un `GET` sans en-tête personnalisé ni un `POST`
+en `text/plain` n'entraînent de requête préalable `OPTIONS`. Une requête qu'il ne traitera pas
+reçoit une erreur au format de l'API, puis la connexion est fermée : ligne de requête de plus de
+512 caractères `414 {"error":"uri_too_long"}`, ligne de requête invalide `400 bad_request`,
+en-têtes de plus de 4 Ko `431 headers_too_long`, corps de plus de 3 000 octets
+`413 body_too_long`.
+
+### Lecture des requêtes sans expressions régulières
+
+Jusqu'au 10 novembre 2026, `tf_http.be` lisait la ligne de requête avec l'expression régulière
+de Tasmota `^(\w+) (\S+) HTTP\/(\d\.\d)\r\n`, et une ligne de requête de 152 caractères ou plus
+faisait redémarrer la passerelle (`Software reset CPU`, comme après une panique ; 112 passaient).
+Cause, lue dans le source de Tasmota du firmware (commit `TASMOTA_REF`) :
+
+- `re.match2()` exécute le motif avec `re1_5_recursiveloopprog()`
+  (`lib/libesp32/berry/default/be_re_lib.c`), sans limite de profondeur : `re1_5_stack_chk()`
+  est une macro vide (`lib/libesp32/re1.5/re1.5.h`).
+- Un `e+` gourmand se compile en `L: e; RSplit L` (`lib/libesp32/re1.5/compilecode.c`) et
+  `recursiveloop()` s'appelle elle-même à chaque `RSplit` (`lib/libesp32/re1.5/recursiveloop.c`) :
+  `(\S+)` prend **un cadre de pile C par caractère de l'URI**.
+- Le serveur du port 8384 tourne dans la tâche de boucle de Tasmota (`fast_loop`), dont la pile
+  fait **8 Ko** (`SET_ESP32_STACK_SIZE` dans `tasmota/my_user_config.h`,
+  `getArduinoLoopTaskStackSize()` dans `tasmota/tasmota_support/support_esp32.ino`), déjà en
+  partie occupée par la boucle, la VM Berry et le rappel : une URI de 99 caractères passait, une de
+  139 la débordait.
+- Le `(.*?)` paresseux des valeurs d'en-têtes essaie la fin de ligne avant chaque caractère et
+  reste à la même profondeur : c'est pourquoi de longs `User-Agent` ou `Referer` n'ont jamais
+  planté. Un **nom** d'en-tête long (`[A-Za-z0-9-]+`) aurait planté de la même façon.
+
+Depuis, la ligne de requête et les en-têtes sont lus avec `string.find()` (`strstr()`, sans
+récursion : `lib/libesp32/berry/src/be_strlib.c`) et des tranches ; `tcpclientasync.read()`
+renvoie une chaîne (`tasmota/tasmota_xdrv_driver/xdrv_52_3_berry_tcpclientasync.ino`). TasmoFlow
+ne charge plus le module `re`. `tests/tf_http_test.be` exécute l'analyseur de `tf_http.be` sur le
+Berry standard dans la CI (en mode strict, comme Tasmota compile) : requêtes d'un bloc et octet par
+octet, lignes de requête de 112 à 900 caractères, corps POST, lignes et en-têtes invalides. La pile
+d'un PC est bien plus grande : ce test ne peut pas montrer le plantage lui-même, cette
+vérification se fait sur la passerelle (plan de test).
 
 ## Format de l'extension
 
@@ -383,7 +419,7 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   (restauration en un clic), un contrôle de syntaxe (règle Tasmota) ou une compilation (Berry)
   avant l'enregistrement, et l'affichage de la place restante dans le jeu de règles. Réalisé : la
   passerelle copie le texte actuel dans `/tf_rule<n>.bak` (une copie précédente par jeu de
-  règles), écrit `Rule<n> <texte>`, relit le jeu et remet l'ancien texte s'il diffère. Le nouveau texte voyage dans un **corps de requête POST** (`/api/rule_set`, `Content-Length`, 3 000 octets au plus ; `tf_http.be` le remet une fois complet). L'écriture est découpée en requêtes séparées (`rule_set`, puis `bak`, `put`, `check`) pour nommer l'étape qui échoue. **Jamais de données longues dans une URL** (9 novembre 2026) : une ligne de requête de 152 caractères ou plus a fait redémarrer la passerelle (`RestartReason` « Software reset CPU », `ERR_CONNECTION_RESET`), 112 caractères passaient ; une requête `/api/rule_set` avec un texte de 67 caractères suffisait, alors que les mêmes commandes tapées dans la console fonctionnaient. Cause soupçonnée, non prouvée : l'expression régulière de la ligne de requête de `tf_http.be` (`\S+`) qui épuise la pile. `/api/cmd` prend donc aussi sa commande dans un corps POST, que l'interface utilise toujours. Une restauration échange les deux textes : elle s'annule. **Aucun saut de ligne ne part vers
+  règles), écrit `Rule<n> <texte>`, relit le jeu et remet l'ancien texte s'il diffère. Le nouveau texte voyage dans un **corps de requête POST** (`/api/rule_set`, `Content-Length`, 3 000 octets au plus ; `tf_http.be` le remet une fois complet). L'écriture est découpée en requêtes séparées (`rule_set`, puis `bak`, `put`, `check`) pour nommer l'étape qui échoue. **Les données longues vont dans un corps POST, jamais dans une URL** : le 9 novembre 2026, une ligne de requête de 152 caractères ou plus a fait redémarrer la passerelle (`RestartReason` « Software reset CPU », `ERR_CONNECTION_RESET`), 112 caractères passaient ; une requête `/api/rule_set` avec un texte de 67 caractères suffisait, alors que les mêmes commandes tapées dans la console fonctionnaient. La cause, trouvée le 10 novembre, était l'expression régulière qui lisait la ligne de requête dans `tf_http.be` (`\S+`, un cadre de pile par caractère), remplacée depuis par un traitement de chaînes simple (voir [Lecture des requêtes sans expressions régulières](#lecture-des-requêtes-sans-expressions-régulières)) ; une ligne de requête est limitée à 512 caractères. `/api/cmd` prend aussi sa commande dans un corps POST, que l'interface utilise toujours. Une restauration échange les deux textes : elle s'annule. **Aucun saut de ligne ne part vers
   la passerelle** (par prudence : les premiers échecs ont été attribués aux sauts de ligne, mais l'URL trop longue était la cause ; un texte avec sauts de ligne n'a jamais été essayé en POST, et la réponse de Tasmota à `Rule<n>` peut alors être du JSON invalide, que `tf_rules.rule()` sait lire). Un jeu de règles est stocké sur une ligne et affiché avec un
   bloc `on … endon` par ligne (`showRule()`, `flatRule()`).
   L'interface vérifie `on <déclencheur> do … endon` (à titre indicatif, `rules_lint.js`) ; le
@@ -428,4 +464,5 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [ ] v0.2 : l'activation/désactivation, « une seule fois » et « arrêt sur erreur » agissent sur le vrai jeu de règles ; la liste des règles Berry correspond à `Br print(tasmota._rules)`
 - [ ] v0.2 : l'interface légère (GitHub bloqué) montre l'onglet Règles avec activation/désactivation et restauration, sans l'éditeur
 - [ ] v0.2 : mémoire avec l'API des règles chargée (`tf_rules.be` est compilé avec le serveur d'API) : mémoire libre et Berry après `tasmota.gc()`, interface ouverte
+- [ ] v0.2 : URL longues (version de test avec l'analyseur à base de chaînes, `.tapp` réinstallé, `Restart 1`) : `http://<passerelle>:8384/api/status?t=<jeton>&p=<a répété 130 fois>`, puis 90 et 50, renvoient l'état ; des lignes de requête de 190 et 512 caractères répondent aussi ; une de 900 caractères renvoie `{"error":"uri_too_long"}` ; la passerelle ne redémarre jamais (`Status 1` : `RestartReason` inchangée, la durée de fonctionnement continue d'augmenter) ; l'interface marche toujours (appareils, console, écran Règles : enregistrer et restaurer)
 - [ ] v0.1 : trouver ce qui reste alloué après la première ouverture (6 Ko de mémoire libre, 4 Ko de Berry), et vérifier que `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)
