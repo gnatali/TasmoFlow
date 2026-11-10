@@ -9,7 +9,7 @@
     ${n?d`<span class="gw">${n}</span>`:null}
     <span class="sp"></span>
     <span class=${"badge "+(e.live?"ok":"bad")}>${e.live?c("live"):c("reconnecting")}</span>
-    <span class="badge">${"v"+w.version+" \xB7 "+w.source+(w.lite?" \xB7 lite":"")+" \xB7 dev.ef39af9"}</span>
+    <span class="badge">${"v"+w.version+" \xB7 "+w.source+(w.lite?" \xB7 lite":"")+" \xB7 dev.920d550"}</span>
     <button class="b" lang=${t==="fr"?"en":"fr"} aria-label=${t==="fr"?"English":"Fran\xE7ais"} onClick=${dt}>${t==="fr"?"EN":"FR"}</button>
   </header>`}function Pt(e){return function(){let{tab:n,error:r}=m.use();D.use();let a=e[n];return d`
       <${on}/>
