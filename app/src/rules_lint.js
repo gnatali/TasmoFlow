@@ -7,6 +7,7 @@ export function lintRule(text) {
   while (rest) {
     const m = /^on\s+(\S[^]*?)\s+do(?=\s|$)/i.exec(rest);
     if (!/^on\s/i.test(rest)) return 'lintOn';
+    if (/^on\s+do(\s|$)/i.test(rest)) return 'lintTrigger';
     if (!m) return 'lintDo';
     rest = rest.slice(m[0].length);
     const e = /\bendon\b/i.exec(rest);
@@ -22,17 +23,25 @@ export function lintRule(text) {
 // with one `on ... endon` block per line.
 export const flatRule = text => text.replace(/\s*[\r\n]+\s*/g, ' ').trim();
 
-export function showRule(text) {
+// The blocks of a rule set, `on ... do ... endon` each, or null if the text is not a plain
+// list of blocks (then it is only shown and edited as text).
+export function splitBlocks(text) {
   const out = [];
   let rest = flatRule(text);
   while (rest) {
     const m = /^on\s+\S[^]*?\s+do(?=\s|$)/i.exec(rest);
-    if (!m) return text;                          // not a plain list of blocks: shown as it is
+    if (!m) return null;
     const e = /\bendon\b/i.exec(rest.slice(m[0].length));
-    if (!e) return text;
+    if (!e) return null;
     const end = m[0].length + e.index + e[0].length;
     out.push(rest.slice(0, end));
     rest = rest.slice(end).trim();
   }
-  return out.join('\n');
+  return out;
+}
+
+// One block per line, or the text as it is
+export function showRule(text) {
+  const b = splitBlocks(text);
+  return b ? b.join('\n') : text;
 }

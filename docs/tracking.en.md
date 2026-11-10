@@ -50,6 +50,7 @@ Specification (French, outside the repository):
 | 9 Nov | All v0.0 checks passed, memory measured after `tasmota.gc()`; v0.0.1 tagged by Guillaume, GitHub Pages enabled |
 | 9 Nov | v0.1: **Preact + htm chosen** (same screen: 6.6 KB gzipped against 6.3 KB for Lit, 5.4 KB for the prototype without dependency); interface bundled with esbuild (12.9 KB gzipped, then 14.6 KB with Tuya) |
 | 9 Nov | v0.1: **option B decided**: full interface on GitHub Pages only (pinned, SRI), light interface (13.7 KB gzipped, devices + console + diagnostics) in the `.tapp`; second esbuild entry point of the same sources. Reason: `UfsFree` 148 KB of 320 KB and a full interface that will grow |
+| 10 Nov | v0.2 step 2: sentence editor (**Sentences** view of a rule set: When / If / Then / Else, raw blocks stay text, nothing rewritten until edited); unit tests of the rule model in CI; no change on the gateway |
 | 10 Nov | v0.2 step 1 checked on the gateway (test build): editing, saving, previous copy and restore work. Found on the way: **a request line of 152 characters or more restarts the gateway** (112 passed), so long data goes in a POST body (`tf_http.be` now hands over `Content-Length` bodies; `/api/cmd` and `/api/rule_set` read them) |
 | 10 Nov | Long URL crash explained from Tasmota's source: `re.match2()` runs re1.5's `recursiveloop()`, which recurses once per character of `(\S+)` with no depth limit, in the 8 KB stack of the loop task. `tf_http.be` parses the request line and headers with `string.find()` (request line up to 512 characters, else 414; headers 4 KB, else 431; body 3,000 bytes, else 413); `tests/tf_http_test.be` runs the parser on standard Berry in CI |
 | 9 Nov | Test build without release: manual `Build` run publishes `dev/app.js` and a test `.tapp` (no SRI) on GitHub Pages; the `.tapp` is reinstalled only when `extension/` or the light interface change |
@@ -108,9 +109,11 @@ Left for v0.1 (small):
 - **Checks on the gateway**: the `[ ]` items marked v0.1 in the test plan, in particular that
   the port 8384 `tcpserver` can be closed and listened to again, and `TuyaConfig` memory use.
 
-v0.2, left after step 1: sentence editor ("When... If... Then...") that shows `on...endon` as
-sentences, automations (Tasmota rule or Berry), Berry rule editing with a compilation check,
-`autoexec.be`, conflict report.
+v0.2, left after step 2 (sentence editor written, to check on the gateway: no reinstall, a test
+build is enough): device pickers and friendly names in the editor (Zigbee, Tuya, Matter; check
+in Tasmota's source how Zigbee events appear in rules), `elseif` and several triggers, automations
+(Tasmota rule or Berry), Berry rule editing with a compilation check, `autoexec.be`, conflict
+report.
 
 ## Points to check
 

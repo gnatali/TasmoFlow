@@ -33,6 +33,12 @@ const TEXTS = {
     rule_lintEndon: 'Il manque « endon » à la fin du bloc.', rule_lintBody: "Il n'y a aucune commande entre « do » et « endon ».",
     rule_backup: "Pas de place pour la copie de sauvegarde : rien n'a été modifié.", rule_write: "La passerelle n'a pas gardé le texte : l'ancien texte a été remis.",
     rule_length: 'Texte trop long.', rule_nobackup: 'Aucune copie précédente.', rule_chunk: "Transfert interrompu, réessayez.", rule_unknown: 'Série de règles inconnue.',
+    rule_view: 'Affichage', rule_sentences: 'Phrases', rule_text: 'Texte', rule_when: 'Quand', rule_if: 'Si', rule_then: 'Alors', rule_else: 'Sinon', rule_and: 'puis',
+    rule_operator: 'Comparaison', rule_anyValue: 'à chaque fois', rule_value: 'Valeur', rule_addCmd: 'Ajouter une commande', rule_removeCmd: 'Retirer cette commande',
+    rule_addBlock: 'Ajouter une règle', rule_editBlock: 'Modifier', rule_closeBlock: 'Fermer', rule_deleteBlock: 'Supprimer',
+    rule_noSentence: "Ce texte n'est pas une suite de blocs « on … do … endon » : modifiez-le en mode Texte.",
+    rule_rawBlock: "Ce bloc n'entre pas dans une phrase (plusieurs déclencheurs, conditions imbriquées…) : modifiez-le en mode Texte.",
+    rule_lintTrigger: 'Le déclencheur est vide.',
     tuyaWaiting: 'Pilote Tuya en attente :', tuyaLowMem: 'Mémoire libre insuffisante pour lire la configuration Tuya : seuls les états booléens sont proposés.'
   },
   en: {
@@ -66,6 +72,12 @@ const TEXTS = {
     rule_lintEndon: 'An "endon" is missing at the end of the block.', rule_lintBody: 'There is no command between "do" and "endon".',
     rule_backup: 'No room for the backup copy: nothing was changed.', rule_write: 'The gateway did not keep the text: the old text was put back.',
     rule_length: 'Text too long.', rule_nobackup: 'No previous copy.', rule_chunk: 'Transfer interrupted, try again.', rule_unknown: 'Unknown rule set.',
+    rule_view: 'View', rule_sentences: 'Sentences', rule_text: 'Text', rule_when: 'When', rule_if: 'If', rule_then: 'Then', rule_else: 'Else', rule_and: 'then',
+    rule_operator: 'Comparison', rule_anyValue: 'every time', rule_value: 'Value', rule_addCmd: 'Add a command', rule_removeCmd: 'Remove this command',
+    rule_addBlock: 'Add a rule', rule_editBlock: 'Edit', rule_closeBlock: 'Close', rule_deleteBlock: 'Delete',
+    rule_noSentence: 'This text is not a list of "on ... do ... endon" blocks: edit it in Text view.',
+    rule_rawBlock: 'This block does not fit a sentence (several triggers, nested conditions...): edit it in Text view.',
+    rule_lintTrigger: 'The trigger is empty.',
     tuyaWaiting: 'Tuya driver waiting:', tuyaLowMem: 'Not enough free memory to read the Tuya configuration: only boolean states are offered.'
   }
 };

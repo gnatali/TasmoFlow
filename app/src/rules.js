@@ -9,6 +9,10 @@ import { S, cmd, get, post, loadRules } from './state.js';
 import cfg from './config.js';
 import { lintRule, flatRule, showRule } from './rules_lint.js';
 
+// the sentence editor, registered by the full interface only (not part of the light bundle)
+let Editor = null;
+export const registerEditor = c => { Editor = c; };
+
 const SOFT_LIMIT = 512;      // beyond it Tasmota compresses the text (up to about 2 KB)
 const HARD_LIMIT = 2000;
 
@@ -36,6 +40,8 @@ const errText = e => t('rule_' + e) === 'rule_' + e ? e : t('rule_' + e);
 
 function RuleCard({ r, note, setNote }) {
   const [text, setText] = useState(showRule(r.text));
+  const [mode, setMode] = useState('text');          // 'text' | 'sentences'
+  const [v, setV] = useState(0);                      // new editor state when the text changed elsewhere
   const [busy, setBusy] = useState(false);
   const flat = flatRule(text);
   const dirty = flat !== flatRule(r.text);
@@ -64,14 +70,20 @@ function RuleCard({ r, note, setNote }) {
     </div>
     ${cfg.lite
       ? html`<pre>${showRule(r.text) || t('rule_empty')}</pre>`
-      : html`<textarea class="mono" rows=${Math.min(14, Math.max(4, text.split('\n').length + 1))} spellcheck=${false}
-          aria-label=${'Rule' + r.n} value=${text} onInput=${e => setText(e.target.value)}></textarea>
+      : html`${Editor ? html`<div class="row tight" role="group" aria-label=${t('rule_view')}>
+          <button class="b" aria-pressed=${mode === 'sentences'} onClick=${() => { setMode('sentences'); setV(v + 1); }}>${t('rule_sentences')}</button>
+          <button class="b" aria-pressed=${mode === 'text'} onClick=${() => setMode('text')}>${t('rule_text')}</button>
+        </div>` : null}
+        ${mode === 'sentences' && Editor
+          ? html`<${Editor} key=${v} text=${text} setText=${setText}/>`
+          : html`<textarea class="mono" rows=${Math.min(14, Math.max(4, text.split('\n').length + 1))} spellcheck=${false}
+          aria-label=${'Rule' + r.n} value=${text} onInput=${e => setText(e.target.value)}></textarea>`}
         ${lint ? html`<div class="msg bad" role="alert">${t('rule_' + lint)}</div>` : null}
         ${tooLong ? html`<div class="msg bad" role="alert">${t('rule_tooLong')}</div>` : null}
         ${!lint && !tooLong && flat.length > SOFT_LIMIT ? html`<div class="q">${t('rule_compressed')}</div>` : null}
         <div class="row tight">
           <button class="b" disabled=${busy || !dirty || !!lint || tooLong} onClick=${save}>${t('rule_save')}</button>
-          <button class="b" disabled=${busy || !dirty} onClick=${() => setText(showRule(r.text))}>${t('rule_cancel')}</button>
+          <button class="b" disabled=${busy || !dirty} onClick=${() => { setText(showRule(r.text)); setV(v + 1); }}>${t('rule_cancel')}</button>
         </div>`}
     ${r.bak == null ? null : html`<details>
       <summary>${t('rule_previous')}</summary>

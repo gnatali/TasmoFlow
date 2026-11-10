@@ -425,6 +425,19 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   L'interface vérifie `on <déclencheur> do … endon` (à titre indicatif, `rules_lint.js`) ; le
   moteur de règles de Tasmota n'a pas de commande de contrôle de syntaxe. Le contrôle par
   compilation Berry viendra avec l'édition du Berry.
+- **Éditeur en phrases** (v0.2 étape 2, écrit ; la vue **Phrases** d'un jeu de règles, interface
+  complète seulement : `rules_model.js`, `rules_editor.js`, enregistré par `main.js` pour que
+  l'interface légère ne le contienne pas ; rien ne change sur la passerelle). Un bloc
+  `on <déclencheur> [if (<condition>)] do <commandes> [else <commandes>] endon` se lit
+  *Quand* `Sujet#Clé` *op valeur*, *Si* `condition`, *Alors* commandes, *Sinon* commandes ;
+  `Backlog a; b` est une liste de commandes. Tout le reste reste un **bloc brut** affiché en
+  texte (plusieurs déclencheurs avec `and`/`or`, `elseif`, `if` imbriqués, opérateur sans
+  valeur, corps vide), et un jeu de règles qui n'est pas une suite de blocs ne s'ouvre qu'en
+  vue Texte. Ouvrir un jeu de règles ne le réécrit jamais : un bloc n'est réécrit qu'une fois
+  modifié (`src` conservé). Déclencheurs et commandes sont du texte libre avec des suggestions.
+  `tests/rules_model_test.js` (CI) vérifie la lecture, l'écriture de chaque forme et l'absence de
+  réécriture. Pas encore : sélecteurs d'appareils (Zigbee, Tuya, Matter), noms lisibles des
+  déclencheurs et des commandes, `elseif`, plusieurs déclencheurs, déplacement d'un bloc.
 - **Moteur au choix.** Une action TasmoFlow devient une règle Tasmota (indépendante de Berry,
   place limitée) ou du Berry (sans limite, conditions et minuteries avancées).
 - **Conflits.** Deux règles qui agissent sur le même appareil sont signalées : par exemple une
@@ -460,6 +473,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [ ] v0.1 : avec le pilote Tuya désactivé (`TuyaEnable 0`) ou absent, la section Tuya est masquée
 - [x] v0.1 : mémoire au repos après `tasmota.gc()` : 75 Ko libres, Berry 35 Ko, soit 9 Ko (cible : 15 Ko) ; interface ouverte 63 Ko / 48 Ko (`import` en cache, voir [Mémoire](#mémoire))
 - [x] v0.1 : avec le chargement sans cache, la mémoire revient en partie 5 minutes après la fermeture du dernier onglet : 59 Ko libres / Berry 48 Ko interface ouverte, 69 Ko / 39 Ko après (75 Ko / 35 Ko avant la première ouverture)
+- [ ] v0.2 : vue Phrases : un jeu de règles saisi en vue Texte s'affiche en phrases ; modifier la valeur d'un déclencheur, ajouter un `if` / `else` et une deuxième commande, ajouter et supprimer une règle, puis Enregistrer donne le texte attendu (`Rule<n>` dans la console) ; une règle qui n'entre dans aucune phrase reste en texte
 - [x] v0.2 (10 novembre 2026) : écran Règles : les trois jeux affichent le texte de `Rule1` à `Rule3` ; enregistrer une règle de plus de 600 caractères (corps POST) se relit à l'identique quand elle est saisie sur plusieurs lignes (stockée sur une ligne, affichée un bloc par ligne ; sinon l'ancien texte est remis et une erreur s'affiche) ; « Copie précédente » puis « Restaurer » remet l'ancien texte
 - [ ] v0.2 : l'activation/désactivation, « une seule fois » et « arrêt sur erreur » agissent sur le vrai jeu de règles ; la liste des règles Berry correspond à `Br print(tasmota._rules)`
 - [ ] v0.2 : l'interface légère (GitHub bloqué) montre l'onglet Règles avec activation/désactivation et restauration, sans l'éditeur

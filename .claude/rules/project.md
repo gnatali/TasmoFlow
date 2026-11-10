@@ -50,7 +50,8 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
   `main_lite.js` or in what the light interface imports (`views.js` parts it uses, `state.js`,
   `rules.js`...), or in the loader. An interface-only change needs no reinstall.
 - Before pushing: `npm run build` (interface, `app/src/` to `dist/app.js`), `node --check` on `dist/app.js` and `dist/lite.js`,
-  `python3 tools/pack_tapp.py` (size budgets), `node tests/e2e.js` (Playwright, simulated
+  `python3 tools/pack_tapp.py` (size budgets), `node tests/rules_model_test.js` (rule model),
+  `node tests/e2e.js` (Playwright, simulated
   gateway; it builds first). CI also checks the Berry syntax and runs `tests/tf_http_test.be`
   (request parser on standard Berry): this environment cannot compile Berry, so re-read Berry
   diffs carefully.

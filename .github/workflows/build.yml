@@ -30,6 +30,7 @@ jobs:
           npm run build
           node --check dist/app.js
           node --check dist/lite.js
+          node tests/rules_model_test.js
 
       - name: Berry syntax and request parser test
         run: |

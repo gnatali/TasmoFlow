@@ -4,7 +4,9 @@
 // provides window.TASMOFLOW (see config.js).
 import { boot } from './boot.js';
 import { DevicesView, EventsView, ConsoleView, DiagView } from './views.js';
-import { RulesView } from './rules.js';
+import { RulesView, registerEditor } from './rules.js';
+import { SentenceEditor } from './rules_editor.js';
 import { GatewaysView } from './gateways.js';
 
+registerEditor(SentenceEditor);
 boot({ devices: DevicesView, rules: RulesView, events: EventsView, console: ConsoleView, gateways: GatewaysView, diag: DiagView }, false);

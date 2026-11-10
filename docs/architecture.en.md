@@ -409,6 +409,18 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   (`showRule()`, `flatRule()`). The interface checks `on <trigger> do ... endon`
   (advisory, `rules_lint.js`); the Tasmota rule engine has no syntax-check command. The Berry
   compilation check comes with Berry editing.
+- **Sentence editor** (v0.2 step 2, written; the **Sentences** view of a rule set, full interface
+  only: `rules_model.js`, `rules_editor.js`, registered by `main.js` so the light bundle does not
+  carry it; no change on the gateway). A block `on <trigger> [if (<cond>)] do <commands> [else
+  <commands>] endon` is read as *When* `Subject#Key` *op value*, *If* `cond`, *Then* commands,
+  *Else* commands; `Backlog a; b` is a list of commands. Anything else stays a **raw block**
+  shown as text (several triggers with `and`/`or`, `elseif`, nested `if`, an operator without a
+  value, an empty body), and a rule set that is not a plain list of blocks only opens in Text
+  view. Opening a rule set never rewrites it: a block is written again only once edited
+  (`src` kept). Triggers and commands are free text with suggestions. `tests/rules_model_test.js`
+  (CI) checks parsing, the writing of every shape, and that nothing is rewritten. Not yet: device
+  pickers (Zigbee, Tuya, Matter), friendly names for triggers and commands, `elseif`, several
+  triggers, moving a block.
 - **Engine of choice.** A TasmoFlow automation becomes either a Tasmota rule (independent of
   Berry, limited space) or Berry code (no limit, advanced conditions and timers).
 - **Conflicts.** Two rules acting on the same device are reported: for example a Tasmota rule
@@ -444,6 +456,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [ ] v0.1: with the Tuya driver disabled (`TuyaEnable 0`) or absent, the Tuya section is hidden
 - [x] v0.1: memory at rest after `tasmota.gc()`: 75 KB free, Berry 35 KB, i.e. 9 KB (target 15 KB); with an interface open 63 KB / 48 KB (cached `import`, see [Memory](#memory))
 - [x] v0.1: with the uncached loading, the memory partly returns 5 minutes after the last tab is closed: 59 KB free / Berry 48 KB with the interface open, 69 KB / 39 KB after (75 KB / 35 KB before the first opening)
+- [ ] v0.2: Sentences view: a rule set typed in Text view shows as sentences; editing a trigger value, adding an `if` / `else` and a second command, adding and deleting a rule, then Save gives the expected text (`Rule<n>` in the console); a rule that fits no sentence stays text
 - [x] v0.2 (10 November 2026): Rules screen: the three rule sets show the text of `Rule1` to `Rule3`; saving a rule of more than 600 characters (POST body) reads back identical when typed on several lines (stored on one line, shown one block per line; otherwise the old text is put back and an error is shown); "Previous copy" then "Restore" brings the old text back
 - [ ] v0.2: enabling/disabling, "once only" and "stop on error" act on the real rule set; the Berry rules list matches `Br print(tasmota._rules)`
 - [ ] v0.2: the light interface (GitHub blocked) shows the Rules tab with enable/disable and restore, without the editor

@@ -53,6 +53,7 @@ Cahier des charges (en français, hors du dépôt) :
 | 9 nov. | Tous les points de la v0.0 validés, mémoire mesurée après `tasmota.gc()` ; tag v0.0.1 créé par Guillaume, GitHub Pages activé |
 | 9 nov. | v0.1 : **Preact + htm retenu** (même écran : 6,6 Ko gzip contre 6,3 Ko pour Lit, 5,4 Ko pour le prototype sans dépendance) ; interface assemblée avec esbuild (12,9 Ko gzip, puis 14,6 Ko avec Tuya) |
 | 9 nov. | v0.1 : **option B décidée** : interface complète sur GitHub Pages seulement (figée, SRI), interface légère (13,7 Ko gzip, appareils + console + diagnostic) dans la `.tapp` ; second point d'entrée esbuild des mêmes sources. Raison : `UfsFree` 148 Ko sur 320 Ko et une interface complète qui va grossir |
+| 10 nov. | v0.2 étape 2 : éditeur en phrases (vue **Phrases** d'un jeu de règles : Quand / Si / Alors / Sinon, les blocs bruts restent en texte, rien n'est réécrit tant qu'il n'est pas modifié) ; tests unitaires du modèle de règles en CI ; aucun changement sur la passerelle |
 | 10 nov. | v0.2 étape 1 vérifiée sur la passerelle (version de test) : modification, enregistrement, copie précédente et restauration fonctionnent. Découvert en chemin : **une ligne de requête de 152 caractères ou plus fait redémarrer la passerelle** (112 passaient), donc les données longues passent dans un corps POST (`tf_http.be` remet les corps `Content-Length` ; `/api/cmd` et `/api/rule_set` les lisent) |
 | 10 nov. | Plantage des URL longues expliqué par le source de Tasmota : `re.match2()` exécute `recursiveloop()` de re1.5, qui s'appelle elle-même une fois par caractère de `(\S+)` sans limite de profondeur, dans la pile de 8 Ko de la tâche de boucle. `tf_http.be` lit la ligne de requête et les en-têtes avec `string.find()` (ligne de requête jusqu'à 512 caractères, sinon 414 ; en-têtes 4 Ko, sinon 431 ; corps 3 000 octets, sinon 413) ; `tests/tf_http_test.be` exécute l'analyseur sur le Berry standard dans la CI |
 | 9 nov. | Version de test sans release : un lancement manuel de `Build` publie `dev/app.js` et une `.tapp` de test (sans SRI) sur GitHub Pages ; la `.tapp` n'est réinstallée que si `extension/` ou l'interface légère changent |
@@ -114,9 +115,12 @@ Reste pour la v0.1 (petit) :
   particulier que le `tcpserver` du port 8384 peut être fermé puis ré-écouté, et la mémoire
   utilisée par `TuyaConfig`.
 
-v0.2, reste après l'étape 1 : éditeur en phrases (« Quand… Si… Alors… ») qui affiche les
-`on…endon` en phrases, actions (règle Tasmota ou Berry), édition des règles Berry avec contrôle
-de compilation, `autoexec.be`, signalement des conflits.
+v0.2, reste après l'étape 2 (éditeur en phrases écrit, à vérifier sur la passerelle : pas de
+réinstallation, une version de test suffit) : sélecteurs d'appareils et noms lisibles dans
+l'éditeur (Zigbee, Tuya, Matter ; voir dans le code de Tasmota comment les événements Zigbee
+apparaissent dans les règles), `elseif` et plusieurs déclencheurs, actions (règle Tasmota ou
+Berry), édition des règles Berry avec contrôle de compilation, `autoexec.be`, signalement des
+conflits.
 
 ## Points à vérifier
 

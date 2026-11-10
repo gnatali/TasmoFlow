@@ -74,6 +74,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await r3.getByRole('button', { name: 'allumé' }).waitFor({ timeout: 4000 });
     await p.locator('article.card', { has: p.getByRole('heading', { name: 'Rule1' }) }).getByText('Button1#State=3').waitFor();
     if (await p.locator('textarea').count()) throw new Error('rule editor in the light interface');
+    if (await p.getByRole('button', { name: 'Phrases' }).count()) throw new Error('sentence editor in the light interface');
     await p.getByRole('button', { name: 'Appareils' }).click();
     const lamp = p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe salon' }) });
     await lamp.getByRole('button', { name: 'Basculer' }).click();
@@ -174,6 +175,58 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.getByRole('heading', { name: 'Règles Berry' }).waitFor();
     await p.locator('ul.berry').getByText('Button1#State').waitFor();
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'rules.png'), fullPage: true });
+  });
+  await test('sentence editor: read, edit, add, condition, delete, raw block, save', async p => {
+    await openFull(p);
+    await p.getByRole('button', { name: 'Règles' }).click();
+    const card = n => p.locator('article.card', { has: p.getByRole('heading', { name: 'Rule' + n }) });
+    const stored = n => p.evaluate(async ([t, n]) => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[n - 1].text,
+      ['0123456789abcdef0123456789abcdef', n]);
+    const r1 = card(1);
+    await r1.getByRole('button', { name: 'Phrases' }).click();
+    await r1.getByText('Button1#State = 3').waitFor();
+    // edit the value of the trigger
+    await r1.getByRole('button', { name: 'Modifier' }).click();
+    await r1.getByLabel('Valeur').fill('1');
+    // a condition and an else branch
+    await r1.getByRole('checkbox', { name: 'Si' }).check();
+    await r1.getByLabel('Si', { exact: true }).last().fill('Var1==1');
+    await r1.getByRole('checkbox', { name: 'Sinon' }).check();
+    await r1.getByLabel('Sinon 1').fill('Power2 off');
+    // a second command in Then
+    await r1.getByRole('button', { name: 'Ajouter une commande' }).first().click();
+    await r1.getByLabel('Alors 2').fill('Var1 0');
+    await r1.getByRole('button', { name: 'Fermer' }).click();
+    // a new rule
+    await r1.getByRole('button', { name: 'Ajouter une règle' }).click();
+    if (!(await r1.getByRole('button', { name: 'Enregistrer' }).isDisabled())) throw new Error('an empty block can be saved');
+    await r1.getByRole('alert').filter({ hasText: 'déclencheur est vide' }).waitFor();
+    await r1.getByLabel('Quand').fill('System#Boot');
+    await r1.getByLabel('Alors 1').fill('Power1 on');
+    await r1.getByRole('button', { name: 'Enregistrer' }).click();
+    await r1.getByText(/Enregistré/).waitFor({ timeout: 4000 });
+    const want = 'on Button1#State=1 do if (Var1==1) Backlog Power2 toggle; Var1 0 else Power2 off endif endon on System#Boot do Power1 on endon';
+    if ((await stored(1)) !== want) throw new Error('stored: ' + (await stored(1)));
+    // the text view shows the same, one block per line
+    await r1.getByRole('button', { name: 'Texte' }).click();
+    const lines = (await r1.getByRole('textbox').inputValue()).split('\n');
+    if (lines.length !== 2) throw new Error('expected 2 lines, got ' + lines.length);
+    // opening a rule set in sentences never rewrites it (Rule2: two blocks, one with Backlog)
+    const r2 = card(2);
+    await r2.getByRole('button', { name: 'Phrases' }).click();
+    await r2.getByText('System#Boot').first().waitFor();
+    if (!(await r2.getByRole('button', { name: 'Enregistrer' }).isDisabled())) throw new Error('Rule2 changed without edit');
+    // delete a block
+    await r2.getByRole('button', { name: 'Supprimer' }).first().click();
+    await r2.getByRole('button', { name: 'Enregistrer' }).click();
+    await r2.getByText(/Enregistré/).waitFor({ timeout: 4000 });
+    if (!/^on System#Boot do Backlog/.test(await stored(2))) throw new Error('block not deleted: ' + (await stored(2)));
+    // a block that does not fit a sentence stays text
+    await r1.getByRole('button', { name: 'Texte' }).click();
+    await r1.getByRole('textbox').fill('on Power1#State=1 and Power2#State=1 do Power3 1 endon');
+    await r1.getByRole('button', { name: 'Phrases' }).click();
+    await r1.getByText(/n'entre pas dans une phrase/).waitFor();
+    if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'sentences.png'), fullPage: true });
   });
   await test('Tuya: cards, switches, slider, readings, event back, offline device', async p => {
     await openFull(p);
