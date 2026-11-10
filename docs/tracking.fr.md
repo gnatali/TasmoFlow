@@ -13,8 +13,8 @@ Cahier des charges (en français, hors du dépôt) :
   Pages (PR n° 1 à 3 fusionnées). Installée sur la passerelle : démarrage/arrêt du serveur,
   mémoire et interface légère après redémarrage vérifiés ; les autres points `[ ]` du plan de
   test restent à faire.
-- **v0.2 commencée** (branche `claude/modest-pascal-8854i4`) : étape 1 **écrite, à vérifier sur
-  la passerelle** : l'écran **Règles** (`Rule1` à `Rule3` et règles Berry, édition, copie de la
+- **v0.2 commencée** (branche `claude/modest-pascal-8854i4`) : étape 1 **écrite et vérifiée sur
+  la passerelle** (modification, copie précédente, restauration) : l'écran **Règles** (`Rule1` à `Rule3` et règles Berry, édition, copie de la
   version précédente avant chaque écriture, restauration, activation/désactivation, aussi dans
   l'interface légère). Passe contre la fausse passerelle (`node tests/e2e.js`, 10 tests) ; le
   code Berry (`extension/tf_rules.be`) a seulement été relu, pas compilé. Ensuite : éditeur en
@@ -48,6 +48,7 @@ Cahier des charges (en français, hors du dépôt) :
 | 9 nov. | Tous les points de la v0.0 validés, mémoire mesurée après `tasmota.gc()` ; tag v0.0.1 créé par Guillaume, GitHub Pages activé |
 | 9 nov. | v0.1 : **Preact + htm retenu** (même écran : 6,6 Ko gzip contre 6,3 Ko pour Lit, 5,4 Ko pour le prototype sans dépendance) ; interface assemblée avec esbuild (12,9 Ko gzip, puis 14,6 Ko avec Tuya) |
 | 9 nov. | v0.1 : **option B décidée** : interface complète sur GitHub Pages seulement (figée, SRI), interface légère (13,7 Ko gzip, appareils + console + diagnostic) dans la `.tapp` ; second point d'entrée esbuild des mêmes sources. Raison : `UfsFree` 148 Ko sur 320 Ko et une interface complète qui va grossir |
+| 10 nov. | v0.2 étape 1 vérifiée sur la passerelle (version de test) : modification, enregistrement, copie précédente et restauration fonctionnent. Découvert en chemin : **une ligne de requête de 152 caractères ou plus fait redémarrer la passerelle** (112 passaient), donc les données longues passent dans un corps POST (`tf_http.be` remet les corps `Content-Length` ; `/api/cmd` et `/api/rule_set` les lisent) |
 | 9 nov. | Version de test sans release : un lancement manuel de `Build` publie `dev/app.js` et une `.tapp` de test (sans SRI) sur GitHub Pages ; la `.tapp` n'est réinstallée que si `extension/` ou l'interface légère changent |
 | 9 nov. | v0.1 publiée (tag `v0.1.0`) ; v0.2 commencée : écran Règles, `tf_rules.be` (lecture, écriture par morceaux, copie de la version précédente, restauration), contrôle de syntaxe des jeux de règles dans l'interface, règles dans l'interface légère |
 | 9 nov. | v0.1 : serveur d'API à la demande (`/tf`, `/tf?w=1`, 5 minutes d'inactivité), `tf_http.be` compilé à la demande et allégé ; écran Passerelles ; appareils Tuya (`TuyaEnable`, `TuyaStatus`, `TuyaConfig`, `TuyaSend`, règle `Tuya` sur le flux d'événements) ; pilote Tuya simulé et tests |

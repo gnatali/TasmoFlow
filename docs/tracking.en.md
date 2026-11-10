@@ -12,8 +12,8 @@ Specification (French, outside the repository):
 - **v0.1 released**: tag `v0.1.0`, `.tapp` attached to the release, interface published on GitHub
   Pages (PRs #1 to #3 merged). Installed on the gateway: server start/stop, memory and the
   light interface after a restart checked; the other `[ ]` items of the test plan are left.
-- **v0.2 started** (branch `claude/modest-pascal-8854i4`): step 1 **written, to check on the
-  gateway**: the **Rules** screen (`Rule1` to `Rule3` and Berry rules, edit, copy of the previous
+- **v0.2 started** (branch `claude/modest-pascal-8854i4`): step 1 **written and checked on the
+  gateway** (editing, previous copy, restore): the **Rules** screen (`Rule1` to `Rule3` and Berry rules, edit, copy of the previous
   version before every write, restore, enable/disable, in the light interface too). Passes
   against the simulated gateway (`node tests/e2e.js`, 10 tests); the Berry code
   (`extension/tf_rules.be`) was only read, not compiled. Next: sentence editor, automations,
@@ -46,6 +46,7 @@ Specification (French, outside the repository):
 | 9 Nov | All v0.0 checks passed, memory measured after `tasmota.gc()`; v0.0.1 tagged by Guillaume, GitHub Pages enabled |
 | 9 Nov | v0.1: **Preact + htm chosen** (same screen: 6.6 KB gzipped against 6.3 KB for Lit, 5.4 KB for the prototype without dependency); interface bundled with esbuild (12.9 KB gzipped, then 14.6 KB with Tuya) |
 | 9 Nov | v0.1: **option B decided**: full interface on GitHub Pages only (pinned, SRI), light interface (13.7 KB gzipped, devices + console + diagnostics) in the `.tapp`; second esbuild entry point of the same sources. Reason: `UfsFree` 148 KB of 320 KB and a full interface that will grow |
+| 10 Nov | v0.2 step 1 checked on the gateway (test build): editing, saving, previous copy and restore work. Found on the way: **a request line of 152 characters or more restarts the gateway** (112 passed), so long data goes in a POST body (`tf_http.be` now hands over `Content-Length` bodies; `/api/cmd` and `/api/rule_set` read them) |
 | 9 Nov | Test build without release: manual `Build` run publishes `dev/app.js` and a test `.tapp` (no SRI) on GitHub Pages; the `.tapp` is reinstalled only when `extension/` or the light interface change |
 | 9 Nov | v0.1 released (tag `v0.1.0`); v0.2 started: Rules screen, `tf_rules.be` (read, write in chunks, copy of the previous version, restore), syntax check of rule sets in the interface, rules in the light interface |
 | 9 Nov | v0.1: API server on demand (`/tf`, `/tf?w=1`, 5 minutes idle), `tf_http.be` compiled lazily and trimmed; Gateways screen; Tuya devices (`TuyaEnable`, `TuyaStatus`, `TuyaConfig`, `TuyaSend`, `Tuya` rule on the event stream); simulated Tuya driver and tests |
