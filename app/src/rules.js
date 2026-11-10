@@ -7,7 +7,7 @@ import { html } from './html.js';
 import { t } from './i18n.js';
 import { S, cmd, get, loadRules } from './state.js';
 import cfg from './config.js';
-import { lintRule, chunks } from './rules_lint.js';
+import { lintRule, chunks, flatRule, showRule } from './rules_lint.js';
 
 const CHUNK = 300;           // characters per request (the port 8384 server reads a short request line)
 const SOFT_LIMIT = 512;      // beyond it Tasmota compresses the text (up to about 2 KB)
@@ -26,11 +26,12 @@ export async function saveRule(n, text) {
 const errText = e => t('rule_' + e) === 'rule_' + e ? e : t('rule_' + e);
 
 function RuleCard({ r, note, setNote }) {
-  const [text, setText] = useState(r.text);
+  const [text, setText] = useState(showRule(r.text));
   const [busy, setBusy] = useState(false);
-  const dirty = text.trim() !== r.text;
-  const lint = dirty ? lintRule(text) : null;
-  const tooLong = text.trim().length > HARD_LIMIT;
+  const flat = flatRule(text);
+  const dirty = flat !== flatRule(r.text);
+  const lint = dirty ? lintRule(flat) : null;
+  const tooLong = flat.length > HARD_LIMIT;
   const run = async (what, f) => {
     setBusy(true);
     try { await f(); await loadRules(); setNote({ n: r.n, ok: true, text: t(what) }); }
@@ -38,7 +39,7 @@ function RuleCard({ r, note, setNote }) {
     setBusy(false);
   };
   const flag = (on, opt) => run('rule_done', () => cmd('Rule' + r.n + ' ' + opt[on ? 1 : 0]));
-  const save = () => run('rule_saved', () => saveRule(r.n, text.trim()));
+  const save = () => run('rule_saved', () => saveRule(r.n, flat));
   const restore = () => {
     if (confirm(t('rule_confirmRestore'))) run('rule_restored', () => get('/api/rule_restore', { n: r.n }));
   };
@@ -53,19 +54,19 @@ function RuleCard({ r, note, setNote }) {
       <span class="q">${r.len + ' ' + t('rule_chars') + ' · ' + t('rule_free') + ' ' + r.free}</span>
     </div>
     ${cfg.lite
-      ? html`<pre>${r.text || t('rule_empty')}</pre>`
+      ? html`<pre>${showRule(r.text) || t('rule_empty')}</pre>`
       : html`<textarea class="mono" rows=${Math.min(14, Math.max(4, text.split('\n').length + 1))} spellcheck=${false}
           aria-label=${'Rule' + r.n} value=${text} onInput=${e => setText(e.target.value)}></textarea>
         ${lint ? html`<div class="msg bad" role="alert">${t('rule_' + lint)}</div>` : null}
         ${tooLong ? html`<div class="msg bad" role="alert">${t('rule_tooLong')}</div>` : null}
-        ${!lint && !tooLong && text.trim().length > SOFT_LIMIT ? html`<div class="q">${t('rule_compressed')}</div>` : null}
+        ${!lint && !tooLong && flat.length > SOFT_LIMIT ? html`<div class="q">${t('rule_compressed')}</div>` : null}
         <div class="row tight">
           <button class="b" disabled=${busy || !dirty || !!lint || tooLong} onClick=${save}>${t('rule_save')}</button>
-          <button class="b" disabled=${busy || !dirty} onClick=${() => setText(r.text)}>${t('rule_cancel')}</button>
+          <button class="b" disabled=${busy || !dirty} onClick=${() => setText(showRule(r.text))}>${t('rule_cancel')}</button>
         </div>`}
     ${r.bak == null ? null : html`<details>
       <summary>${t('rule_previous')}</summary>
-      <pre>${r.bak || t('rule_empty')}</pre>
+      <pre>${showRule(r.bak) || t('rule_empty')}</pre>
       <div class="row tight"><button class="b" disabled=${busy} onClick=${restore}>${t('rule_restore')}</button></div>
     </details>`}
     ${mine ? html`<div class=${'msg ' + (mine.ok ? 'ok' : 'bad')} role=${mine.ok ? 'status' : 'alert'}>${mine.text}</div>` : null}

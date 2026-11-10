@@ -384,7 +384,11 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   passerelle copie le texte actuel dans `/tf_rule<n>.bak` (une copie précédente par jeu de
   règles), écrit `Rule<n> <texte>`, relit le jeu et remet l'ancien texte s'il diffère. Le texte
   voyage par morceaux de 300 caractères (`/api/rule_set`), car le serveur du port 8384 ne lit
-  qu'une ligne de requête courte. Une restauration échange les deux textes : elle s'annule.
+  qu'une ligne de requête courte. Une restauration échange les deux textes : elle s'annule. **Aucun saut de ligne ne part vers
+  la passerelle** : un texte de deux lignes envoyé avec `Rule<n>` faisait couper la connexion à la
+  passerelle (9 novembre 2026, cause non établie : probablement le saut de ligne dans la commande
+  ou dans la réponse JSON invalide). Un jeu de règles est stocké sur une ligne et affiché avec un
+  bloc `on … endon` par ligne (`showRule()`, `flatRule()`).
   L'interface vérifie `on <déclencheur> do … endon` (à titre indicatif, `rules_lint.js`) ; le
   moteur de règles de Tasmota n'a pas de commande de contrôle de syntaxe. Le contrôle par
   compilation Berry viendra avec l'édition du Berry.
@@ -423,7 +427,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [ ] v0.1 : avec le pilote Tuya désactivé (`TuyaEnable 0`) ou absent, la section Tuya est masquée
 - [x] v0.1 : mémoire au repos après `tasmota.gc()` : 75 Ko libres, Berry 35 Ko, soit 9 Ko (cible : 15 Ko) ; interface ouverte 63 Ko / 48 Ko (`import` en cache, voir [Mémoire](#mémoire))
 - [x] v0.1 : avec le chargement sans cache, la mémoire revient en partie 5 minutes après la fermeture du dernier onglet : 59 Ko libres / Berry 48 Ko interface ouverte, 69 Ko / 39 Ko après (75 Ko / 35 Ko avant la première ouverture)
-- [ ] v0.2 : écran Règles : les trois jeux affichent le texte de `Rule1` à `Rule3` ; enregistrer une règle de plus de 600 caractères (plusieurs morceaux) se relit à l'identique, même avec des retours à la ligne (sinon l'ancien texte est remis et une erreur s'affiche) ; « Copie précédente » puis « Restaurer » remet l'ancien texte
+- [ ] v0.2 : écran Règles : les trois jeux affichent le texte de `Rule1` à `Rule3` ; enregistrer une règle de plus de 600 caractères (plusieurs morceaux) se relit à l'identique quand elle est saisie sur plusieurs lignes (stockée sur une ligne, affichée un bloc par ligne ; sinon l'ancien texte est remis et une erreur s'affiche) ; « Copie précédente » puis « Restaurer » remet l'ancien texte
 - [ ] v0.2 : l'activation/désactivation, « une seule fois » et « arrêt sur erreur » agissent sur le vrai jeu de règles ; la liste des règles Berry correspond à `Br print(tasmota._rules)`
 - [ ] v0.2 : l'interface légère (GitHub bloqué) montre l'onglet Règles avec activation/désactivation et restauration, sans l'éditeur
 - [ ] v0.2 : mémoire avec l'API des règles chargée (`tf_rules.be` est compilé avec le serveur d'API) : mémoire libre et Berry après `tasmota.gc()`, interface ouverte

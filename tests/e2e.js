@@ -157,7 +157,9 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await r1.getByText(/Enregistré/).waitFor({ timeout: 4000 });
     const stored = await p.evaluate(async t => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[0].text,
       '0123456789abcdef0123456789abcdef');
-    if (stored !== long) throw new Error('stored text differs');
+    if (stored !== long.replace(/\n/g, ' ')) throw new Error('stored text differs (line breaks must not reach the gateway)');
+    const shown = await box.inputValue();
+    if (shown !== long) throw new Error('one block per line expected');
     // the previous version is kept, and restoring it brings it back
     await p.locator('article.card', { has: p.getByRole('heading', { name: 'Rule1' }) }).getByText('Copie précédente').click();
     await r1.locator('details pre').getByText('Button1#State=3').waitFor();

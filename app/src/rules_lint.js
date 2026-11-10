@@ -17,6 +17,26 @@ export function lintRule(text) {
   return null;
 }
 
+// Line breaks never go to the gateway: a rule text sent with one made the gateway drop the
+// connection (see docs/architecture.en.md, Rules). A rule set is stored on one line, and shown
+// with one `on ... endon` block per line.
+export const flatRule = text => text.replace(/\s*[\r\n]+\s*/g, ' ').trim();
+
+export function showRule(text) {
+  const out = [];
+  let rest = flatRule(text);
+  while (rest) {
+    const m = /^on\s+\S[^]*?\s+do(?=\s|$)/i.exec(rest);
+    if (!m) return text;                          // not a plain list of blocks: shown as it is
+    const e = /\bendon\b/i.exec(rest.slice(m[0].length));
+    if (!e) return text;
+    const end = m[0].length + e.index + e[0].length;
+    out.push(rest.slice(0, end));
+    rest = rest.slice(end).trim();
+  }
+  return out.join('\n');
+}
+
 // Cuts a text into pieces small enough for a short request line (the gateway's API server
 // only reads one packet of it): chunks of `size` characters, at least one.
 export function chunks(text, size) {
