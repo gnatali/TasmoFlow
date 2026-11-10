@@ -113,6 +113,11 @@ de compilation, `autoexec.be`, signalement des conflits.
 
 ## Points à vérifier
 
+- **Une URL longue fait redémarrer la passerelle** (port 8384, ligne de requête de 152 caractères
+  ou plus ; contourné par des corps POST) : cause à trouver et à corriger dans `tf_http.be`, voir
+  [investigations/long-url-crash.md](investigations/long-url-crash.md) (en anglais, branche
+  `claude/tf-http-long-url`).
+
 - Écriture d'un DP d'un appareil Tuya Zigbee (TS0601, cluster `EF00`) avec `ZbSend` : à essayer
   sur un appareil réel (nécessaire pour la v0.3).
 

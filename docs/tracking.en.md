@@ -108,6 +108,10 @@ sentences, automations (Tasmota rule or Berry), Berry rule editing with a compil
 
 ## Points to check
 
+- **Long URL restarts the gateway** (port 8384, request line of 152 characters or more; worked
+  around with POST bodies): cause to find and fix in `tf_http.be`, see
+  [investigations/long-url-crash.md](investigations/long-url-crash.md) (branch `claude/tf-http-long-url`).
+
 - Writing a DP of a Tuya Zigbee device (TS0601, `EF00` cluster) with `ZbSend`: to try on a real
   device (needed for v0.3).
 
