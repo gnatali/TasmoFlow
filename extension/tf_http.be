@@ -355,7 +355,8 @@ class webserver_async
     # POST body (the first Content-Length bytes of the payload) as a string
     def body()
       if self.req_len <= 0    return ''    end
-      return self.buf_in[0 .. self.req_len - 1].asstring()
+      var b = self.buf_in[0 .. self.req_len - 1]
+      return type(b) == 'string' ? b : b.asstring()     # buf_in is a string or a bytes()
     end
 
 
