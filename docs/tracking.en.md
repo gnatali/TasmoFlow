@@ -26,6 +26,10 @@ Specification (French, outside the repository):
 - [PR #1](https://github.com/gnatali/TasmoFlow/pull/1) merged (tracking files, `.claude/rules/`).
 - **v0.1 (control)**: Preact + htm interface, API server on demand, Gateways screen, Tuya
   devices in the dashboard (details below).
+- **Long URL crash fixed in the code** (10 November, branch `ccr-77cdec39-duy9lp`): cause found in
+  Tasmota's source (the `re` matcher recurses once per URI character and overflows the 8 KB loop
+  stack); `tf_http.be` now parses requests with `string.find()`. To check on the gateway with a
+  test build (`.tapp` to install again): see the long URL item of the test plan.
 - **Next**: work through the `[ ]` items of the
   [test plan](architecture.en.md#test-plan-on-the-gateway) on the ZB-GW03 (v0.1 and the new v0.2
   ones), measure the memory with the rule API loaded.
@@ -47,6 +51,7 @@ Specification (French, outside the repository):
 | 9 Nov | v0.1: **Preact + htm chosen** (same screen: 6.6 KB gzipped against 6.3 KB for Lit, 5.4 KB for the prototype without dependency); interface bundled with esbuild (12.9 KB gzipped, then 14.6 KB with Tuya) |
 | 9 Nov | v0.1: **option B decided**: full interface on GitHub Pages only (pinned, SRI), light interface (13.7 KB gzipped, devices + console + diagnostics) in the `.tapp`; second esbuild entry point of the same sources. Reason: `UfsFree` 148 KB of 320 KB and a full interface that will grow |
 | 10 Nov | v0.2 step 1 checked on the gateway (test build): editing, saving, previous copy and restore work. Found on the way: **a request line of 152 characters or more restarts the gateway** (112 passed), so long data goes in a POST body (`tf_http.be` now hands over `Content-Length` bodies; `/api/cmd` and `/api/rule_set` read them) |
+| 10 Nov | Long URL crash explained from Tasmota's source: `re.match2()` runs re1.5's `recursiveloop()`, which recurses once per character of `(\S+)` with no depth limit, in the 8 KB stack of the loop task. `tf_http.be` parses the request line and headers with `string.find()` (request line up to 512 characters, else 414; headers 4 KB, else 431; body 3,000 bytes, else 413); `tests/tf_http_test.be` runs the parser on standard Berry in CI |
 | 9 Nov | Test build without release: manual `Build` run publishes `dev/app.js` and a test `.tapp` (no SRI) on GitHub Pages; the `.tapp` is reinstalled only when `extension/` or the light interface change |
 | 9 Nov | v0.1 released (tag `v0.1.0`); v0.2 started: Rules screen, `tf_rules.be` (read, write in chunks, copy of the previous version, restore), syntax check of rule sets in the interface, rules in the light interface |
 | 9 Nov | v0.1: API server on demand (`/tf`, `/tf?w=1`, 5 minutes idle), `tf_http.be` compiled lazily and trimmed; Gateways screen; Tuya devices (`TuyaEnable`, `TuyaStatus`, `TuyaConfig`, `TuyaSend`, `Tuya` rule on the event stream); simulated Tuya driver and tests |
@@ -88,7 +93,8 @@ Done in the code and the simulated gateway (see the [architecture](architecture.
    when the server stops; **6 KB (Berry: 4 KB) stay allocated, cause unknown**. Suspects, to
    separate with the Berry console: the Tuya driver keeping data after `TuyaConfig` /
    `TuyaStatus` (run them by hand, then `Br tasmota.gc()`), modules loaded at first use
-   (`re`, `introspect`, `sys`), or a reference still holding the `tf_http` class.
+   (`re`, no longer used by `tf_http.be` since 10 November; `introspect`, `sys`), or a reference
+   still holding the `tf_http` class.
 3. **Tuya devices in the dashboard** (F7.1 to F7.3): switches, dimmers, colour temperature, fan
    speed, readings, live updates, hidden without the driver.
 4. **Several gateways** (F1): Gateways screen, link to copy, wake of a stopped server.
@@ -107,6 +113,13 @@ sentences, automations (Tasmota rule or Berry), Berry rule editing with a compil
 `autoexec.be`, conflict report.
 
 ## Points to check
+
+- **Long URL restarts the gateway** (port 8384, request line of 152 characters or more): cause
+  found and fixed in the code (10 November, see
+  [Request parsing without regular expressions](architecture.en.md#request-parsing-without-regular-expressions)
+  and [investigations/long-url-crash.md](investigations/long-url-crash.md)). Left: the check on
+  the gateway (test plan), then the simulated gateway can stop cutting request lines over 120
+  characters.
 
 - Writing a DP of a Tuya Zigbee device (TS0601, `EF00` cluster) with `ZbSend`: to try on a real
   device (needed for v0.3).

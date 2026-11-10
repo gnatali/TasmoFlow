@@ -28,6 +28,11 @@ Cahier des charges (en français, hors du dépôt) :
   `.claude/rules/`).
 - **v0.1 (pilotage)** : interface Preact + htm, serveur d'API à la demande, écran Passerelles,
   appareils Tuya dans le tableau de bord (détails plus bas).
+- **Plantage des URL longues corrigé dans le code** (10 novembre, branche `ccr-77cdec39-duy9lp`) :
+  cause trouvée dans le source de Tasmota (le moteur de `re` s'appelle lui-même une fois par
+  caractère de l'URI et déborde la pile de 8 Ko de la boucle) ; `tf_http.be` lit désormais les
+  requêtes avec `string.find()`. À vérifier sur la passerelle avec une version de test (`.tapp` à
+  réinstaller) : voir le point « URL longues » du plan de test.
 - **Suite** : dérouler les points `[ ]` du
   [plan de test](architecture.fr.md#plan-de-test-sur-la-passerelle) sur la ZB-GW03 (v0.1 et les
   nouveaux de la v0.2), mesurer la mémoire avec l'API des règles chargée.
@@ -49,6 +54,7 @@ Cahier des charges (en français, hors du dépôt) :
 | 9 nov. | v0.1 : **Preact + htm retenu** (même écran : 6,6 Ko gzip contre 6,3 Ko pour Lit, 5,4 Ko pour le prototype sans dépendance) ; interface assemblée avec esbuild (12,9 Ko gzip, puis 14,6 Ko avec Tuya) |
 | 9 nov. | v0.1 : **option B décidée** : interface complète sur GitHub Pages seulement (figée, SRI), interface légère (13,7 Ko gzip, appareils + console + diagnostic) dans la `.tapp` ; second point d'entrée esbuild des mêmes sources. Raison : `UfsFree` 148 Ko sur 320 Ko et une interface complète qui va grossir |
 | 10 nov. | v0.2 étape 1 vérifiée sur la passerelle (version de test) : modification, enregistrement, copie précédente et restauration fonctionnent. Découvert en chemin : **une ligne de requête de 152 caractères ou plus fait redémarrer la passerelle** (112 passaient), donc les données longues passent dans un corps POST (`tf_http.be` remet les corps `Content-Length` ; `/api/cmd` et `/api/rule_set` les lisent) |
+| 10 nov. | Plantage des URL longues expliqué par le source de Tasmota : `re.match2()` exécute `recursiveloop()` de re1.5, qui s'appelle elle-même une fois par caractère de `(\S+)` sans limite de profondeur, dans la pile de 8 Ko de la tâche de boucle. `tf_http.be` lit la ligne de requête et les en-têtes avec `string.find()` (ligne de requête jusqu'à 512 caractères, sinon 414 ; en-têtes 4 Ko, sinon 431 ; corps 3 000 octets, sinon 413) ; `tests/tf_http_test.be` exécute l'analyseur sur le Berry standard dans la CI |
 | 9 nov. | Version de test sans release : un lancement manuel de `Build` publie `dev/app.js` et une `.tapp` de test (sans SRI) sur GitHub Pages ; la `.tapp` n'est réinstallée que si `extension/` ou l'interface légère changent |
 | 9 nov. | v0.1 publiée (tag `v0.1.0`) ; v0.2 commencée : écran Règles, `tf_rules.be` (lecture, écriture par morceaux, copie de la version précédente, restauration), contrôle de syntaxe des jeux de règles dans l'interface, règles dans l'interface légère |
 | 9 nov. | v0.1 : serveur d'API à la demande (`/tf`, `/tf?w=1`, 5 minutes d'inactivité), `tf_http.be` compilé à la demande et allégé ; écran Passerelles ; appareils Tuya (`TuyaEnable`, `TuyaStatus`, `TuyaConfig`, `TuyaSend`, règle `Tuya` sur le flux d'événements) ; pilote Tuya simulé et tests |
@@ -90,8 +96,9 @@ Fait dans le code et la fausse passerelle (voir l'[architecture](architecture.fr
    ouverte. Le chargement sans cache rend 10 Ko sur 16 à l'arrêt du serveur ; **6 Ko (Berry :
    4 Ko) restent alloués, cause inconnue**. Pistes, à départager avec la console Berry : le
    pilote Tuya qui garde des données après `TuyaConfig` / `TuyaStatus` (les lancer à la main,
-   puis `Br tasmota.gc()`), des modules chargés à la première utilisation (`re`, `introspect`,
-   `sys`), ou une référence qui retient encore la classe `tf_http`.
+   puis `Br tasmota.gc()`), des modules chargés à la première utilisation (`re`, que
+   `tf_http.be` n'utilise plus depuis le 10 novembre ; `introspect`, `sys`), ou une référence qui
+   retient encore la classe `tf_http`.
 3. **Appareils Tuya dans le tableau de bord** (F7.1 à F7.3) : interrupteurs, variateurs,
    température de couleur, vitesse de ventilateur, mesures, mise à jour en direct, masqués sans
    le pilote.
@@ -112,6 +119,13 @@ v0.2, reste après l'étape 1 : éditeur en phrases (« Quand… Si… Alors… 
 de compilation, `autoexec.be`, signalement des conflits.
 
 ## Points à vérifier
+
+- **Une URL longue fait redémarrer la passerelle** (port 8384, ligne de requête de 152 caractères
+  ou plus) : cause trouvée et corrigée dans le code (10 novembre, voir
+  [Lecture des requêtes sans expressions régulières](architecture.fr.md#lecture-des-requêtes-sans-expressions-régulières)
+  et [investigations/long-url-crash.md](investigations/long-url-crash.md), en anglais). Reste : la
+  vérification sur la passerelle (plan de test), puis la fausse passerelle pourra cesser de couper
+  les lignes de requête de plus de 120 caractères.
 
 - Écriture d'un DP d'un appareil Tuya Zigbee (TS0601, cluster `EF00`) avec `ZbSend` : à essayer
   sur un appareil réel (nécessaire pour la v0.3).

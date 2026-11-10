@@ -169,8 +169,42 @@ Why:
 Events carry a sequence number and a `type`: `zigbee` (`device`, `name`, `attrs`) and `tuya`
 (`name`, `dps`, from the driver's `Tuya` rule).
 
-The asynchronous server only handles `GET`: commands go in the address. A `GET` request
-without custom headers does not trigger an `OPTIONS` preflight request.
+The asynchronous server handles `GET` and `POST` (a body of at most 3,000 bytes, read from
+`Content-Length` and handed over once complete). Neither a `GET` without custom headers nor a
+`POST` in `text/plain` triggers an `OPTIONS` preflight request. A request it will not handle
+gets an error in the API's format, then the connection is closed: request line over 512
+characters `414 {"error":"uri_too_long"}`, invalid request line `400 bad_request`, headers over
+4 KB `431 headers_too_long`, body over 3,000 bytes `413 body_too_long`.
+
+### Request parsing without regular expressions
+
+Until 10 November 2026 `tf_http.be` parsed the request line with Tasmota's regular expression
+`^(\w+) (\S+) HTTP\/(\d\.\d)\r\n`, and a request line of 152 characters or more restarted the
+gateway (`Software reset CPU`, the way a panic restarts it; 112 passed). Cause, read in the
+firmware's Tasmota source (commit `TASMOTA_REF`):
+
+- `re.match2()` runs the pattern with `re1_5_recursiveloopprog()`
+  (`lib/libesp32/berry/default/be_re_lib.c`), which has no depth limit: `re1_5_stack_chk()` is
+  an empty macro (`lib/libesp32/re1.5/re1.5.h`).
+- A greedy `e+` compiles to `L: e; RSplit L` (`lib/libesp32/re1.5/compilecode.c`) and
+  `recursiveloop()` calls itself at every `RSplit` (`lib/libesp32/re1.5/recursiveloop.c`):
+  `(\S+)` takes **one C stack frame per character of the URI**.
+- The port 8384 server runs in Tasmota's loop task (`fast_loop`), whose stack is **8 KB**
+  (`SET_ESP32_STACK_SIZE` in `tasmota/my_user_config.h`, `getArduinoLoopTaskStackSize()` in
+  `tasmota/tasmota_support/support_esp32.ino`), already partly used by the loop, the Berry VM
+  and the callback: a URI of 99 characters passed, one of 139 overflowed it.
+- The lazy `(.*?)` of the header values tries the end of the line before each character and
+  stays at the same depth, which is why long `User-Agent` or `Referer` values never crashed. A
+  long header **name** (`[A-Za-z0-9-]+`) would have crashed in the same way.
+
+Since then the request line and the headers are parsed with `string.find()` (`strstr()`, no
+recursion: `lib/libesp32/berry/src/be_strlib.c`) and slices; `tcpclientasync.read()` returns a
+string (`tasmota/tasmota_xdrv_driver/xdrv_52_3_berry_tcpclientasync.ino`). The `re` module is
+no longer loaded by TasmoFlow. `tests/tf_http_test.be` runs the parser of `tf_http.be` on
+standard Berry in CI (in strict mode, as Tasmota compiles): requests in one piece and byte by
+byte, request lines from 112 to 900 characters, POST bodies, invalid lines and headers. A PC's
+stack is much bigger, so this test cannot show the crash itself: that check is done on the
+gateway (test plan).
 
 ## Extension format
 
@@ -366,7 +400,7 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   restore), a syntax check (Tasmota rule) or a compilation (Berry) before saving, and the
   display of the space left in the rule set. Implemented: the gateway copies the current text to
   `/tf_rule<n>.bak` (one previous copy per rule set), writes `Rule<n> <text>`, reads the rule set
-  back and puts the old text back if it differs. The new text travels in a **POST body** (`/api/rule_set`, `Content-Length`, at most 3,000 bytes; `tf_http.be` hands it over once complete). Writing is split into separate requests (`rule_set`, then `bak`, `put`, `check`) so that a failing step is named in the error. **Never put long data in a URL** (9 November 2026): a request line of 152 characters or more made the gateway restart (`RestartReason` "Software reset CPU", `ERR_CONNECTION_RESET`), 112 characters passed; a request of `/api/rule_set` with a 67-character text was enough, while the same commands typed in the console worked. Suspected cause, not proven: the regular expression of the request line in `tf_http.be` (`\S+`) exhausting the stack. `/api/cmd` therefore also takes its command in a POST body, which the interface always uses. A restore
+  back and puts the old text back if it differs. The new text travels in a **POST body** (`/api/rule_set`, `Content-Length`, at most 3,000 bytes; `tf_http.be` hands it over once complete). Writing is split into separate requests (`rule_set`, then `bak`, `put`, `check`) so that a failing step is named in the error. **Long data goes in a POST body, never in a URL**: on 9 November 2026 a request line of 152 characters or more made the gateway restart (`RestartReason` "Software reset CPU", `ERR_CONNECTION_RESET`), 112 characters passed; a request of `/api/rule_set` with a 67-character text was enough, while the same commands typed in the console worked. The cause, found on 10 November, was the regular expression that parsed the request line in `tf_http.be` (`\S+`, one stack frame per character), now replaced by plain string handling (see [Request parsing without regular expressions](#request-parsing-without-regular-expressions)); a request line is limited to 512 characters. `/api/cmd` also takes its command in a POST body, which the interface always uses. A restore
   swaps the two texts, so it can be undone. **No line break goes to the gateway** (kept out of caution:
   the first failures were put down to line breaks, but the long URL was the cause; a text with line
   breaks was never tried through a POST, and Tasmota's answer to `Rule<n>` may then be invalid JSON,
@@ -414,4 +448,5 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [ ] v0.2: enabling/disabling, "once only" and "stop on error" act on the real rule set; the Berry rules list matches `Br print(tasmota._rules)`
 - [ ] v0.2: the light interface (GitHub blocked) shows the Rules tab with enable/disable and restore, without the editor
 - [ ] v0.2: memory with the rule API loaded (`tf_rules.be` is compiled with the API server): free heap and Berry after `tasmota.gc()`, interface open
+- [ ] v0.2: long URLs (test build with the string parser, `.tapp` installed again, `Restart 1`): `http://<gateway>:8384/api/status?t=<token>&p=<a repeated 130 times>`, then 90 and 50, answer the status; request lines of 190 and 512 characters answer too; one of 900 characters answers `{"error":"uri_too_long"}`; the gateway never restarts (`Status 1`: `RestartReason` unchanged, uptime keeps growing); the interface still works (devices, console, Rules screen: save and restore)
 - [ ] v0.1: find what stays allocated after the first opening (6 KB free heap, 4 KB Berry), and check that `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)

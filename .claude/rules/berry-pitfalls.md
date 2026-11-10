@@ -20,11 +20,20 @@ paths:
   reloads itself (`?r=1` avoids a loop).
 - `web_add_handler()` is not called for an extension loaded after the web server started: call
   it from `init()` when `webserver.state() != 0`, and guard against a second registration.
-- **Never put long data in a URL** of the port 8384 server: a request line of 152 characters
-  made the gateway restart (`Software reset CPU`, browser: `ERR_CONNECTION_RESET`; 112 passed).
-  Probably the request-line regex of `tf_http.be`. Long data goes in a POST body
-  (`cnx.body()`, `Content-Length`, 3,000 bytes at most): `/api/cmd` and `/api/rule_set`. The
-  simulated gateway cuts the connection on a request line over 120 characters.
+- **Never run `re` on input of unbounded length**: Tasmota's matcher (re1.5 `recursiveloop`)
+  calls itself once per character matched by a greedy `+` or `*`, with no depth limit, in the
+  8 KB stack of the loop task. `(\S+)` on a request line of 152 characters restarted the
+  gateway (`Software reset CPU`, browser: `ERR_CONNECTION_RESET`; 112 passed). `tf_http.be` now
+  parses with `string.find()` and refuses a request line over 512 characters (414), headers
+  over 4 KB (431), a body over 3,000 bytes (413). Details and sources: `docs/architecture.en.md`.
+- Long data still goes in a **POST body** (`cnx.body()`, `Content-Length`), not in a URL:
+  `/api/cmd` and `/api/rule_set`. The simulated gateway cuts the connection on a request line
+  over 120 characters until the string parser is checked on the gateway.
+- A negative slice bound counts from the end: `s[0 .. i - 1]` with `i == 0` is the **whole**
+  string, not `''`. Check the index before slicing (`tf_http.be`).
+- `tests/tf_http_test.be` runs `tf_http.be` on standard Berry in CI (`berry -s`, strict like
+  Tasmota) with stubbed `tasmota`, `tcpserver`, `log`, `format` (f-strings call it). Extend it
+  for any change to the request parser: a regression there breaks every request.
 - `tasmota.cmd()` returns a **map only if the answer is valid JSON**, else the raw string (see
   `exec_rules` in `tasmota_class.be`): calling `.find()` on it raises. `Rule<n>` copies the rule
   text as is, so a line break or a quote can make its answer invalid (`tf_rules.rule()` cuts
