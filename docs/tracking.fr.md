@@ -35,7 +35,7 @@ Cahier des charges (en français, hors du dépôt) :
   réinstaller) : voir le point « URL longues » du plan de test.
 - **Suite** : dérouler les points `[ ]` du
   [plan de test](architecture.fr.md#plan-de-test-sur-la-passerelle) sur la ZB-GW03 (v0.1 et les
-  nouveaux de la v0.2), mesurer la mémoire avec l'API des règles chargée.
+  nouveaux de la v0.2). Mémoire avec l'API des règles mesurée le 11 novembre (plus bas).
 
 ## Historique
 
@@ -73,9 +73,11 @@ Après `tasmota.gc()`, passerelle avec le pilote Tuya (9 novembre 2026) :
 | **v0.1**, interface ouverte (`import` en cache) | 63 Ko | 48 Ko | 21 Ko |
 | **v0.1**, interface ouverte (chargement sans cache) | 59 Ko | 48 Ko | 25 Ko |
 | **v0.1**, 5 minutes après sa fermeture | 69 Ko | 39 Ko | **15 Ko** |
-| **v0.2** étape 1 (Règles, POST), interface ouverte (10 novembre) | 52 Ko | 55 Ko | 32 Ko |
+| **v0.2** étape 1 (Règles, POST), extension chargée, aucune interface ouverte (11 novembre) | 75 Ko, 76 Ko | 39 Ko, 39 Ko | **8 à 9 Ko** |
+| **v0.2** étape 1, interface ouverte (10 novembre) | 52 Ko | 55 Ko | 32 Ko |
+| **v0.2** étape 1, 5 minutes après sa fermeture (11 novembre, deux essais) | 70 Ko, 70 Ko | 39 Ko, 39 Ko | **14 Ko** |
 
-`tf_rules.be` et le corps POST ajoutent 7 Ko à une interface ouverte (25 à 32 Ko). Le pilote Tuya demande 45 Ko libres pour démarrer : 52 Ko laissent 7 Ko de marge. À mesurer ensuite : au repos et 5 minutes après la fermeture, avec l'API des règles en place.
+Le budget de 15 Ko est tenu avec l'API des règles : **8 à 9 Ko au repos, 14 Ko cinq minutes après la fermeture de l'interface** (15 Ko en v0.1). Interface ouverte, le coût est de 32 Ko (25 Ko en v0.1) : `tf_rules.be` et le corps POST ajoutent 7 Ko tant que le serveur tourne. Le pilote Tuya demande 45 Ko libres pour démarrer : 52 Ko laissent 7 Ko de marge. `HeapUsed` de Berry revient à 39 Ko après la fermeture, comme en v0.1. Environ 6 Ko de mémoire libre ne sont toujours pas rendus après la première ouverture (75 à 70 Ko, comme en v0.1 : 75 à 69 Ko), cause inconnue (voir le point ouvert du plan de test).
 
 Cible : 15 Ko. Tailles : `TasmoFlow.tapp` 45 Ko (budget 150 Ko), `app.js.gz` 5,4 Ko (budget
 120 Ko).

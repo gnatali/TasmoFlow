@@ -32,7 +32,7 @@ Specification (French, outside the repository):
   test build (`.tapp` to install again): see the long URL item of the test plan.
 - **Next**: work through the `[ ]` items of the
   [test plan](architecture.en.md#test-plan-on-the-gateway) on the ZB-GW03 (v0.1 and the new v0.2
-  ones), measure the memory with the rule API loaded.
+  ones). Memory with the rule API measured on 11 November (below).
 
 ## History
 
@@ -70,9 +70,11 @@ After `tasmota.gc()`, gateway running the Tuya driver (9 November 2026):
 | **v0.1**, interface open (cached `import`) | 63 KB | 48 KB | 21 KB |
 | **v0.1**, interface open (uncached loading) | 59 KB | 48 KB | 25 KB |
 | **v0.1**, 5 minutes after closing it | 69 KB | 39 KB | **15 KB** |
-| **v0.2** step 1 (Rules, POST), interface open (10 November) | 52 KB | 55 KB | 32 KB |
+| **v0.2** step 1 (Rules, POST), extension loaded, no interface open (11 November) | 75 KB, 76 KB | 39 KB, 39 KB | **8 to 9 KB** |
+| **v0.2** step 1, interface open (10 November) | 52 KB | 55 KB | 32 KB |
+| **v0.2** step 1, 5 minutes after closing it (11 November, two runs) | 70 KB, 70 KB | 39 KB, 39 KB | **14 KB** |
 
-`tf_rules.be` and the POST body add 7 KB to an open interface (25 to 32 KB). The Tuya driver needs 45 KB free to start: 52 KB leaves 7 KB. To measure next: at rest and 5 minutes after closing, with the rule API in place.
+The budget of 15 KB holds with the rule API: **8 to 9 KB at rest, 14 KB five minutes after the interface was closed** (15 KB in v0.1). With an interface open the cost is 32 KB (25 KB in v0.1): `tf_rules.be` and the POST body add 7 KB while the server runs. The Tuya driver needs 45 KB free to start: 52 KB leaves 7 KB. Berry `HeapUsed` is back at 39 KB after closing, as in v0.1. About 6 KB of free heap are still not given back after the first opening (75 to 70 KB, same as v0.1: 75 to 69 KB), cause unknown (see the open point in the test plan).
 
 Target: 15 KB. Sizes: `TasmoFlow.tapp` 45 KB (budget 150 KB), `app.js.gz` 5.4 KB (budget
 120 KB).
