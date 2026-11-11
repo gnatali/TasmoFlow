@@ -120,7 +120,7 @@ Reste pour la v0.1 (petit) :
   particulier que le `tcpserver` du port 8384 peut être fermé puis ré-écouté, et la mémoire
   utilisée par `TuyaConfig`.
 
-Proposé, à confirmer avec Guillaume : un **mode guidé simple** pour la fenêtre de règle (choisir un appareil, dire en mots ce qui lui arrive, choisir quoi faire), où les événements Zigbee s'apprennent en appuyant sur le bouton (l'interface écoute le flux d'événements et écrit le déclencheur d'après ce qu'elle vient de voir).
+**Accepté le 11 novembre 2026, à faire plus tard** (pas commencé) : un **mode guidé simple** pour la fenêtre de règle (choisir un appareil, dire en mots ce qui lui arrive, choisir quoi faire), où les événements Zigbee s'apprennent en appuyant sur le bouton (l'interface écoute le flux d'événements et écrit le déclencheur d'après ce qu'elle vient de voir).
 
 v0.2, reste après l'étape 2 (éditeur en phrases écrit, à vérifier sur la passerelle : pas de
 réinstallation, une version de test suffit) : sélecteurs d'appareils et noms lisibles dans

@@ -114,7 +114,7 @@ Left for v0.1 (small):
 - **Checks on the gateway**: the `[ ]` items marked v0.1 in the test plan, in particular that
   the port 8384 `tcpserver` can be closed and listened to again, and `TuyaConfig` memory use.
 
-Proposed, to confirm with Guillaume: a **simple guided mode** for the rule dialog (pick a device, say what happens to it in words, pick what to do), where Zigbee events are learned by pressing the button (the interface listens to the event stream and writes the trigger from what it just saw).
+**Agreed on 11 November 2026, to do later** (not started): a **simple guided mode** for the rule dialog (pick a device, say what happens to it in words, pick what to do), where Zigbee events are learned by pressing the button (the interface listens to the event stream and writes the trigger from what it just saw).
 
 v0.2, left after step 2 (sentence editor written, to check on the gateway: no reinstall, a test
 build is enough): device pickers and friendly names in the editor (Zigbee, Tuya, Matter; check
