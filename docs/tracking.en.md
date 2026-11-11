@@ -51,6 +51,7 @@ Specification (French, outside the repository):
 | 9 Nov | v0.1: **Preact + htm chosen** (same screen: 6.6 KB gzipped against 6.3 KB for Lit, 5.4 KB for the prototype without dependency); interface bundled with esbuild (12.9 KB gzipped, then 14.6 KB with Tuya) |
 | 9 Nov | v0.1: **option B decided**: full interface on GitHub Pages only (pinned, SRI), light interface (13.7 KB gzipped, devices + console + diagnostics) in the `.tapp`; second esbuild entry point of the same sources. Reason: `UfsFree` 148 KB of 320 KB and a full interface that will grow |
 | 11 Nov | Update button (decision: the browser relays the `.tapp` from GitHub Pages): manifests `latest.json` / `dev/latest.json`, the light interface offers the update when the channel has a newer version (test builds: a different commit), the gateway checks size and SHA-256 and replaces itself (`tf_update.be`, `.bak` kept), the page waits for the restart (120 s at most). Simulated gateway: 414 above 512 characters instead of cutting the connection |
+| 11 Nov | v0.2 merged (PR #5). The `v0.2.0` tag created on github.com made the `release` job fail ("Tag matches the VERSION file": `VERSION` was still `0.1.0`); `VERSION` bumped to `0.2.0`, the tag then has to be moved onto the new `main` |
 | 11 Nov | **Update button validated on the gateway** (two updates in a row, the old `.bak` replaced the second time, nothing left over). Memory before and after, the power cut during the transfer and a wrong `sha256` are still to try |
 | 11 Nov | Update button: third test build published (another docs-only commit) to repeat the update on the gateway |
 | 11 Nov | Update button: first try failed on `bytes.tohex()` being upper case (the zip header check refused every file); fixed, the fixed `.tapp` installed by hand, second try with another docs-only commit |
@@ -115,8 +116,8 @@ Left for v0.1 (small):
 
 - **Colour of `light3`** bindings (`colour_data_v2`, `hhhhssssvvvv`): not offered yet.
 - **Tuya sub-device names** with a comma, which `TuyaSend` cannot address.
-- **`VERSION` is `0.1.0`** until the next release: a build of v0.2 is only told apart from v0.1.0
-  by the Rules tab (bump `VERSION` before tagging `v0.2.0`).
+- **`VERSION` is `0.2.0`** (11 November 2026). Bump it in a pull request **before** tagging a release: the
+  `release` job refuses a tag that differs from `VERSION` (the first `v0.2.0` tag failed that way).
 - **Checks on the gateway**: the `[ ]` items marked v0.1 in the test plan, in particular that
   the port 8384 `tcpserver` can be closed and listened to again, and `TuyaConfig` memory use.
 
