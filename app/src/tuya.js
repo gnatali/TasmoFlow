@@ -17,10 +17,11 @@ function Control({ c, node, send }) {
     return html`<button class="b" aria-pressed=${on} disabled=${!node.connected} onClick=${() => send(c.dp, 'toggle')}>
       ${c.label + ' · ' + (on ? t('on') : t('off'))}</button>`;
   }
+  const unknown = v == null ? ' ?' : '';      // the driver only keeps the DPs it uses (docs: `keep`)
   const pct = c.percent ? Math.round(((v == null ? c.min : v) - c.min) / (c.max - c.min) * 100) : (v == null ? c.min : v);
   const top = c.percent ? 100 : c.max;
   const low = c.percent ? 0 : c.min;
-  return html`<label class="rng">${c.label + ' '}<input type="range" min=${low} max=${top} value=${pct} disabled=${!node.connected}
+  return html`<label class="rng">${c.label + unknown + ' '}<input type="range" min=${low} max=${top} value=${pct} disabled=${!node.connected}
     aria-label=${c.label} onChange=${e => send(c.dp, c.percent ? Math.round(c.min + (+e.target.value / 100) * (c.max - c.min)) : +e.target.value)}/></label>`;
 }
 

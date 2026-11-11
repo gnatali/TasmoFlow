@@ -357,6 +357,15 @@ brute. L'état affiché est celui que l'appareil renvoie (pas d'affichage optimi
 des `light3` n'est pas encore proposée. Un nom d'appareil qui contient une virgule ne peut pas
 être adressé par `TuyaSend`.
 
+**`"enabled": false`** sur une liaison Matter retire seulement le point de terminaison de Matter (et
+de `TuyaActive`) : TasmoFlow se sert quand même de la liaison pour savoir ce que veulent dire les DP
+(constaté sur la passerelle le 11 novembre 2026 : un `light3` et un récepteur à quatre relais, toutes
+liaisons désactivées, s'affichaient en interrupteurs `DP 20`, `DP 34`… sans variateur ni noms).
+Conséquence : le pilote ne garde alors aucune valeur pour les DP d'une liaison désactivée (il n'a
+gardé que les DP 20 et 34 du `light3`), donc un curseur dont la valeur est inconnue est marqué `?`
+jusqu'à ce que l'appareil signale un changement ; `"keep": [21, 22, 24]` dans `tuya.json` les
+conserve.
+
 ### Mémoire
 
 Le pilote attend **45 Ko libres** pour démarrer, et exige **30 Ko** pour modifier `tuya.json`,

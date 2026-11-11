@@ -25,7 +25,8 @@ const dpOf = (b, key, d) => String(b[key] != null ? b[key] : d);
 export function controlsFor(node, entry) {
   const out = [];
   for (const b of (entry && entry.matter) || []) {
-    if (b.enabled === false) continue;
+    // `enabled: false` only takes the binding out of Matter (and `TuyaActive`): it still says what
+    // each DP means, so the controls are shown all the same
     const label = b.ep || b.type;
     const type = b.type || '';
     if (type === 'relay' || type === 'relay_power' || /^light\d$/.test(type)) {

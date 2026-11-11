@@ -341,6 +341,14 @@ Controls come from the Matter bindings of `tuya.json` (`controlsFor` in `app/src
 the one reported back by the device (no optimistic display). The colour of `light3` is not
 offered yet. Device names containing a comma cannot be addressed by `TuyaSend`.
 
+**`"enabled": false`** on a Matter binding only takes the endpoint out of Matter (and out of
+`TuyaActive`): TasmoFlow still uses the binding to know what the DPs mean (found on the gateway on
+11 November 2026: a `light3` and a four-relay receiver, all bindings disabled, were shown as `DP 20`,
+`DP 34`... toggles without dimmer or names). Consequence: the driver then keeps no value for the
+DPs of a disabled binding (it kept only DP 20 and 34 of the `light3`), so a slider with no known
+value is marked `?` until the device reports a change; `"keep": [21, 22, 24]` in `tuya.json` keeps
+them.
+
 ### Memory
 
 The driver waits for **45 KB free** to start, and requires **30 KB** to modify `tuya.json`,

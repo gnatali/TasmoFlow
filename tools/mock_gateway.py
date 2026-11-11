@@ -60,7 +60,7 @@ TUYA_CONF = {"devices": [
      "matter": [{"ep": "Ventilateur", "type": "fan", "dp": 60, "dp_speed": 62, "speed_min": 1, "speed_max": 6},
                 {"ep": "Lumière ventilateur", "type": "light0", "dp": 20}]},
     {"name": "Lampe bureau", "id": "00000000000000lamp01", "key": "***", "ip": "192.168.1.40", "version": "3.3",
-     "matter": [{"ep": "Lampe bureau", "type": "light2", "dp": 20, "dp_mode": 21, "dp_bri": 22, "dp_ct": 23}]},
+     "matter": [{"ep": "Lampe bureau", "type": "light2", "enabled": False, "dp": 20, "dp_mode": 21, "dp_bri": 22, "dp_ct": 23}]},
     {"name": "Pince", "id": "00000000000000pinc01", "key": "***", "ip": "192.168.1.80", "version": "3.5",
      "sensors": {"Total puissance": [133, 1, "W"], "Total energie": [131, 100, "kWh"]}},
     {"name": "Entrée-Porche", "id": "00000000000000port01", "key": "***", "ip": "192.168.1.174", "version": "3.3"},
