@@ -466,7 +466,9 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   same device: two toggles (the effect cancels out), an *on* and an *off* (opposite orders), or the
   same order twice. Only commands that name their target are compared (`Power<n> on|off|toggle`,
   `ZbSend` with `Power`, `TuyaSend` with `true|false|toggle`); other triggers and other kinds of
-  command are ignored, and so are the Matter / Google Home automations the gateway cannot see.
+  command are ignored, and so are the Matter / Google Home automations the gateway cannot see. The
+  rule sets concerned also carry a ⚠ in their accordion header, so the warning shows wherever the
+  page is scrolled to (the list itself is at the top of the screen).
 - **Engine of choice.** A TasmoFlow automation becomes either a Tasmota rule (independent of
   Berry, limited space) or Berry code (no limit, advanced conditions and timers).
 - **Conflicts.** Two rules acting on the same device are reported: for example a Tasmota rule

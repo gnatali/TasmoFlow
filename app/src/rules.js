@@ -12,7 +12,8 @@ import { lintRule, flatRule, showRule } from './rules_lint.js';
 // the sentence editor, registered by the full interface only (not part of the light bundle)
 let Editor = null;
 let Banner = null;                                  // the list of rules that clash, same story
-export const registerEditor = (c, banner) => { Editor = c; Banner = banner || null; };
+let clashes = () => [];                             // findConflicts(), for the warning sign on a section
+export const registerEditor = (c, banner, find) => { Editor = c; Banner = banner || null; clashes = find || (() => []); };
 
 const SOFT_LIMIT = 512;      // beyond it Tasmota compresses the text (up to about 2 KB)
 const HARD_LIMIT = 2000;
@@ -114,10 +115,10 @@ function BerryRules({ berry }) {
 // An accordion section. Defined here, not inside RulesView: a component created at every render
 // is a new type each time, and Preact would rebuild everything below it (the text being edited
 // included) whenever an event arrives.
-function Section({ title, dot, open, toggle, children }) {
+function Section({ title, dot, warn, open, toggle, children }) {
   return html`<section class="acc">
     <h3><button class="acc-h" aria-expanded=${open} onClick=${toggle}>
-      ${dot == null ? null : html`<span class=${'dot' + (dot ? ' on' : '')} aria-hidden="true"></span>`}<span class="acc-t">${title}</span><span class="caret" aria-hidden="true">▾</span></button></h3>
+      ${dot == null ? null : html`<span class=${'dot' + (dot ? ' on' : '')} aria-hidden="true"></span>`}<span class="acc-t">${title}</span>${warn ? html`<span class="warn" role="img" aria-label=${t('rule_conflicts')} title=${t('rule_conflicts')}>⚠</span>` : null}<span class="caret" aria-hidden="true">▾</span></button></h3>
     ${open ? html`<div class="acc-b" role="region" aria-label=${title}>${children}</div>` : null}
   </section>`;
 }
@@ -129,8 +130,9 @@ export function RulesView() {
   const [open, setOpen] = useState({ 1: true });        // accordion: each section opens and closes on its own
   if (!rules) return html`<p>${t('loading')}</p>`;
   const toggle = k => () => setOpen({ ...open, [k]: !open[k] });
+  const flagged = new Set(clashes(rules.rules).flatMap(c => c.where.map(w => w.n)));      // sets with a rule that clashes
   return html`${Banner ? html`<${Banner} rules=${rules.rules}/>` : null}<div class="accs">
-    ${rules.rules.map(r => html`<${Section} key=${r.n} title=${'Rule' + r.n + (r.on ? '' : ' · ' + t('off'))} dot=${r.on} open=${!!open[r.n]} toggle=${toggle(r.n)}>
+    ${rules.rules.map(r => html`<${Section} key=${r.n} title=${'Rule' + r.n + (r.on ? '' : ' · ' + t('off'))} dot=${r.on} warn=${flagged.has(r.n)} open=${!!open[r.n]} toggle=${toggle(r.n)}>
       <${RuleCard} key=${r.n + '|' + r.text + '|' + r.on + r.once + r.stop + '|' + r.bak} r=${r} note=${note} setNote=${setNote}
         mode=${modes[r.n] || 'text'} setMode=${m => setModes({ ...modes, [r.n]: m })}/></${Section}>`)}
     <${Section} key="berry" title=${t('rule_berry') + ' (' + rules.berry.length + ')'} open=${!!open[0]} toggle=${toggle(0)}>

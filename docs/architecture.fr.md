@@ -491,7 +491,9 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   *éteindre* (ordres contraires), ou le même ordre deux fois. Seules les commandes qui nomment leur
   cible sont comparées (`Power<n> on|off|toggle`, `ZbSend` avec `Power`, `TuyaSend` avec
   `true|false|toggle`) ; les autres déclencheurs et commandes sont ignorés, ainsi que les
-  automatisations Matter / Google Home que la passerelle ne voit pas.
+  automatisations Matter / Google Home que la passerelle ne voit pas. Les jeux concernés portent aussi
+  un ⚠ dans leur en-tête d'accordéon, pour que l'avertissement se voie où que la page soit défilée (la
+  liste elle-même est en haut de l'écran).
 - **Moteur au choix.** Une action TasmoFlow devient une règle Tasmota (indépendante de Berry,
   place limitée) ou du Berry (sans limite, conditions et minuteries avancées).
 - **Conflits.** Deux règles qui agissent sur le même appareil sont signalées : par exemple une

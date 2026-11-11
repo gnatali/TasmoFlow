@@ -107,3 +107,4 @@ pre.code{margin:0 0 .5rem;max-height:20rem;overflow:auto}
 .conflicts{margin:0 0 .75rem;padding:.6rem .9rem;border:1px solid #b26a00;border-left-width:4px;border-radius:.6rem;background:var(--card)}
 .conflicts ul{margin:.3rem 0 0;padding-left:1.1rem}
 .conflicts code{font-size:.85rem}
+.warn{margin-left:.4rem;color:#b26a00}

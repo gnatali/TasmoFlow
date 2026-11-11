@@ -314,6 +314,10 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await banner.getByText(/Règles qui peuvent se gêner \(1\)/).waitFor({ timeout: 4000 });
     await banner.getByText(/l'effet s'annule/).waitFor();
     await banner.getByText(/Rule1 · règle 1, Rule3 · règle 1/).waitFor();
+    // the sets concerned carry a warning sign, wherever the page is scrolled to
+    await p.getByRole('button', { name: /^Rule1/ }).getByRole('img', { name: /Règles qui peuvent se gêner/ }).waitFor();
+    await p.getByRole('button', { name: /^Rule3/ }).getByRole('img', { name: /Règles qui peuvent se gêner/ }).waitFor();
+    if (await p.getByRole('button', { name: /^Rule2/ }).getByRole('img').count()) throw new Error('warning on a rule set that does not clash');
     // a rule set that is switched off does not count
     const r3 = await rule(p, 3);
     await r3.getByRole('button', { name: 'allumé' }).click();
