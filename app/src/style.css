@@ -108,3 +108,9 @@ pre.code{margin:0 0 .5rem;max-height:20rem;overflow:auto}
 .conflicts ul{margin:.3rem 0 0;padding-left:1.1rem}
 .conflicts code{font-size:.85rem}
 .warn{margin-left:.4rem;color:#b26a00}
+p.update,div.update{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}
+.update progress{flex:1 1 12rem;max-width:24rem}
+.update a.b{display:inline-block;text-decoration:none}
+.spin{display:inline-block;width:1rem;height:1rem;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:tf-spin 1s linear infinite}
+@keyframes tf-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.spin{animation-duration:4s}}

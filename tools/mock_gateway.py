@@ -6,7 +6,7 @@ Mimics the extension's two servers:
   - port --web (8080 by default): /tf page, extracted as is from
     extension/tasmoflow.be to test the real loader;
   - port --api (8384 by default): /lite.js (gzip), /api/status, /api/devices,
-    /api/cmd, /api/rules, /api/autoexec, /api/rule_set, /api/rule_apply, /api/rule_restore and /api/events (SSE), with the same CORS headers as tf_http.be.
+    /api/cmd, /api/rules, /api/autoexec, /api/update*, /api/rule_set, /api/rule_apply, /api/rule_restore and /api/events (SSE), with the same CORS headers as tf_http.be.
 
 Three fake Zigbee devices send events every 2 seconds. Four fake Tuya devices answer
 TuyaEnable, TuyaStatus, TuyaConfig and TuyaSend like the firmware's driver (formats from
@@ -23,6 +23,8 @@ Usage: npm run build && python3 tools/mock_gateway.py --full
 
 import argparse
 import base64
+import io
+import zipfile
 import gzip
 import hashlib
 import json
@@ -176,6 +178,57 @@ def rule_apply(n, text):
     return None
 
 
+# The gateway's identity and the update, shared by the web and API servers. A restart is a
+# period during which every connection is cut; the new version comes out of the installed .tapp.
+STATE = {"version": (ROOT / "VERSION").read_text().strip(), "down_until": 0.0, "next_version": None,
+         "restart_s": 2.0, "never": False, "new": b"", "total": 0}
+
+
+def version():
+    if STATE["next_version"] and time.monotonic() >= STATE["down_until"]:
+        STATE["version"], STATE["next_version"] = STATE["next_version"], None
+    return STATE["version"]
+
+
+def is_down():
+    version()
+    return time.monotonic() < STATE["down_until"]
+
+
+def update_route(path, q, body):
+    """/api/update*: the checks of tf_update.be. Returns (status, json)."""
+    if path == "/api/update":
+        if body is None:
+            return 400, {"error": "method"}
+        off, total = int(q.get("off", "0") or 0), int(q.get("size", "0") or 0)
+        if off == 0:
+            if total <= 0 or total > 153600:
+                return 400, {"error": "size"}
+            STATE["new"], STATE["total"] = b"", total
+        elif off != len(STATE["new"]):
+            return 400, {"error": "offset"}
+        data = base64.b64decode(body)
+        if not data:
+            return 400, {"error": "empty"}
+        STATE["new"] += data
+        return 200, {"ok": True, "written": len(STATE["new"])}
+    if path == "/api/update_abort":
+        STATE["new"], STATE["total"] = b"", 0
+        return 200, {"ok": True}
+    # /api/update_apply
+    new, total = STATE["new"], int(q.get("size", "0") or 0)
+    if total <= 0 or len(new) != total:
+        return 400, {"error": "incomplete"}
+    if new[:4] != b"PK\x03\x04":
+        return 400, {"error": "format"}
+    if hashlib.sha256(new).hexdigest() != q.get("sha256", "").lower():
+        return 400, {"error": "hash"}
+    ver = re.search(rb'static var VERSION = "([^"]+)"', zipfile.ZipFile(io.BytesIO(new)).read("tasmoflow.be"))
+    STATE["next_version"] = ver.group(1).decode() if ver else STATE["version"]
+    STATE["down_until"] = float("inf") if STATE["never"] else time.monotonic() + 1.5 + STATE["restart_s"]
+    return 200, {"ok": True, "restart": True}
+
+
 def simulator():
     while True:
         time.sleep(2)
@@ -190,14 +243,14 @@ def simulator():
             push_event("0x3C4D", {"Power": DEVICES["0x3C4D"]["info"]["Power"], "Endpoint": 1})
 
 
-def loader_html(api_port, cdn, sri, token):
+def loader_html(api_port, cdn, sri, token, upd=""):
     """Rebuilds the /tf page from the strings of page_tf() in tasmoflow.be."""
     src = (ROOT / "extension" / "tasmoflow.be").read_text()
     body = src[src.index("def page_tf()"):]
     body = body[body.index("check_privileged_access"):]
     body = body[body.index("webserver.content_open"):body.index("webserver.content_close")]
-    cfg = {"version": (ROOT / "VERSION").read_text().strip(), "port": api_port, "token": token,
-           "cdn": cdn, "sri": sri}
+    cfg = {"version": version(), "port": api_port, "token": token,
+           "cdn": cdn, "sri": sri, "upd": upd}
     parts = []
     for call in re.findall(r"webserver\.content_send\((.*?)\)\n", body, re.S):
         call = call.strip()
@@ -216,7 +269,13 @@ class Web(BaseHTTPRequestHandler):
         if self.path.split("?")[0] != "/tf":
             self.send_error(404)
             return
-        html = loader_html(self.server.api_port, self.server.cdn, self.server.sri, self.server.token).encode()
+        if is_down():                 # restarting: nothing answers
+            self.close_connection = True
+            self.connection.close()
+            return
+        # /tf?u=0 skips the update check for this visit, like the real page
+        upd = "" if "u=" in self.path.partition("?")[2] else self.server.upd
+        html = loader_html(self.server.api_port, self.server.cdn, self.server.sri, self.server.token, upd).encode()
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
         self.end_headers()
@@ -255,13 +314,22 @@ class Api(BaseHTTPRequestHandler):
         self.route(self.rfile.read(n).decode())
 
     def route(self, body):
-        if len(self.path) > 120:
-            # the real gateway restarted on a request line of more than about 130 characters
-            # (9 November 2026; tf_http.be no longer uses a regular expression since 10
-            # November): the connection is cut, so no test can pass with a long URL. Kept until
-            # the fix is checked on the gateway, then: answer 414 over 512 characters, as it does
+        if is_down() and not self.path.startswith("/__test"):
             self.close_connection = True
             self.connection.close()
+            return
+        if self.path.startswith("/__test/reset"):     # test hook: ?version=&restart=&never=1
+            q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))
+            STATE.update(version=q.get("version", (ROOT / "VERSION").read_text().strip()), next_version=None,
+                         down_until=0.0, restart_s=float(q.get("restart", "2")), never=q.get("never") == "1",
+                         new=b"", total=0)
+            self.json(200, {"ok": True})
+            return
+        if len(self.path) + 13 > 512:
+            # like tf_http.be since 10 November 2026 (checked on the gateway on 11 November with a
+            # 900-character URL): a request line over 512 characters gets a 414 and no restart. It
+            # used to restart the gateway from about 130, with the regular expression
+            self.json(414, {"error": "uri_too_long"})
             return
         u = urllib.parse.urlsplit(self.path)
         q = dict(urllib.parse.parse_qsl(u.query, keep_blank_values=True))
@@ -288,13 +356,16 @@ class Api(BaseHTTPRequestHandler):
             self.json(403, {"error": "token"})
             return
         if u.path == "/api/status":
-            self.json(200, {"tasmoflow": (ROOT / "VERSION").read_text().strip(), "device_name": self.server.name,
+            self.json(200, {"tasmoflow": version(), "device_name": self.server.name,
                             "firmware": {"Version": "16.0.0.2(zbgw03-matter)"}, "memory": {"heap_free": 62},
                             "ufs_size_kb": 320, "ufs_free_kb": 180, "uptime_s": int(time.monotonic()),
                             "zigbee": True, "zigbee_devices": len(DEVICES), "events_seq": seq, "feeds": 1,
                             "wd": "/.extensions/TasmoFlow.tapp#"})
         elif u.path == "/api/devices":
             self.json(200, list(DEVICES.values()))
+        elif u.path.startswith("/api/update"):
+            code, obj = update_route(u.path, q, body)
+            self.json(code, obj)
         elif u.path == "/api/autoexec":
             self.json(200, {"exists": True, "size": len(AUTOEXEC), "text": AUTOEXEC})
         elif u.path == "/api/rules":
@@ -385,12 +456,16 @@ def main():
     p.add_argument("--no-tuya", action="store_true", help="gateway without the Tuya driver")
     p.add_argument("--zb-names", action="store_true", help="SetOption83 ON: Zigbee rule triggers carry the friendly name")
     p.add_argument("--name", default="ZB-GW03 (simulated)", help="DeviceName reported by /api/status")
+    p.add_argument("--version", default="", help="installed version, instead of the VERSION file (update tests)")
+    p.add_argument("--upd", default="", help="address of the update manifest (latest.json) the /tf page checks")
     a = p.parse_args()
     if a.full:
         a.cdn = f"http://localhost:{a.api}/app.js"
         a.sri = "sha384-" + base64.b64encode(hashlib.sha384((ROOT / "dist" / "app.js").read_bytes()).digest()).decode()
     web = ThreadingHTTPServer(("127.0.0.1", a.web), Web)
-    web.api_port, web.cdn, web.sri, web.token = a.api, a.cdn, a.sri, a.token
+    if a.version:
+        STATE["version"] = a.version
+    web.api_port, web.cdn, web.sri, web.token, web.upd = a.api, a.cdn, a.sri, a.token, a.upd
     api = ThreadingHTTPServer(("127.0.0.1", a.api), Api)
     api.name, api.token, api.no_tuya, api.zb_names = a.name, a.token, a.no_tuya, a.zb_names
     api.daemon_threads = True

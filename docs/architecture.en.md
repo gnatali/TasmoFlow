@@ -111,6 +111,42 @@ on GitHub Pages (`tools/publish_pages.sh`, branch `gh-pages`, shared lock with t
 Deliberately unpinned: for tests only, the release `.tapp` stays pinned (see "Not unpinned"
 below). Reinstalling the `.tapp` is only needed when `extension/` or the light interface changed.
 
+### Updating the .tapp
+
+Decision of 11 November 2026: a simple update from the interface, with the **browser as relay**.
+The gateway's own HTTPS client (`webclient`, `xdrv_52_3_berry_webclient.ino` of Tasmota, commit
+`a281cece`) reserves a 16 KB receive buffer in one piece, accepts any certificate and the free heap is
+52 KB with an interface open (the Tuya driver wants 45 KB); the browser's HTTPS connection is
+verified and costs the gateway nothing.
+
+1. **Publication.** Each tag publishes on GitHub Pages `latest.json` (`version`, `size`, `sha256`,
+   `tapp`) and `vX.Y.Z/TasmoFlow.tapp` (`pack_tapp.py`); a test build publishes `dev/latest.json`
+   next to `dev/TasmoFlow.tapp`. A GitHub release asset cannot be fetched by the browser (no CORS,
+   redirect), Pages can.
+2. **Detection** (the `/tf` page, `tasmoflow.be`): the loader reads the manifest of its channel
+   (1.5 s at most, no cache) before it adds the GitHub script. *Release*: update if the manifest's
+   version is numerically newer. *Test build* (`X.Y.Z-dev.<commit>`): update if the commit differs
+   (commits are not ordered). If so the **light** interface loads with
+   `window.TASMOFLOW.update = {version, size, sha256, url}`; `/tf?u=0` skips the check for the visit;
+   a manifest that cannot be read changes nothing.
+3. **Transfer** (`app/src/update.js`, light interface only): download of the `.tapp` from Pages, then
+   pieces of 1,500 bytes in base64 (2,000 characters, under `MAX_BODY`) to `POST /api/update?off=&size=`.
+4. **Installation** (`extension/tf_update.be`, compiled at the first `/api/update*` request, freed
+   with the server: the 7 KB margin of an open interface does not allow more): writes
+   `<tapp>.new`, then `/api/update_apply?size=&sha256=` checks the size, the zip header and the
+   SHA-256 (1 KB at a time), renames `<tapp>` to `<tapp>.bak` and `<tapp>.new` to `<tapp>` (the
+   copy is put back if that fails: `path.rename`, `path.remove`, `path.exists`,
+   `be_path_tasmota_lib.c`), answers, and runs `Restart 1` 1.5 s later. The copies never end in
+   `.tapp`: Tasmota loads every `*.tapp` of `/` and `/.extensions/`. The official extension manager
+   (`extension_manager.be`) writes over the live file without a temporary file or a check; this
+   does not. `UfsFree` must leave room for two copies plus 20 KB.
+5. **Wait**: the page polls `/api/status` every 2 s (waking the API server with `/tf?w=1`) until
+   `tasmoflow` equals the new version, then reloads; after 120 s (`UPDATE_WAIT_MS`) it says the
+   restart is taking long and links to Tasmota's home page.
+
+Trust: GitHub Pages, as for the full interface; the gateway checks integrity (the SHA-256 of the
+manifest), not authenticity. The first update to a version that has this function is manual.
+
 ### Full interface on GitHub, light interface on the gateway
 
 Decision of 9 November 2026 (option B of the analysis; it replaces "the same full copy in both
@@ -138,10 +174,8 @@ Why:
   room that rule backups (copy before every write), `tuya.json.bak` and imports need.
 - **Not unpinned**: the full interface stays pinned to the installed version with its SRI hash.
   An unpinned interface would run whatever GitHub serves in a browser holding the gateway's
-  token and full control of Tasmota. Updating it still means a new `.tapp`. A later "update the
-  interface" button could write the new version and its hash to `persist` after the user's
-  approval, which would decouple the two while keeping SRI (the full interface would then have
-  to stay compatible with older APIs).
+  token and full control of Tasmota. Updating it means a new `.tapp`, which the update button now
+  does (see [Updating the .tapp](#updating-the-tapp)).
 - **Kept local, light**: GitHub (account, Pages, repository) must not be a single point of
   failure for controlling the gateway.
 - The light interface is another entry point of the same sources, so no second code base:
@@ -165,6 +199,9 @@ Why:
 | `POST /api/rule_set?t=&n=` | Sends the new text of rule set `n` (request body) |
 | `GET /api/rule_apply?t=&n=&step=` | Applies it in three requests: `bak` (copy of the current text), `put` (`Rule<n>`), `check` (read back); on failure the interface calls `rule_restore` |
 | `GET /api/autoexec?t=` | `/autoexec.be` as text, read only, at most 6,000 bytes (`{"exists":false}` without it). The one file the API reads: the others (`tuya.json`...) hold keys |
+| `POST /api/update?t=&off=&size=` | A piece (base64, request body) of the new `.tapp`, written to `<tapp>.new` |
+| `GET /api/update_apply?t=&size=&sha256=` | Checks `<tapp>.new`, installs it (`<tapp>.bak` kept), restarts |
+| `GET /api/update_abort?t=` | Deletes `<tapp>.new` |
 | `GET /api/rule_restore?t=&n=` | Puts the previous copy of rule set `n` back |
 
 Events carry a sequence number and a `type`: `zigbee` (`device`, `name`, `attrs`) and `tuya`
@@ -504,6 +541,8 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [ ] v0.1: with the Tuya driver disabled (`TuyaEnable 0`) or absent, the Tuya section is hidden
 - [x] v0.1: memory at rest after `tasmota.gc()`: 75 KB free, Berry 35 KB, i.e. 9 KB (target 15 KB); with an interface open 63 KB / 48 KB (cached `import`, see [Memory](#memory))
 - [x] v0.1: with the uncached loading, the memory partly returns 5 minutes after the last tab is closed: 59 KB free / Berry 48 KB with the interface open, 69 KB / 39 KB after (75 KB / 35 KB before the first opening)
+- [ ] v0.2: update (`.tapp` of the previous test build installed, then run `Build` again): `/tf` shows the light interface with the banner and **Update**; the button sends the file, the page waits then reloads on the new build (`dev.<commit>` in the header), `TasmoFlow.tapp.bak` exists next to `TasmoFlow.tapp`, no `.new` is left, no `.tapp` in both `/` and `/.extensions/`; **Later** opens the usual interface; memory at rest and with an interface open unchanged (`tf_update.be` is compiled only when used)
+- [ ] v0.2: update, failure cases: power cut during the transfer (the `.new` is not loaded at boot), a wrong `sha256` in `latest.json` (refused, nothing changed)
 - [ ] v0.2: Berry section: the rules list matches `Br print(tasmota._rules)` with their owner, and `autoexec.be` shows as text (`.tapp` installed again, `Restart 1`; the route is new)
 - [ ] v0.2: conflicts: two enabled rule sets that toggle the same light on the same trigger show the banner "Rules that may clash"; it disappears when one is switched off
 - [ ] v0.2: device pickers: in a new rule, the trigger list offers your Zigbee devices (attributes they reported) and the command lists offer `ZbSend` (on, off, toggle) and your Tuya devices; with `SetOption83` on and a named device, the trigger carries the name (`ZbReceived#Lampe#Power`), off the address; the saved rule works (press the button, the light toggles); the sentence reads `Lampe · Power = 1` / `basculer Lampe`

@@ -86,7 +86,7 @@ export async function loadTuya() {
 
 // A gateway's API server only runs while an interface is open (memory): the main server's
 // /tf?w=1 starts it. The answer is opaque (no CORS on port 80), only the effect matters.
-function wake(gw) {
+export function wake(gw) {
   fetch('http://' + new URL(gw.api).hostname + '/tf?w=1', { mode: 'no-cors' }).catch(() => {});
 }
 

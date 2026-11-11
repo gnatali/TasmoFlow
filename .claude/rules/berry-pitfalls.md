@@ -31,8 +31,8 @@ paths:
   data makes lwIP reset the connection and the browser shows `ERR_CONNECTION_RESET`, not the
   error answer.
 - Long data still goes in a **POST body** (`cnx.body()`, `Content-Length`), not in a URL:
-  `/api/cmd` and `/api/rule_set`. The simulated gateway cuts the connection on a request line
-  over 120 characters until the string parser is checked on the gateway.
+  `/api/cmd` and `/api/rule_set`. The simulated gateway answers 414 on a request line over 512
+  characters, like `tf_http.be` (checked on the gateway on 11 November 2026).
 - A negative slice bound counts from the end: `s[0 .. i - 1]` with `i == 0` is the **whole**
   string, not `''`. Check the index before slicing (`tf_http.be`).
 - `tests/tf_http_test.be` runs `tf_http.be` on standard Berry in CI (`berry -s`, strict like
@@ -61,3 +61,9 @@ paths:
   until a release is tagged, so an old build is easy to mistake for the new one: the banner of
   the light interface, `curl "http://<gateway>/tf?w=1"` answering `ok` and the boot log line
   `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` tell them apart.
+- Replacing the running `.tapp` (`tf_update.be`): write `<tapp>.new`, check size, `PK` header and
+  SHA-256, then `<tapp>` to `<tapp>.bak` and `.new` to `<tapp>`, and `Restart 1`. A copy must never
+  end in `.tapp` (Tasmota loads every `*.tapp` of `/` and `/.extensions/`, and two TasmoFlow run
+  together). The official extension manager writes over the live file with no check: do not copy it.
+  The running code is not changed by the new file: only a restart runs it. Tasmota's HTTPS client
+  needs 16 KB in one piece and trusts any certificate: the browser relays the file instead.

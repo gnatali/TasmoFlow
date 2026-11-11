@@ -5,5 +5,8 @@
 import { boot } from './boot.js';
 import { DevicesView, ConsoleView, DiagView } from './views.js';
 import { RulesView } from './rules.js';
+import { registerBanner } from './app.js';
+import { UpdateBanner } from './update.js';
 
+registerBanner(UpdateBanner);                        // the update of the .tapp is offered here only
 boot({ devices: DevicesView, rules: RulesView, console: ConsoleView, diag: DiagView }, true);

@@ -12,6 +12,12 @@ const APP = fs.readFileSync(path.join(ROOT, 'dist', 'app.js'));
 const VERSION = fs.readFileSync(path.join(ROOT, 'VERSION'), 'utf8').trim();
 const CDN = `https://gnatali.github.io/TasmoFlow/v${VERSION}/app.js`;
 const SHOTS = process.argv[2];
+const PAGES = 'https://gnatali.github.io/TasmoFlow/';
+const UPD = PAGES + 'latest.json';
+const DEVUPD = PAGES + 'dev/latest.json';
+const TAPP_URL = PAGES + `v${VERSION}/TasmoFlow.tapp`;
+const TAPP = fs.readFileSync(path.join(ROOT, 'dist', 'TasmoFlow.tapp'));
+const TAPP_SHA = require('crypto').createHash('sha256').update(TAPP).digest('hex');
 const SRI = execFileSync('python3', [path.join(ROOT, 'tools', 'pack_tapp.py')], { encoding: 'utf8' })
   .match(/SRI: (\S+)/)[1];
 
@@ -24,7 +30,10 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
 
 (async () => {
   const TOKEN_B = 'fedcba9876543210fedcba9876543210';
-  const mocks = [mock(['--cdn', CDN, '--sri', SRI]), mock(['--web', '8081', '--api', '8385', '--cdn', CDN, '--sri', SRI, '--token', TOKEN_B, '--name', 'Passerelle B', '--no-tuya'])];
+  const mocks = [mock(['--cdn', CDN, '--sri', SRI]), mock(['--web', '8081', '--api', '8385', '--cdn', CDN, '--sri', SRI, '--token', TOKEN_B, '--name', 'Passerelle B', '--no-tuya']),
+    // gateways one version behind: the /tf page checks the update manifest of its channel
+    mock(['--web', '8082', '--api', '8386', '--cdn', CDN, '--sri', SRI, '--version', '0.0.9', '--upd', UPD]),
+    mock(['--web', '8083', '--api', '8387', '--cdn', CDN, '--sri', SRI, '--version', '0.1.0-dev.aaaaaaa', '--upd', DEVUPD])];
   await wait(1000);
   const browser = await chromium.launch();
   const results = [];
@@ -52,6 +61,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
+    if (process.env.DEBUG) page.on('requestfailed', r => console.log('requestfailed', r.url().slice(0, 90), r.failure() && r.failure().errorText));
     try {
       await fn(page);
       if (errors.length) throw new Error('JS error: ' + errors.join(' | '));
@@ -323,6 +333,74 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await r3.getByRole('button', { name: 'allumé' }).click();
     await banner.waitFor({ state: 'detached', timeout: 4000 });
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'conflicts.png'), fullPage: true });
+  });
+  // ---- update of the .tapp: gateways on 8082 (releases) and 8083 (test builds) are one version behind
+  const reset = (api, version, extra = '') => fetch(`http://localhost:${api}/__test/reset?version=${encodeURIComponent(version)}${extra}`);
+  const manifest = (p, url, m) => p.route(url, r => r.fulfill({ json: m, headers: { 'access-control-allow-origin': '*' } }));
+  const tappRoute = p => p.route(TAPP_URL, r => r.fulfill({ body: TAPP, contentType: 'application/octet-stream', headers: { 'access-control-allow-origin': '*' } }));
+  const latest = (extra = {}) => ({ version: VERSION, size: TAPP.length, sha256: TAPP_SHA, tapp: `v${VERSION}/TasmoFlow.tapp`, ...extra });
+  await test('update: a newer version puts the light interface up with a button; "Later" opens the GitHub one', async p => {
+    await reset(8386, '0.0.9');
+    await p.route(CDN, r => r.fulfill(jsBody(APP)));
+    await manifest(p, UPD, latest());
+    await p.goto('http://localhost:8082/tf');
+    await expectSource(p, 'local');
+    await p.getByRole('status').filter({ hasText: `disponible : ${VERSION}` }).waitFor();
+    await p.getByRole('button', { name: 'Mettre à jour' }).waitFor();
+    await p.getByRole('link', { name: 'Plus tard' }).click();
+    await p.waitForFunction(() => window.TASMOFLOW && window.TASMOFLOW.source === 'github', null, { timeout: 8000 });
+  });
+  await test('update: download, upload, checks, restart wait, then the new version loads', async p => {
+    await reset(8386, '0.0.9', '&restart=2');
+    await p.route(CDN, r => r.fulfill(jsBody(APP)));
+    await manifest(p, UPD, latest());
+    await tappRoute(p);
+    await p.goto('http://localhost:8082/tf');
+    await expectSource(p, 'local');
+    p.once('dialog', d => d.accept());                                   // "the gateway will restart"
+    await p.getByRole('button', { name: 'Mettre à jour' }).click();
+    await p.getByText(/Redémarrage de la passerelle/).waitFor({ timeout: 10000 });
+    if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'update-wait.png') });
+    // the gateway answers again with the new version: the page reloads, and nothing is left to update
+    await p.waitForFunction(v => window.TASMOFLOW && window.TASMOFLOW.source === 'github' && window.TASMOFLOW.version === v, VERSION, { timeout: 30000 });
+  });
+  await test('update: a restart that does not end stops waiting and points to the Tasmota home page', async p => {
+    await reset(8386, '0.0.9', '&never=1');
+    await p.addInitScript(() => { window.__TF_UPDATE_WAIT = 5000; });
+    await manifest(p, UPD, latest());
+    await tappRoute(p);
+    await p.goto('http://localhost:8082/tf');
+    await expectSource(p, 'local');
+    p.once('dialog', d => d.accept());
+    await p.getByRole('button', { name: 'Mettre à jour' }).click();
+    await p.getByText(/prend plus de temps que prévu/).waitFor({ timeout: 25000 });
+    const href = await p.getByRole('link', { name: 'Accueil de Tasmota' }).getAttribute('href');
+    if (!/^http:\/\/localhost\/$/.test(href)) throw new Error('home link: ' + href);
+    await reset(8386, '0.0.9');
+  });
+  await test('update: a file whose hash is wrong is refused and nothing changes', async p => {
+    await reset(8386, '0.0.9');
+    await manifest(p, UPD, latest({ sha256: '0'.repeat(64) }));
+    await tappRoute(p);
+    await p.goto('http://localhost:8082/tf');
+    await expectSource(p, 'local');
+    p.once('dialog', d => d.accept());
+    await p.getByRole('button', { name: 'Mettre à jour' }).click();
+    await p.getByRole('alert').filter({ hasText: /contrôle d'intégrité/ }).waitFor({ timeout: 10000 });
+    const st = await (await fetch('http://localhost:8386/api/status?t=0123456789abcdef0123456789abcdef')).json();
+    if (st.tasmoflow !== '0.0.9') throw new Error('version changed: ' + st.tasmoflow);
+  });
+  await test('update, test channel: another commit is offered, the same one is not', async p => {
+    await p.route(CDN, r => r.fulfill(jsBody(APP)));
+    await manifest(p, DEVUPD, latest({ version: '0.1.0-dev.bbbbbbb', tapp: 'TasmoFlow.tapp' }));
+    await p.goto('http://localhost:8083/tf');
+    await expectSource(p, 'local');
+    await p.getByRole('status').filter({ hasText: 'disponible : 0.1.0-dev.bbbbbbb' }).waitFor();
+    const q = await p.context().newPage();
+    await q.route(CDN, r => r.fulfill(jsBody(APP)));
+    await manifest(q, DEVUPD, latest({ version: '0.1.0-dev.aaaaaaa', tapp: 'TasmoFlow.tapp' }));
+    await q.goto('http://localhost:8083/tf');
+    await q.waitForFunction(() => window.TASMOFLOW && window.TASMOFLOW.source === 'github', null, { timeout: 8000 });
   });
   await test('Tuya: cards, switches, slider, readings, event back, offline device', async p => {
     await openFull(p);

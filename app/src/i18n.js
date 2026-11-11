@@ -47,6 +47,17 @@ const TEXTS = {
     rule_autoexecHelp: "Lecture seule : pour le modifier, utilisez le gestionnaire de fichiers de Tasmota (Console → Gestion du système de fichiers).",
     rule_conflicts: 'Règles qui peuvent se gêner', rule_tile: 'règle',
     rule_cCancel: "basculé deux fois : l'effet s'annule", rule_cContradict: 'ordres contraires', rule_cDuplicate: 'même ordre donné deux fois',
+    updateAvailable: 'Une nouvelle version de TasmoFlow est disponible : {v}.', updateNow: 'Mettre à jour', updateLater: 'Plus tard',
+    updateConfirm: "TasmoFlow va être mis à jour : la passerelle va redémarrer (environ 30 secondes à 1 minute) et l'interface sera indisponible pendant ce temps. Continuer ?",
+    updateDownload: 'Téléchargement de la mise à jour…', updateUpload: 'Envoi à la passerelle…',
+    updateRestart: 'Redémarrage de la passerelle… {s} s (attente de {max} s au plus). Ne fermez pas cette page.',
+    updateTimeout: "Le redémarrage prend plus de temps que prévu. Ouvrez l'accueil de Tasmota pour vérifier la passerelle (l'ancienne version est gardée dans /.extensions/TasmoFlow.tapp.bak).",
+    updateHome: "Accueil de Tasmota", updateBadFile: "Le fichier téléchargé n'a pas la taille annoncée.",
+    update_hash: "Le contrôle d'intégrité du fichier a échoué : mise à jour annulée, rien n'a été changé.",
+    update_space: 'Pas assez de place sur la passerelle pour la mise à jour.', update_offset: 'Transfert interrompu, réessayez.',
+    update_size: 'Taille de fichier refusée.', update_format: "Le fichier n'est pas une extension Tasmota.",
+    update_install: "Installation impossible : l'ancienne version est conservée.", update_incomplete: 'Transfert incomplet, réessayez.',
+    update_path: "Chemin de l'extension inconnu : mettez à jour à la main.",
     tuyaWaiting: 'Pilote Tuya en attente :', tuyaLowMem: 'Mémoire libre insuffisante pour lire la configuration Tuya : seuls les états booléens sont proposés.'
   },
   en: {
@@ -94,6 +105,17 @@ const TEXTS = {
     rule_autoexecHelp: "Read only: to change it, use Tasmota's file manager (Consoles → Manage File system).",
     rule_conflicts: 'Rules that may clash', rule_tile: 'rule',
     rule_cCancel: 'toggled twice: the effect cancels out', rule_cContradict: 'opposite orders', rule_cDuplicate: 'the same order given twice',
+    updateAvailable: 'A new version of TasmoFlow is available: {v}.', updateNow: 'Update', updateLater: 'Later',
+    updateConfirm: 'TasmoFlow will be updated: the gateway will restart (about 30 seconds to 1 minute) and the interface will be unavailable meanwhile. Continue?',
+    updateDownload: 'Downloading the update…', updateUpload: 'Sending it to the gateway…',
+    updateRestart: 'Restarting the gateway… {s} s (waiting {max} s at most). Do not close this page.',
+    updateTimeout: 'The restart takes longer than expected. Open the Tasmota home page to check the gateway (the old version is kept in /.extensions/TasmoFlow.tapp.bak).',
+    updateHome: 'Tasmota home page', updateBadFile: 'The downloaded file is not the size announced.',
+    update_hash: "The file's integrity check failed: update cancelled, nothing was changed.",
+    update_space: 'Not enough room on the gateway for the update.', update_offset: 'Transfer interrupted, try again.',
+    update_size: 'File size refused.', update_format: 'The file is not a Tasmota extension.',
+    update_install: 'Installation failed: the old version is kept.', update_incomplete: 'Transfer incomplete, try again.',
+    update_path: "Extension path unknown: update by hand.",
     tuyaWaiting: 'Tuya driver waiting:', tuyaLowMem: 'Not enough free memory to read the Tuya configuration: only boolean states are offered.'
   }
 };

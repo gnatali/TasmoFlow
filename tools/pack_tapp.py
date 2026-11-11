@@ -6,6 +6,9 @@ Writes into dist/:
   TasmoFlow.tapp          extension to install on the gateway (uncompressed zip, like
                           Tasmota's official extensions)
   pages/vX.Y.Z/app.js     full interface to publish on GitHub Pages
+  pages/vX.Y.Z/TasmoFlow.tapp, pages/latest.json
+                          the .tapp for the update button, and the manifest that says which
+                          version is the latest (version, size, sha256, relative path)
 
 The .tapp holds lite.js.gz, the light interface served by the gateway when GitHub cannot be
 reached (the full one only lives on GitHub Pages, to spare the 320 KB file system). The SRI
@@ -14,7 +17,7 @@ from the installed version's.
 
 Test build (`--dev`): the .tapp loads https://<cdn>/dev/app.js with no SRI pin and a cache-busting
 query, so one published dev/app.js can be replaced at every run without a release or a new
-.tapp. Writes dist/dev/TasmoFlow.tapp and dist/pages/dev/{app.js,TasmoFlow.tapp}. The .tapp
+.tapp. Writes dist/dev/TasmoFlow.tapp and dist/pages/dev/{app.js,TasmoFlow.tapp,latest.json}. The .tapp
 only has to be installed again when extension/ or the light interface changed.
 
 Usage: python3 tools/pack_tapp.py [--cdn URL] [--dev [--build-id ID]]
@@ -100,6 +103,7 @@ def main():
         "tasmoflow.be": substitute((EXT / "tasmoflow.be").read_text(), values, "tasmoflow.be").encode(),
         "tf_http.be": (EXT / "tf_http.be").read_bytes(),
         "tf_rules.be": (EXT / "tf_rules.be").read_bytes(),
+        "tf_update.be": (EXT / "tf_update.be").read_bytes(),
         "lite.js.gz": lite_gz,
     }
     json.loads(files["manifest.json"])          # the manifest must stay valid JSON
@@ -118,8 +122,19 @@ def main():
     pages = DIST / "pages" / app_dir
     pages.mkdir(parents=True, exist_ok=True)
     (pages / "app.js").write_bytes(app)
+    tapp_bytes = tapp.read_bytes()
+    # What the update button reads: the version of the channel's latest .tapp, its size and its
+    # SHA-256 (the gateway checks both before it replaces itself), and where to get it
+    # (relative to the manifest). Test builds publish theirs in dev/, releases at the root.
+    manifest = {"version": shown, "size": len(tapp_bytes), "sha256": hashlib.sha256(tapp_bytes).hexdigest()}
     if args.dev:
-        (pages / "TasmoFlow.tapp").write_bytes(tapp.read_bytes())
+        (pages / "TasmoFlow.tapp").write_bytes(tapp_bytes)
+        manifest["tapp"] = "TasmoFlow.tapp"
+        (pages / "latest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    else:
+        (pages / "TasmoFlow.tapp").write_bytes(tapp_bytes)
+        manifest["tapp"] = f"{app_dir}/TasmoFlow.tapp"
+        (DIST / "pages" / "latest.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
     tapp_size = tapp.stat().st_size
     print(f"TasmoFlow {shown} ({values['VERSION_HEX']})")

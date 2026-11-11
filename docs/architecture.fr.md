@@ -116,6 +116,44 @@ d'esbuild). Volontairement non épinglée : pour les essais seulement, la `.tapp
 épinglée (voir « Pas de version libre » plus bas). Réinstaller la `.tapp` n'est utile que si `extension/` ou
 l'interface légère ont changé.
 
+### Mise à jour de la .tapp
+
+Décision du 11 novembre 2026 : une mise à jour simple depuis l'interface, avec le **navigateur
+comme relais**. Le client HTTPS de la passerelle (`webclient`, `xdrv_52_3_berry_webclient.ino` de
+Tasmota, commit `a281cece`) réserve un tampon de réception de 16 Ko d'un seul tenant, accepte
+n'importe quel certificat, et la mémoire libre est de 52 Ko interface ouverte (le pilote Tuya en
+veut 45) ; la connexion HTTPS du navigateur est vérifiée et ne coûte rien à la passerelle.
+
+1. **Publication.** Chaque tag publie sur GitHub Pages `latest.json` (`version`, `size`, `sha256`,
+   `tapp`) et `vX.Y.Z/TasmoFlow.tapp` (`pack_tapp.py`) ; un build de test publie `dev/latest.json` à
+   côté de `dev/TasmoFlow.tapp`. Une pièce jointe de release GitHub n'est pas lisible par le
+   navigateur (pas de CORS, redirection), Pages l'est.
+2. **Détection** (la page `/tf`, `tasmoflow.be`) : le chargeur lit le manifeste de son canal (1,5 s
+   au plus, sans cache) avant d'ajouter le script GitHub. *Version publiée* : mise à jour si la
+   version du manifeste est numériquement plus récente. *Build de test* (`X.Y.Z-dev.<commit>`) :
+   mise à jour si le commit diffère (les commits ne sont pas ordonnés). Dans ce cas l'interface
+   **légère** se charge avec `window.TASMOFLOW.update = {version, size, sha256, url}` ; `/tf?u=0`
+   saute la vérification pour la visite ; un manifeste illisible ne change rien.
+3. **Transfert** (`app/src/update.js`, interface légère seulement) : téléchargement de la `.tapp` sur
+   Pages, puis morceaux de 1 500 octets en base64 (2 000 caractères, sous `MAX_BODY`) vers
+   `POST /api/update?off=&size=`.
+4. **Installation** (`extension/tf_update.be`, compilé à la première requête `/api/update*`,
+   libéré avec le serveur : la marge de 7 Ko d'une interface ouverte n'en permet pas plus) : écrit
+   `<tapp>.new`, puis `/api/update_apply?size=&sha256=` contrôle la taille, l'en-tête zip et le
+   SHA-256 (1 Ko à la fois), renomme `<tapp>` en `<tapp>.bak` et `<tapp>.new` en `<tapp>` (la copie
+   est remise si cela échoue : `path.rename`, `path.remove`, `path.exists`,
+   `be_path_tasmota_lib.c`), répond, et lance `Restart 1` 1,5 s plus tard. Les copies ne finissent
+   jamais par `.tapp` : Tasmota charge tout `*.tapp` de `/` et de `/.extensions/`. Le gestionnaire
+   d'extensions officiel (`extension_manager.be`) écrit sur le fichier vivant sans fichier temporaire
+   ni contrôle ; ici non. `UfsFree` doit laisser la place de deux copies plus 20 Ko.
+5. **Attente** : la page interroge `/api/status` toutes les 2 s (en réveillant le serveur d'API par
+   `/tf?w=1`) jusqu'à ce que `tasmoflow` soit la nouvelle version, puis recharge ; au bout de 120 s
+   (`UPDATE_WAIT_MS`) elle dit que le redémarrage est long et renvoie à l'accueil de Tasmota.
+
+Confiance : GitHub Pages, comme pour l'interface complète ; la passerelle contrôle l'intégrité (le
+SHA-256 du manifeste), pas l'authenticité. La première mise à jour vers une version qui a cette
+fonction est manuelle.
+
 ### Interface complète
 
 Décision du 9 novembre 2026 (option B de l'analyse ; elle remplace « la même copie complète aux
@@ -146,11 +184,9 @@ Pourquoi :
   écriture), `tuya.json.bak` et les imports.
 - **Pas de version libre** : l'interface complète reste figée à la version installée avec son
   empreinte SRI. Une interface non figée exécuterait ce que GitHub sert, dans un navigateur qui
-  détient le jeton et le contrôle total de Tasmota. La mettre à jour demande toujours une
-  nouvelle `.tapp`. Un bouton « mettre à jour l'interface » pourrait plus tard écrire la
-  nouvelle version et son empreinte dans `persist` après accord de l'utilisateur : il
-  découplerait les deux en gardant SRI (l'interface complète devrait alors rester compatible
-  avec les anciennes API).
+  détient le jeton et le contrôle total de Tasmota. La mettre à jour demande une nouvelle
+  `.tapp`, ce que fait maintenant le bouton de mise à jour (voir [Mise à jour de la
+  .tapp](#mise-à-jour-de-la-tapp)).
 - **Gardé en local, léger** : GitHub (compte, Pages, dépôt) ne doit pas être un point de
   défaillance unique pour piloter la passerelle.
 - L'interface légère est un autre point d'entrée des mêmes sources : pas de seconde base de
@@ -174,6 +210,9 @@ Pourquoi :
 | `POST /api/rule_set?t=&n=` | Envoie le nouveau texte du jeu `n` (corps de la requête) |
 | `GET /api/rule_apply?t=&n=&step=` | L'applique en trois requêtes : `bak` (copie du texte actuel), `put` (`Rule<n>`), `check` (relecture) ; en cas d'échec l'interface appelle `rule_restore` |
 | `GET /api/autoexec?t=` | `/autoexec.be` en texte, en lecture seule, 6 000 octets au plus (`{"exists":false}` sans lui). Le seul fichier que l'API lit : les autres (`tuya.json`…) contiennent des clés |
+| `POST /api/update?t=&off=&size=` | Un morceau (base64, corps de la requête) de la nouvelle `.tapp`, écrit dans `<tapp>.new` |
+| `GET /api/update_apply?t=&size=&sha256=` | Contrôle `<tapp>.new`, l'installe (`<tapp>.bak` gardé), redémarre |
+| `GET /api/update_abort?t=` | Supprime `<tapp>.new` |
 | `GET /api/rule_restore?t=&n=` | Remet la copie précédente du jeu `n` |
 | `GET /api/events?t=&since=` | Flux SSE ; renvoie d'abord les événements gardés après `since` (50 au plus) |
 
@@ -529,6 +568,8 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [ ] v0.1 : avec le pilote Tuya désactivé (`TuyaEnable 0`) ou absent, la section Tuya est masquée
 - [x] v0.1 : mémoire au repos après `tasmota.gc()` : 75 Ko libres, Berry 35 Ko, soit 9 Ko (cible : 15 Ko) ; interface ouverte 63 Ko / 48 Ko (`import` en cache, voir [Mémoire](#mémoire))
 - [x] v0.1 : avec le chargement sans cache, la mémoire revient en partie 5 minutes après la fermeture du dernier onglet : 59 Ko libres / Berry 48 Ko interface ouverte, 69 Ko / 39 Ko après (75 Ko / 35 Ko avant la première ouverture)
+- [ ] v0.2 : mise à jour (`.tapp` du build de test précédent installée, puis relancer `Build`) : `/tf` affiche l'interface légère avec le bandeau et **Mettre à jour** ; le bouton envoie le fichier, la page attend puis se recharge sur le nouveau build (`dev.<commit>` dans l'en-tête), `TasmoFlow.tapp.bak` existe à côté de `TasmoFlow.tapp`, aucun `.new` ne reste, aucune `.tapp` dans `/` et `/.extensions/` à la fois ; **Plus tard** ouvre l'interface habituelle ; mémoire au repos et interface ouverte inchangées (`tf_update.be` n'est compilé que lorsqu'on s'en sert)
+- [ ] v0.2 : mise à jour, cas d'échec : coupure de courant pendant le transfert (le `.new` n'est pas chargé au démarrage), un `sha256` faux dans `latest.json` (refusé, rien ne change)
 - [ ] v0.2 : section Berry : la liste correspond à `Br print(tasmota._rules)` avec leur propriétaire, et `autoexec.be` s'affiche en texte (`.tapp` réinstallée, `Restart 1` ; la route est nouvelle)
 - [ ] v0.2 : conflits : deux jeux de règles actifs qui basculent la même lumière sur le même déclencheur affichent le bandeau « Règles qui peuvent se gêner » ; il disparaît quand l'un est éteint
 - [ ] v0.2 : sélecteurs d'appareils : dans une nouvelle règle, la liste des déclencheurs propose vos appareils Zigbee (attributs signalés) et les listes de commandes proposent `ZbSend` (allumer, éteindre, basculer) et vos appareils Tuya ; avec `SetOption83` actif et un appareil nommé, le déclencheur porte le nom (`ZbReceived#Lampe#Power`), sinon l'adresse ; la règle enregistrée fonctionne (appui sur le bouton, la lumière bascule) ; la phrase se lit `Lampe · Power = 1` / `basculer Lampe`

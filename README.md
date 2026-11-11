@@ -62,6 +62,17 @@ The API listens on port **8384** of the gateway, only while an interface is open
 
 To uninstall: delete `TasmoFlow.tapp` and restart.
 
+### Updating
+
+When a newer version is published, opening `/tf` shows the **light interface** (instead of the
+GitHub one) with a banner and an **Update** button; **Later** (`/tf?u=0`) opens the usual
+interface for this visit. The button downloads the new `TasmoFlow.tapp` from GitHub Pages, sends it
+to the gateway, which checks its size and SHA-256 and installs it (the previous one is kept as
+`TasmoFlow.tapp.bak` next to it), then restarts: the page waits (2 minutes at most, then it points
+to Tasmota's home page) and reloads on the new version. A test build looks for the latest test
+build instead (a different commit counts as an update). The first update to a version that has
+this function is done by hand as above.
+
 ## Development without a gateway
 
 ```sh
@@ -125,6 +136,9 @@ Create the tag either with git (`git tag vX.Y.Z origin/main && git push origin v
 workflow creates the release), or on github.com with **Releases → Draft a new release → Choose
 a tag → Create new tag** on `main`, then **Publish release** (the workflow attaches
 `TasmoFlow.tapp` to that release). GitHub has no screen to create a tag without a release.
+
+Each tag also publishes `latest.json` (version, size, SHA-256) and a copy of `TasmoFlow.tapp` on
+GitHub Pages: that is what the update button reads. Test builds publish `dev/latest.json` the same way.
 
 After the first tag, enable GitHub Pages once: **Settings → Pages → Build and deployment →
 Deploy from a branch**, branch `gh-pages`, folder `/ (root)`.

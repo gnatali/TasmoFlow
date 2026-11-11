@@ -77,6 +77,7 @@ class tasmoflow
   var wd                                # .tapp folder, e.g. '/.extensions/TasmoFlow.tapp#'
   var web                               # tf_http server on port 8384
   var rules                             # tf_rules (rule API), loaded with the server
+  var upd                               # tf_update (update API), loaded at the first /api/update request
   var token
   var events                            # [ [seq, SSE text], ... ]
   var seq
@@ -227,12 +228,19 @@ class tasmoflow
       # test build (dev folder, no SRI, replaced at every run): never served from a cache
       if self.DIR == 'dev'    url += "?t=" + str(tasmota.millis())    end
     end
+    # manifest of the latest version of this channel (releases: the root, test builds: dev/); the
+    # loader compares it with VERSION. /tf?u=0 ("Later") skips the check for this visit.
+    var upd = ''
+    if size(self.CDN) > 0 && !webserver.has_arg("u")
+      upd = self.CDN + (self.DIR == 'dev' ? 'dev/' : '') + 'latest.json'
+    end
     var cfg = {
       'version': self.VERSION,
       'port': self.PORT,
       'token': self.token,
       'cdn': url,
-      'sri': self.SRI
+      'sri': self.SRI,
+      'upd': upd
     }
     webserver.content_open(200, "text/html")
     webserver.content_send(
@@ -254,8 +262,20 @@ class tasmoflow
         'function local(){if(fell)return;fell=true;clearTimeout(t);'
           'add(c.api+"/lite.js","",function(){'
             'box.textContent="TasmoFlow: interface not found (port "+c.port+")";});}'
-        'if(c.cdn){add(c.cdn,c.sri,local);t=setTimeout(local,3000);}'
-        'else{local();}'
+        'var started=false;'
+        'function go(){if(started)return;started=true;'
+          'if(c.cdn){add(c.cdn,c.sri,local);t=setTimeout(local,3000);}else{local();}}'
+        'function newer(a,b){'
+          'if(/-dev/.test(b))return a!==b;'
+          'a=a.split(".");b=b.split(".");'
+          'for(var i=0;i<3;i++){var x=+a[i]||0,y=+b[i]||0;if(x!==y)return x>y;}return false;}'
+        'if(c.upd){'
+          'setTimeout(go,1500);'
+          'fetch(c.upd,{cache:"no-store"}).then(function(r){return r.json();}).then(function(j){'
+            'if(!started&&j&&j.version&&newer(j.version,c.version)){'
+              'started=true;j.url=new URL(j.tapp,c.upd).href;c.update=j;local();}else{go();}'
+          '}).catch(go);}'
+        'else{go();}'
       '})(window.TASMOFLOW);'
       '</script></body></html>')
     webserver.content_close()
@@ -309,6 +329,7 @@ class tasmoflow
     self.web.on("/api/devices", self, self.api_devices)
     self.web.on("/api/cmd", self, self.api_cmd)
     self.web.on("/api/events", self, self.api_events)
+    self.web.on("/api/update", self, self.api_update)            # also /api/update_apply, /api/update_abort
     var tf_rules = self.load_module('tf_rules')
     if tf_rules != nil
       self.rules = tf_rules(self)
@@ -333,6 +354,7 @@ class tasmoflow
     self.web.close()
     self.web = nil
     self.rules = nil
+    self.upd = nil
     tasmota.gc()                        # frees the compiled tf_http class
     log("TFL: API server stopped", 2)
   end
@@ -413,6 +435,22 @@ class tasmoflow
     end
     var r = tasmota.cmd(c, true)
     self.send_json(cnx, 200, r == nil ? '{}' : json.dump(r))
+  end
+
+  # update of the .tapp (tf_update.be): compiled at the first request, so it costs no RAM until
+  # someone updates, and freed with the server
+  def api_update(cnx, uri, verb)
+    var q = self.authorized(cnx, uri)
+    if q == nil   return   end
+    if self.upd == nil
+      var cls = self.load_module('tf_update')
+      if cls != nil    self.upd = cls(self)    end
+    end
+    if self.upd == nil
+      self.send_json(cnx, 500, '{"error":"module"}')
+      return
+    end
+    self.upd.handle(cnx, uri, verb, q)
   end
 
   # SSE stream: /api/events?t=...&since=<last seq received>
