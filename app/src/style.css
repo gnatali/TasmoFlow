@@ -73,7 +73,7 @@ select.pick{min-width:0;padding:.4rem .5rem}
 .choice{position:relative;flex:1 1 12rem;min-width:0}
 .choice-btn{display:flex;width:100%;justify-content:space-between;gap:.5rem;text-align:left}
 .choice-btn i{color:var(--quiet)}
-.pop{position:absolute;z-index:5;left:0;right:0;top:calc(100% + .2rem);max-height:min(50vh,22rem);overflow:auto;padding:.25rem;border:1px solid var(--line);border-radius:.5rem;background:var(--card);box-shadow:0 .4rem 1.2rem rgba(0,0,0,.3)}
+.pop{position:fixed;z-index:50;overflow:auto;padding:.25rem;border:1px solid var(--line);border-radius:.5rem;background:var(--card);box-shadow:0 .4rem 1.2rem rgba(0,0,0,.3)}
 .pgroup{padding:.4rem .5rem .15rem;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;color:var(--quiet)}
 .pitem{display:block;width:100%;padding:.4rem .5rem .4rem 1.1rem;border:0;border-radius:.35rem;background:none;color:var(--ink);font:inherit;text-align:left;cursor:pointer}
 .pitem:hover,.pitem:focus-visible{background:var(--bg)}

@@ -29,6 +29,9 @@ function actionGroups(s) {
     ...tuyaActions(s.tuya, verbs())];
 }
 
+// inline style from { left: 12, width: 300, ... } in pixels (a string: it is what Preact applies for sure)
+const css = o => Object.keys(o).map(k => k.replace(/[A-Z]/g, c => '-' + c.toLowerCase()) + ':' + Math.round(o[k]) + 'px').join(';');
+
 // One field for "what": closed, it reads like the tile ("Lampe salon · Power"); open, it lists
 // everything as a tree (a group per device) with the current item highlighted. "Custom" turns it
 // into a text field, so any Tasmota trigger or command can still be written. A native <select>
@@ -37,14 +40,35 @@ function actionGroups(s) {
 function Choice({ label, value, groups, friendly, onChange, placeholder }) {
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState(false);
+  const [pos, setPos] = useState(null);               // where the list floats, in the window
   const box = useRef();
   useEffect(() => {
     if (!open) return;
+    // The list is `position: fixed`, placed from the button: inside the dialog, which scrolls,
+    // an absolute list would be cut off by it. It opens below the button, or above when there
+    // is more room there, and follows the button while the dialog scrolls.
+    const place = () => {
+      const btn = box.current && box.current.querySelector('.choice-btn, input');
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      const below = window.innerHeight - r.bottom - 8;
+      const above = r.top - 8;
+      const up = below < 200 && above > below;
+      const room = Math.max(120, up ? above : below);
+      setPos({ left: r.left, width: r.width, maxHeight: Math.min(room, 352), ...(up ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }) });
+    };
+    place();
     const away = e => { if (box.current && !box.current.contains(e.target)) setOpen(false); };
     document.addEventListener('click', away);
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
     const sel = box.current && box.current.querySelector('.sel');
     if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: 'nearest' });
-    return () => document.removeEventListener('click', away);
+    return () => {
+      document.removeEventListener('click', away);
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
   }, [open]);
   const known = groups.some(g => g.items.some(i => i.value === value));
   const pick = v => {
@@ -60,7 +84,7 @@ function Choice({ label, value, groups, friendly, onChange, placeholder }) {
           <button class="b" aria-label=${t('rule_list')} title=${t('rule_list')} onClick=${() => { setEdit(false); setOpen(true); }}>▾</button></div>`
       : html`<button class="b choice-btn" aria-haspopup="listbox" aria-expanded=${open} aria-label=${label + ' : ' + (friendly || placeholder)}
           onClick=${() => setOpen(!open)}><span>${friendly || html`<i>${placeholder}</i>`}</span><span aria-hidden="true">▾</span></button>`}
-    ${open ? html`<div class="pop" role="listbox" aria-label=${label}>
+    ${open && pos ? html`<div class="pop" role="listbox" aria-label=${label} style=${css(pos)}>
       ${value && !known ? html`<button role="option" aria-selected="true" class="pitem sel" onClick=${() => setOpen(false)}>${friendly || value}</button>` : null}
       ${groups.map(g => html`<div class="pgroup">${g.group}</div>
         ${g.items.map(i => html`<button role="option" aria-selected=${i.value === value} class=${'pitem' + (i.value === value ? ' sel' : '')} onClick=${() => pick(i.value)}>${i.label}</button>`)}`)}

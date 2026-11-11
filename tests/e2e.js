@@ -267,6 +267,18 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await r3.getByRole('button', { name: /Ajouter une règle/ }).click();
     const dlg = p.getByRole('dialog');
     await dlg.waitFor();
+    // in a small window (the report: about 520 px high) the list floats over the dialog, whole
+    await p.setViewportSize({ width: 1000, height: 520 });
+    await dlg.getByRole('button', { name: /^Alors 1 :/ }).click();
+    const pop = dlg.getByRole('listbox');
+    await pop.waitFor();
+    if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'list-over-dialog.png') });
+    const box = await pop.boundingBox();
+    const hit = await p.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return !!(e && e.closest('.pop')); }, [box.x + box.width / 2, box.y + box.height / 2]);
+    if (!(box.y >= 0 && box.y + box.height <= 520 && box.height >= 120 && hit)) throw new Error('list cut off or covered: ' + JSON.stringify(box));
+    await p.keyboard.press('Escape');                                    // closes the list, not the dialog
+    await pop.waitFor({ state: 'hidden' });
+    await dlg.waitFor();
     await choose(dlg, 'Quand', 'Power');                                 // a Zigbee device attribute
     await dlg.getByRole('button', { name: /^Quand : Lampe salon · Power/ }).waitFor();   // closed, it reads like the tile
     await dlg.getByLabel('Comparaison').selectOption('=');
