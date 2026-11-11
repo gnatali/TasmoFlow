@@ -54,6 +54,7 @@ Cahier des charges (en français, hors du dépôt) :
 | 9 nov. | v0.1 : **Preact + htm retenu** (même écran : 6,6 Ko gzip contre 6,3 Ko pour Lit, 5,4 Ko pour le prototype sans dépendance) ; interface assemblée avec esbuild (12,9 Ko gzip, puis 14,6 Ko avec Tuya) |
 | 9 nov. | v0.1 : **option B décidée** : interface complète sur GitHub Pages seulement (figée, SRI), interface légère (13,7 Ko gzip, appareils + console + diagnostic) dans la `.tapp` ; second point d'entrée esbuild des mêmes sources. Raison : `UfsFree` 148 Ko sur 320 Ko et une interface complète qui va grossir |
 | 11 nov. | Bouton de mise à jour (décision : le navigateur relaie la `.tapp` depuis GitHub Pages) : manifestes `latest.json` / `dev/latest.json`, l'interface légère propose la mise à jour quand le canal a une version plus récente (builds de test : un commit différent), la passerelle contrôle taille et SHA-256 et se remplace (`tf_update.be`, `.bak` gardé), la page attend le redémarrage (120 s au plus). Passerelle simulée : 414 au-delà de 512 caractères au lieu de couper la connexion |
+| 11 nov. | v0.2 fusionnée (PR n° 5). Le tag `v0.2.0` créé sur github.com a fait échouer le job `release` (« Tag matches the VERSION file » : `VERSION` valait encore `0.1.0`) ; `VERSION` passée à `0.2.0`, il faut ensuite déplacer le tag sur le nouveau `main` |
 | 11 nov. | **Bouton de mise à jour validé sur la passerelle** (deux mises à jour de suite, l'ancien `.bak` remplacé la seconde fois, rien ne reste). Restent à essayer : la mémoire avant et après, la coupure de courant pendant l'envoi et un `sha256` faux |
 | 11 nov. | Bouton de mise à jour : troisième build de test publié (encore un commit qui ne touche que la documentation) pour répéter la mise à jour sur la passerelle |
 | 11 nov. | Bouton de mise à jour : le premier essai a échoué sur `bytes.tohex()` en majuscules (le contrôle de l'en-tête zip refusait tout fichier) ; corrigé, la `.tapp` corrigée installée à la main, deuxième essai avec un autre commit qui ne touche que la documentation |
@@ -120,8 +121,8 @@ Reste pour la v0.1 (petit) :
 
 - **Couleur des liaisons `light3`** (`colour_data_v2`, `hhhhssssvvvv`) : pas encore proposée.
 - **Noms de sous-appareils Tuya** contenant une virgule, que `TuyaSend` ne sait pas adresser.
-- **`VERSION` vaut `0.1.0`** jusqu'à la prochaine version : un build v0.2 ne se distingue de la
-  v0.1.0 que par l'onglet Règles (passer `VERSION` avant de tagger `v0.2.0`).
+- **`VERSION` vaut `0.2.0`** (11 novembre 2026). La passer dans une pull request **avant** de tagger une
+  version : le job `release` refuse un tag différent de `VERSION` (le premier tag `v0.2.0` a échoué ainsi).
 - **Vérifications sur la passerelle** : les points `[ ]` marqués v0.1 du plan de test, en
   particulier que le `tcpserver` du port 8384 peut être fermé puis ré-écouté, et la mémoire
   utilisée par `TuyaConfig`.

@@ -40,6 +40,10 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
 
 - `main` is protected: **changes go through a pull request**. Work on a branch, push it, open a
   PR when Guillaume asks.
+- **Before a tag**: the pull request that sets `VERSION` to `X.Y.Z` must be merged first; the `release` job
+  fails on a tag that differs from `VERSION` (the first `v0.2.0` tag did). A tag created too early is moved
+  with `git tag -f vX.Y.Z origin/main && git push -f origin vX.Y.Z` (the release already made on github.com
+  stays, and the re-run attaches the `.tapp` to it).
 - This environment cannot push tags (HTTP 403): Guillaume creates release tags `vX.Y.Z` (equal to
   `VERSION`) on `main`, with git or by publishing a release with a new tag on github.com; the
   workflow then creates (or completes) the release and publishes GitHub Pages.
