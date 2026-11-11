@@ -104,7 +104,7 @@ class tf_update
     if total <= 0 || self.written != total || !path.exists(tmp)    return self.answer(cnx, false, "incomplete")    end
     var f = open(tmp, "r")
     var len = f.size()
-    var magic = f.readbytes(4).tohex()
+    var magic = string.tolower(f.readbytes(4).tohex())          # Tasmota's tohex() is upper case
     f.close()
     if len != total    return self.answer(cnx, false, "size")    end
     if magic != "504b0304"    return self.answer(cnx, false, "format")    end         # a zip: PK\x03\x04

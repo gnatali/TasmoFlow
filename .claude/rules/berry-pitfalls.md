@@ -61,6 +61,8 @@ paths:
   until a release is tagged, so an old build is easy to mistake for the new one: the banner of
   the light interface, `curl "http://<gateway>/tf?w=1"` answering `ok` and the boot log line
   `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` tell them apart.
+- `bytes.tohex()` returns **upper-case** hex on Tasmota (`504B0304`, not `504b0304`): lower-case
+  it before comparing (it made `tf_update.be` refuse every file, 11 November 2026).
 - Replacing the running `.tapp` (`tf_update.be`): write `<tapp>.new`, check size, `PK` header and
   SHA-256, then `<tapp>` to `<tapp>.bak` and `.new` to `<tapp>`, and `Restart 1`. A copy must never
   end in `.tapp` (Tasmota loads every `*.tapp` of `/` and `/.extensions/`, and two TasmoFlow run
