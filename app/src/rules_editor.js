@@ -2,7 +2,7 @@
 // Sentence editor of a rule set: "When ... If ... Then ... Else ...". Full interface only (main.js
 // registers it with rules.js; the light interface does not carry it). It owns the list of blocks
 // while it is open and hands the written text to the card after every change.
-import { useState } from 'preact/hooks';
+import { useState, useRef, useEffect } from 'preact/hooks';
 import { html } from './html.js';
 import { t } from './i18n.js';
 import { S } from './state.js';
@@ -43,27 +43,54 @@ function Pick({ groups, onPick }) {
 }
 
 // the commands of Then / Else, one field each
-function Commands({ label, list, set, groups }) {
+function Commands({ label, list, set, groups, bare }) {
   const rows = list.length ? list : [''];
   const put = (i, v) => set(rows.map((x, k) => k === i ? v : x));
-  return html`<fieldset class="cmds"><legend>${label}</legend>
+  const Box = bare ? 'div' : 'fieldset';
+  return html`<${Box} class=${bare ? '' : 'cmds'}>${bare ? null : html`<legend>${label}</legend>`}
     ${rows.map((c, i) => html`<div class="row tight">
-      <input value=${c} aria-label=${label + ' ' + (i + 1)} onInput=${e => put(i, e.target.value)}/>
+      <input class="grow" value=${c} aria-label=${label + ' ' + (i + 1)} onInput=${e => put(i, e.target.value)}/>
       <${Pick} groups=${groups} onPick=${v => put(i, v)}/>
       ${rows.length > 1 ? html`<button class="b" aria-label=${t('rule_removeCmd')} onClick=${() => set(rows.filter((_, k) => k !== i))}>×</button>` : null}
     </div>`)}
     <button class="b" onClick=${() => set([...rows, ''])}>${t('rule_addCmd')}</button>
-  </fieldset>`;
+  </${Box}>`;
 }
 
-function Sentence({ b, s }) {
+// One tile per block: what it waits for, what it checks, what it does
+function Tile({ b, s, onEdit, onDelete }) {
+  if (b.kind === 'raw') {
+    return html`<div class="tile raw"><code>${b.text}</code><p class="q">${t('rule_rawBlock')}</p>
+      <div class="row tight"><button class="b" onClick=${onDelete}>${t('rule_deleteBlock')}</button></div></div>`;
+  }
   const named = describeSubject(b.subject, s.devices, s.zbNames);
-  const trig = (named || b.subject) + (b.op ? ' ' + b.op + ' ' + b.value : '');
-  const list = l => l.map(c => describeCommand(c, s.devices, verbs()) || c).join(' ' + t('rule_and') + ' ');
-  return html`<p class="sentence">
-    <b>${t('rule_when')}</b> <code>${trig || '…'}</code>${b.cond != null ? html` <b>${t('rule_if')}</b> <code>${b.cond || '…'}</code>` : null}
-    ${' '}<b>${t('rule_then')}</b> <code>${list(b.then.filter(Boolean)) || '…'}</code>${b.else ? html` <b>${t('rule_else')}</b> <code>${list(b.else.filter(Boolean)) || '…'}</code>` : null}
-  </p>`;
+  const when = (named || b.subject || '…') + (b.op ? ' ' + b.op + ' ' + b.value : '');
+  const list = l => l.filter(Boolean).map(c => describeCommand(c, s.devices, verbs()) || c);
+  const Line = ({ k, cls, items }) => html`<div class=${'line ' + cls}><b class="kw">${k}</b>
+    <span>${items.length ? items.map(x => html`<span class="chip" title=${x}>${x}</span>`) : '…'}</span></div>`;
+  return html`<div class="tile">
+    <${Line} k=${t('rule_when')} cls="when" items=${[when]}/>
+    ${b.cond != null ? html`<${Line} k=${t('rule_if')} cls="if" items=${[b.cond || '…']}/>` : null}
+    <${Line} k=${t('rule_then')} cls="then" items=${list(b.then)}/>
+    ${b.else ? html`<${Line} k=${t('rule_else')} cls="else" items=${list(b.else)}/>` : null}
+    <div class="row tight">
+      <button class="b" onClick=${onEdit}>${t('rule_editBlock')}</button>
+      <button class="b" onClick=${onDelete}>${t('rule_deleteBlock')}</button>
+    </div>
+  </div>`;
+}
+
+// A dialog over the page (native <dialog>: Escape and the backdrop close it)
+function Modal({ title, onClose, children }) {
+  const ref = useRef();
+  useEffect(() => { if (ref.current && !ref.current.open) ref.current.showModal(); }, []);
+  const close = () => ref.current && ref.current.close();
+  return html`<dialog ref=${ref} class="modal" aria-label=${title} onClose=${onClose}
+      onClick=${e => { if (e.target === ref.current) close(); }}>
+    <div class="mhead"><h3>${title}</h3><button class="b" aria-label=${t('rule_closeBlock')} onClick=${close}>×</button></div>
+    ${children}
+    <div class="row tight mfoot"><button class="b primary" onClick=${close}>${t('rule_finish')}</button></div>
+  </dialog>`;
 }
 
 function BlockForm({ b, change, s }) {
@@ -71,22 +98,27 @@ function BlockForm({ b, change, s }) {
   const trig = triggerGroups(s);
   const acts = actionGroups(s);
   return html`<div class="form">
-    <div class="row tight">
-      <label>${t('rule_when')} <input value=${b.subject} placeholder="Button1#State" onInput=${e => change({ subject: e.target.value })}/></label>
-      <${Pick} groups=${trig.groups} onPick=${v => change({ subject: v })}/>
-      ${trig.skipped ? html`<span class="q">${t('rule_zbSkipped')}</span>` : null}
-      <select aria-label=${t('rule_operator')} value=${b.op} onChange=${e => change({ op: e.target.value, value: e.target.value ? b.value : '' })}>
-        <option value="">${t('rule_anyValue')}</option>
-        ${OPERATORS.map(o => html`<option value=${o}>${o}</option>`)}
-        ${b.op && !OPERATORS.includes(b.op) ? html`<option value=${b.op}>${b.op}</option>` : null}
-      </select>
-      ${b.op ? html`<input value=${b.value} aria-label=${t('rule_value')} placeholder="3" onInput=${e => change({ value: e.target.value })}/>` : null}
-    </div>
-    <label><input type="checkbox" checked=${hasCond} onChange=${e => change({ cond: e.target.checked ? '' : null, else: null })}/> ${t('rule_if')}</label>
-    ${hasCond ? html`<input value=${b.cond} aria-label=${t('rule_if')} placeholder="Var1==1" onInput=${e => change({ cond: e.target.value })}/>` : null}
+    <fieldset class="cmds"><legend>${t('rule_when')}</legend>
+      <div class="row tight">
+        <input class="grow" value=${b.subject} aria-label=${t('rule_when')} placeholder="Button1#State" onInput=${e => change({ subject: e.target.value })}/>
+        <${Pick} groups=${trig.groups} onPick=${v => change({ subject: v })}/>
+      </div>
+      ${trig.skipped ? html`<div class="q">${t('rule_zbSkipped')}</div>` : null}
+      <div class="row tight">
+        <select aria-label=${t('rule_operator')} value=${b.op} onChange=${e => change({ op: e.target.value, value: e.target.value ? b.value : '' })}>
+          <option value="">${t('rule_anyValue')}</option>
+          ${OPERATORS.map(o => html`<option value=${o}>${o}</option>`)}
+          ${b.op && !OPERATORS.includes(b.op) ? html`<option value=${b.op}>${b.op}</option>` : null}
+        </select>
+        ${b.op ? html`<input class="grow" value=${b.value} aria-label=${t('rule_value')} placeholder="3" onInput=${e => change({ value: e.target.value })}/>` : null}
+      </div>
+    </fieldset>
+    <fieldset class="cmds"><legend><label><input type="checkbox" checked=${hasCond} onChange=${e => change({ cond: e.target.checked ? '' : null, else: null })}/> ${t('rule_if')}</label></legend>
+      ${hasCond ? html`<input class="grow" value=${b.cond} aria-label=${t('rule_if')} placeholder="Var1==1" onInput=${e => change({ cond: e.target.value })}/>` : html`<span class="q">${t('rule_noCond')}</span>`}
+    </fieldset>
     <${Commands} label=${t('rule_then')} list=${b.then} set=${v => change({ then: v })} groups=${acts}/>
-    ${hasCond ? html`<label><input type="checkbox" checked=${!!b.else} onChange=${e => change({ else: e.target.checked ? [''] : null })}/> ${t('rule_else')}</label>
-      ${b.else ? html`<${Commands} label=${t('rule_else')} list=${b.else} set=${v => change({ else: v })} groups=${acts}/>` : null}` : null}
+    ${hasCond ? html`<fieldset class="cmds"><legend><label><input type="checkbox" checked=${!!b.else} onChange=${e => change({ else: e.target.checked ? [''] : null })}/> ${t('rule_else')}</label></legend>
+      ${b.else ? html`<${Commands} label=${t('rule_else')} list=${b.else} set=${v => change({ else: v })} groups=${acts} bare=${true}/>` : html`<span class="q">${t('rule_noElse')}</span>`}</fieldset>` : null}
   </div>`;
 }
 
@@ -96,19 +128,13 @@ export function SentenceEditor({ text, setText }) {
   const [blocks, setBlocks] = useState(() => parseRuleSet(text));
   const [open, setOpen] = useState(-1);
   if (!blocks) return html`<p class="q">${t('rule_noSentence')}</p>`;
-  const commit = (list, o) => { setBlocks(list); setText(serializeRuleSet(list)); if (o != null) setOpen(o); };
+  const commit = list => { setBlocks(list); setText(serializeRuleSet(list)); };
   const change = (i, patch) => commit(blocks.map((b, k) => k === i ? edited(b, patch) : b));
-  return html`<div class="blocks">
-    ${blocks.length ? null : html`<p class="q">${t('rule_empty')}</p>`}
-    ${blocks.map((b, i) => html`<div class="block" key=${i}>
-      ${b.kind === 'raw'
-        ? html`<p class="sentence"><code>${b.text}</code></p><p class="q">${t('rule_rawBlock')}</p>`
-        : html`<${Sentence} b=${b} s=${s}/>${open === i ? html`<${BlockForm} b=${b} s=${s} change=${p => change(i, p)}/>` : null}`}
-      <div class="row tight">
-        ${b.kind === 'raw' ? null : html`<button class="b" aria-expanded=${open === i} onClick=${() => setOpen(open === i ? -1 : i)}>${open === i ? t('rule_closeBlock') : t('rule_editBlock')}</button>`}
-        <button class="b" onClick=${() => { commit(blocks.filter((_, k) => k !== i), open === i ? -1 : null); }}>${t('rule_deleteBlock')}</button>
-      </div>
-    </div>`)}
-    <button class="b" onClick=${() => commit([...blocks, newBlock()], blocks.length)}>${t('rule_addBlock')}</button>
+  const cur = open >= 0 ? blocks[open] : null;
+  return html`<div class="tiles">
+    ${blocks.map((b, i) => html`<${Tile} key=${i} b=${b} s=${s} onEdit=${() => setOpen(i)} onDelete=${() => { commit(blocks.filter((_, k) => k !== i)); setOpen(-1); }}/>`)}
+    <button class="tile add" onClick=${() => { commit([...blocks, newBlock()]); setOpen(blocks.length); }}>＋ ${t('rule_addBlock')}</button>
+    ${cur && cur.kind === 'sentence' ? html`<${Modal} title=${t('rule_editTitle')} onClose=${() => setOpen(-1)}>
+      <${BlockForm} b=${cur} s=${s} change=${p => change(open, p)}/></${Modal}>` : null}
   </div>`;
 }

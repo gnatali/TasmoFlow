@@ -59,7 +59,6 @@ function RuleCard({ r, note, setNote, mode, setMode }) {
   };
   const mine = note && note.n === r.n ? note : null;
   return html`<article class="card">
-    <h3>${'Rule' + r.n}</h3>
     <div class="row tight">
       <button class="b" aria-pressed=${r.on} disabled=${busy} onClick=${() => flag(!r.on, ['0', '1'])}>${r.on ? t('on') : t('off')}</button>
       ${cfg.lite ? null : html`
@@ -97,10 +96,20 @@ export function RulesView() {
   const { rules } = S.use();
   const [note, setNote] = useState(null);
   const [modes, setModes] = useState({});               // view of each rule set: 'text' (default) | 'sentences'; kept when a card is rebuilt
+  const [sel, setSel] = useState(1);                    // rule set shown: 1 to 3, or 0 for the Berry rules
   if (!rules) return html`<p>${t('loading')}</p>`;
+  const r = rules.rules.find(x => x.n === sel);
   return html`
-    <div class="grid wide">${rules.rules.map(r => html`<${RuleCard} key=${r.n + '|' + r.text + '|' + r.on + r.once + r.stop + '|' + r.bak} r=${r} note=${note} setNote=${setNote} mode=${modes[r.n] || 'text'} setMode=${m => setModes({ ...modes, [r.n]: m })}/>`)}</div>
-    <h2>${t('rule_berry')}</h2>
-    ${rules.berry.length ? html`<ul class="berry">${rules.berry.map(b => html`<li><code>${b.rule}</code> <span class="q">${b.id === 'None' ? '' : b.id}</span></li>`)}</ul>`
-      : html`<p class="q">${t('rule_noBerry')}</p>`}`;
+    <div class="rtabs" role="tablist" aria-label=${t('rules')}>
+      ${rules.rules.map(x => html`<button role="tab" class="rtab" aria-selected=${sel === x.n} onClick=${() => setSel(x.n)}>
+        <span class=${'dot' + (x.on ? ' on' : '')} aria-hidden="true"></span>${'Rule' + x.n + (x.on ? '' : ' · ' + t('off'))}</button>`)}
+      <button role="tab" class="rtab" aria-selected=${sel === 0} onClick=${() => setSel(0)}>${t('rule_berry') + ' (' + rules.berry.length + ')'}</button>
+    </div>
+    <div role="tabpanel">
+      ${sel === 0
+        ? (rules.berry.length ? html`<ul class="berry">${rules.berry.map(b => html`<li><code>${b.rule}</code> <span class="q">${b.id === 'None' ? '' : b.id}</span></li>`)}</ul>`
+          : html`<p class="q">${t('rule_noBerry')}</p>`)
+        : r ? html`<${RuleCard} key=${r.n + '|' + r.text + '|' + r.on + r.once + r.stop + '|' + r.bak} r=${r} note=${note} setNote=${setNote}
+            mode=${modes[r.n] || 'text'} setMode=${m => setModes({ ...modes, [r.n]: m })}/>` : null}
+    </div>`;
 }

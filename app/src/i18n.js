@@ -41,6 +41,7 @@ const TEXTS = {
     rule_lintTrigger: 'Le déclencheur est vide.',
     rule_vOn: 'allumer', rule_vOff: 'éteindre', rule_vToggle: 'basculer', rule_gwEvents: 'Événements de la passerelle', rule_commands: 'Commandes courantes',
     rule_zbSkipped: "Des appareils Zigbee dont le nom contient un espace ne peuvent pas servir de déclencheur : renommez-les (ZbName) ou désactivez SetOption83.",
+    rule_finish: 'Terminé', rule_editTitle: 'Modifier la règle', rule_noCond: 'aucune condition', rule_noElse: 'aucune autre action',
     tuyaWaiting: 'Pilote Tuya en attente :', tuyaLowMem: 'Mémoire libre insuffisante pour lire la configuration Tuya : seuls les états booléens sont proposés.'
   },
   en: {
@@ -82,6 +83,7 @@ const TEXTS = {
     rule_lintTrigger: 'The trigger is empty.',
     rule_vOn: 'turn on', rule_vOff: 'turn off', rule_vToggle: 'toggle', rule_gwEvents: 'Gateway events', rule_commands: 'Common commands',
     rule_zbSkipped: 'Zigbee devices whose name contains a space cannot be used as a trigger: rename them (ZbName) or turn SetOption83 off.',
+    rule_finish: 'Done', rule_editTitle: 'Edit rule', rule_noCond: 'no condition', rule_noElse: 'no other action',
     tuyaWaiting: 'Tuya driver waiting:', tuyaLowMem: 'Not enough free memory to read the Tuya configuration: only boolean states are offered.'
   }
 };

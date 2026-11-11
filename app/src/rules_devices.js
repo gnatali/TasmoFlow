@@ -10,7 +10,8 @@
 import { controlsFor } from './tuya_model.js';
 
 // attributes that are not something a rule waits for
-const NOT_ATTRS = new Set(['Device', 'Endpoint', 'LinkQuality', 'Name', 'Quality', 'Zone', 'ZoneStatus']);
+const NOT_ATTRS = new Set(['Device', 'Endpoint', 'Endpoints', 'LinkQuality', 'Name', 'Quality', 'Zone', 'ZoneStatus',
+  'IEEEAddr', 'ModelId', 'Manufacturer', 'Reachable', 'LastSeen', 'LastSeenEpoch', 'Status', 'Config', 'Time']);
 
 export const isAddr = s => /^0x[0-9a-f]{4}$/i.test(s);
 // a name a rule trigger can carry: no space, and none of the characters that end or split a trigger

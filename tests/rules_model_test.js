@@ -135,6 +135,10 @@ ok('Zigbee triggers: attributes, addresses, names with a space left out', () => 
   assert.ok(r.groups.flatMap(g => g.items.map(i => i.value)).includes('ZbReceived#Bouton#Click'));
   assert.ok(!usableKey('Capteur bureau') && usableKey('Bouton'));
 });
+ok('Zigbee triggers: device information is not an event', () => {
+  const r = zbTriggers({ '0x1': { addr: '0x1', name: '0x1', attrs: { IEEEAddr: 'x', ModelId: 'y', Manufacturer: 'z', Endpoints: [1], Reachable: true, Power: 1 } } }, false);
+  assert.deepStrictEqual(r.groups[0].items.map(i => i.label), ['Power']);
+});
 ok('Zigbee actions: only devices with Power, by address', () => {
   const g = zbActions(devs, lab);
   assert.strictEqual(g.length, 1);

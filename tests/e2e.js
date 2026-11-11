@@ -30,6 +30,8 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
   const results = [];
   const ctxOpts = { locale: 'fr-FR', viewport: { width: 1280, height: 800 } };
   const src = p => p.evaluate(() => window.TASMOFLOW && window.TASMOFLOW.source);
+  // the rule set `n` of the Rules screen: its tab, then its panel
+  const rule = async (p, n) => { await p.getByRole('tab', { name: new RegExp('^Rule' + n) }).click(); return p.getByRole('tabpanel'); };
   const cards = p => p.waitForSelector('article.card >> nth=2', { timeout: 6000 });
 
   async function test(name, fn) {
@@ -69,10 +71,10 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     }
     // rules: read, enable/disable, restore, but no editor
     await p.getByRole('button', { name: 'Règles' }).click();
-    const r3 = p.locator('article.card', { has: p.getByRole('heading', { name: 'Rule3' }) });
+    const r3 = await rule(p, 3);
     await r3.getByRole('button', { name: 'éteint' }).click();
     await r3.getByRole('button', { name: 'allumé' }).waitFor({ timeout: 4000 });
-    await p.locator('article.card', { has: p.getByRole('heading', { name: 'Rule1' }) }).getByText('Button1#State=3').waitFor();
+    await (await rule(p, 1)).getByText('Button1#State=3').waitFor();
     if (await p.locator('textarea').count()) throw new Error('rule editor in the light interface');
     if (await p.getByRole('button', { name: 'Phrases' }).count()) throw new Error('sentence editor in the light interface');
     await p.getByRole('button', { name: 'Appareils' }).click();
@@ -138,8 +140,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
   await test('rules: read, long text in a POST, syntax check, previous copy, restore, flags, Berry rules', async p => {
     await openFull(p);
     await p.getByRole('button', { name: 'Règles' }).click();
-    const card = n => p.locator('article.card', { has: p.getByRole('heading', { name: 'Rule' + n }) });
-    const r1 = card(1);
+    const r1 = await rule(p, 1);
     const box = r1.getByRole('textbox');
     await box.waitFor({ timeout: 4000 });
     const original = await box.inputValue();
@@ -162,51 +163,57 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     const shown = await box.inputValue();
     if (shown !== long) throw new Error('one block per line expected');
     // the previous version is kept, and restoring it brings it back
-    await p.locator('article.card', { has: p.getByRole('heading', { name: 'Rule1' }) }).getByText('Copie précédente').click();
+    await r1.getByText('Copie précédente').click();
     await r1.locator('details pre').getByText('Button1#State=3').waitFor();
     p.once('dialog', d => d.accept());
     await r1.getByRole('button', { name: 'Restaurer cette copie' }).click();
     await r1.getByText('Copie restaurée.').waitFor({ timeout: 4000 });
     if ((await box.inputValue()) !== original) throw new Error('restored text differs');
     // flags and Berry rules
-    await card(2).getByRole('checkbox', { name: 'une seule fois' }).click();
+    await (await rule(p, 2)).getByRole('checkbox', { name: 'une seule fois' }).click();
     await p.waitForFunction(async t => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[1].once,
       '0123456789abcdef0123456789abcdef', { timeout: 4000 });
-    await p.getByRole('heading', { name: 'Règles Berry' }).waitFor();
+    await p.getByRole('tab', { name: /Règles Berry/ }).click();
     await p.locator('ul.berry').getByText('Button1#State').waitFor();
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'rules.png'), fullPage: true });
   });
-  await test('sentence editor: read, edit, add, condition, delete, raw block, save', async p => {
+  await test('sentence editor: tiles, edit in a dialog, add, condition, delete, raw block, save', async p => {
     await openFull(p);
     await p.getByRole('button', { name: 'Règles' }).click();
-    const card = n => p.locator('article.card', { has: p.getByRole('heading', { name: 'Rule' + n }) });
     const stored = n => p.evaluate(async ([t, n]) => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[n - 1].text,
       ['0123456789abcdef0123456789abcdef', n]);
-    const r1 = card(1);
+    const r1 = await rule(p, 1);
     await r1.getByRole('button', { name: 'Phrases' }).click();
-    await r1.getByText('Button1#State = 3').waitFor();
-    // edit the value of the trigger
+    await r1.locator('.tile').getByText('Button1#State = 3').waitFor();          // one tile per rule
+    // the edit form opens over the page, in a dialog
     await r1.getByRole('button', { name: 'Modifier' }).click();
-    await r1.getByLabel('Valeur').fill('1');
+    const dlg = p.getByRole('dialog');
+    await dlg.waitFor();
+    if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'dialog.png') });
+    await dlg.getByLabel('Valeur').fill('1');
     // a condition and an else branch
-    await r1.getByRole('checkbox', { name: 'Si' }).check();
-    await r1.getByLabel('Si', { exact: true }).last().fill('Var1==1');
-    await r1.getByRole('checkbox', { name: 'Sinon' }).check();
-    await r1.getByLabel('Sinon 1').fill('Power2 off');
+    await dlg.getByRole('checkbox', { name: 'Si' }).check();
+    await dlg.getByLabel('Si', { exact: true }).last().fill('Var1==1');
+    await dlg.getByRole('checkbox', { name: 'Sinon' }).check();
+    await dlg.getByLabel('Sinon 1').fill('Power2 off');
     // a second command in Then
-    await r1.getByRole('button', { name: 'Ajouter une commande' }).first().click();
-    await r1.getByLabel('Alors 2').fill('Var1 0');
-    await r1.getByRole('button', { name: 'Fermer' }).click();
-    // a new rule
-    await r1.getByRole('button', { name: 'Ajouter une règle' }).click();
+    await dlg.getByRole('button', { name: 'Ajouter une commande' }).first().click();
+    await dlg.getByLabel('Alors 2').fill('Var1 0');
+    await dlg.getByRole('button', { name: 'Terminé' }).click();
+    await dlg.waitFor({ state: 'hidden' });
+    await r1.locator('.tile .chip', { hasText: 'Var1==1' }).waitFor();             // the tile shows the condition
+    // a new rule: a tile to add one, an empty one cannot be saved
+    await r1.getByRole('button', { name: /Ajouter une règle/ }).click();
+    await dlg.waitFor();
     if (!(await r1.getByRole('button', { name: 'Enregistrer' }).isDisabled())) throw new Error('an empty block can be saved');
-    await r1.getByRole('alert').filter({ hasText: 'déclencheur est vide' }).waitFor();
-    await r1.getByLabel('Quand').fill('System#Boot');
-    await r1.getByLabel('Alors 1').fill('Power1 on');
+    await dlg.getByLabel('Alors 1').fill('Power1 on');
     // the suggestions stay available once a field holds a value
-    await r1.getByRole('combobox', { name: 'Suggestions' }).nth(0).selectOption('Time#Minute');
-    if ((await r1.getByLabel('Quand').inputValue()) !== 'Time#Minute') throw new Error('suggestion not applied');
-    await r1.getByLabel('Quand').fill('System#Boot');
+    await dlg.getByRole('combobox', { name: 'Suggestions' }).nth(0).selectOption('Time#Minute');
+    if ((await dlg.getByLabel('Quand').inputValue()) !== 'Time#Minute') throw new Error('suggestion not applied');
+    await dlg.getByLabel('Quand').fill('System#Boot');
+    await p.keyboard.press('Escape');                                              // Escape closes the dialog
+    await dlg.waitFor({ state: 'hidden' });
+    await r1.getByRole('alert').filter({ hasText: /déclencheur est vide/ }).count();   // (the trigger is filled now: no alert)
     await r1.getByRole('button', { name: 'Enregistrer' }).click();
     await r1.getByText(/Enregistré/).waitFor({ timeout: 4000 });
     const want = 'on Button1#State=1 do if (Var1==1) Backlog Power2 toggle; Var1 0 else Power2 off endif endon on System#Boot do Power1 on endon';
@@ -216,38 +223,45 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     const lines = (await r1.getByRole('textbox').inputValue()).split('\n');
     if (lines.length !== 2) throw new Error('expected 2 lines, got ' + lines.length);
     // opening a rule set in sentences never rewrites it (Rule2: two blocks, one with Backlog)
-    const r2 = card(2);
+    const r2 = await rule(p, 2);
     await r2.getByRole('button', { name: 'Phrases' }).click();
-    await r2.getByText('System#Boot').first().waitFor();
+    await r2.locator('.tile').getByText('System#Boot').first().waitFor();
     if (!(await r2.getByRole('button', { name: 'Enregistrer' }).isDisabled())) throw new Error('Rule2 changed without edit');
     // delete a block
-    await r2.getByRole('button', { name: 'Supprimer' }).first().click();
+    await r2.locator('.tile').first().getByRole('button', { name: 'Supprimer' }).click();
     await r2.getByRole('button', { name: 'Enregistrer' }).click();
     await r2.getByText(/Enregistré/).waitFor({ timeout: 4000 });
     if (!/^on System#Boot do Backlog/.test(await stored(2))) throw new Error('block not deleted: ' + (await stored(2)));
-    // a block that does not fit a sentence stays text
-    await r1.getByRole('button', { name: 'Texte' }).click();
-    await r1.getByRole('textbox').fill('on Power1#State=1 and Power2#State=1 do Power3 1 endon');
-    await r1.getByRole('button', { name: 'Phrases' }).click();
-    await r1.getByText(/n'entre pas dans une phrase/).waitFor();
+    // a block that does not fit a sentence stays text, as a grey tile
+    const r1b = await rule(p, 1);
+    await r1b.getByRole('button', { name: 'Texte' }).click();
+    await r1b.getByRole('textbox').fill('on Power1#State=1 and Power2#State=1 do Power3 1 endon');
+    await r1b.getByRole('button', { name: 'Phrases' }).click();
+    await r1b.locator('.tile.raw').getByText(/n'entre pas dans une phrase/).waitFor();
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'sentences.png'), fullPage: true });
   });
-  await test('device pickers: Zigbee trigger and action, Tuya action, plain-language sentence', async p => {
+  await test('device pickers: Zigbee trigger and action, Tuya action, plain-language tile', async p => {
     await openFull(p);
     await p.getByRole('button', { name: 'Règles' }).click();
-    const r3 = p.locator('article.card', { has: p.getByRole('heading', { name: 'Rule3' }) });
+    const r3 = await rule(p, 3);
     await r3.getByRole('button', { name: 'Phrases' }).click();
-    await r3.getByRole('button', { name: 'Ajouter une règle' }).click();
-    const picks = r3.getByRole('combobox', { name: 'Suggestions' });
+    await r3.getByRole('button', { name: /Ajouter une règle/ }).click();
+    const dlg = p.getByRole('dialog');
+    await dlg.waitFor();
+    const picks = dlg.getByRole('combobox', { name: 'Suggestions' });
     await picks.nth(0).selectOption('ZbReceived#0x3C4D#Power');           // trigger: a Zigbee device attribute
-    if ((await r3.getByLabel('Quand').inputValue()) !== 'ZbReceived#0x3C4D#Power') throw new Error('trigger not filled');
-    await r3.getByLabel('Comparaison').selectOption('=');
-    await r3.getByLabel('Valeur').fill('1');
+    if ((await dlg.getByLabel('Quand').inputValue()) !== 'ZbReceived#0x3C4D#Power') throw new Error('trigger not filled');
+    // device information (IEEEAddr, ModelId...) is not an event to wait for
+    if (await dlg.locator('option[value$="#IEEEAddr"], option[value$="#ModelId"]').count()) throw new Error('device information offered as a trigger');
+    await dlg.getByLabel('Comparaison').selectOption('=');
+    await dlg.getByLabel('Valeur').fill('1');
     await picks.nth(1).selectOption('ZbSend {"device":"0x3C4D","send":{"Power":"Toggle"}}');   // the first Then
-    await r3.getByRole('button', { name: 'Ajouter une commande' }).click();
-    await r3.getByRole('combobox', { name: 'Suggestions' }).nth(2).selectOption('TuyaSend Ventilateur,20,toggle');
-    await r3.getByText('Lampe salon · Power = 1').waitFor();             // plain language
-    await r3.getByText(/basculer Lampe salon puis basculer Lumière ventilateur|basculer Lampe salon puis basculer Ventilateur/).waitFor();
+    await dlg.getByRole('button', { name: 'Ajouter une commande' }).click();
+    await dlg.getByRole('combobox', { name: 'Suggestions' }).nth(2).selectOption('TuyaSend Ventilateur,20,toggle');
+    await dlg.getByRole('button', { name: 'Terminé' }).click();
+    await r3.locator('.tile .chip', { hasText: 'Lampe salon · Power = 1' }).waitFor();             // plain language
+    await r3.locator('.tile .chip', { hasText: /basculer Lampe salon/ }).waitFor();
+    await r3.locator('.tile .chip', { hasText: /basculer .*\(DP 20\)/ }).waitFor();
     await r3.getByRole('button', { name: 'Enregistrer' }).click();
     await r3.getByText(/Enregistré/).waitFor({ timeout: 4000 });
     const text = await p.evaluate(async t => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[2].text,
@@ -309,6 +323,20 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     const overflow = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     results.push(['mobile 360 px without overflow', !overflow]);
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'mobile-dark.png'), fullPage: true });
+    // the Rules screen on a phone: tabs, tiles, and the dialog stay inside the screen
+    try {
+      await p.getByRole('button', { name: 'Règles' }).click();
+      const panel = await rule(p, 1);
+      await panel.getByRole('button', { name: 'Phrases' }).click();
+      await panel.locator('.tile').first().waitFor();
+      const tilesOverflow = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+      if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'mobile-rules.png'), fullPage: true });
+      await panel.getByRole('button', { name: 'Modifier' }).first().click();
+      await p.getByRole('dialog').waitFor();
+      const box = await p.getByRole('dialog').boundingBox();
+      if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'mobile-dialog.png') });
+      results.push(['mobile 360 px: rules tiles and dialog inside the screen', !tilesOverflow && box.x >= 0 && box.x + box.width <= 360]);
+    } catch (e) { results.push(['mobile 360 px: rules tiles and dialog inside the screen', false, e.message.split('\n')[0]]); }
     await ctx.close();
   }
 

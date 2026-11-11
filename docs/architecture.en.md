@@ -422,6 +422,11 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   (`showRule()`, `flatRule()`). The interface checks `on <trigger> do ... endon`
   (advisory, `rules_lint.js`); the Tasmota rule engine has no syntax-check command. The Berry
   compilation check comes with Berry editing.
+- **Rules screen layout** (11 November 2026): one tab per rule set (`Rule1` to `Rule3`, with a dot
+  for its state) and one for the Berry rules, instead of three columns. In *Sentences* view each
+  block is a **tile** (When / If / Then / Else lines); *Edit* opens the form in a **dialog over the
+  page** (native `<dialog>`: Escape and the backdrop close it, the *Done* button stays in view on a
+  phone), not in place; a dashed tile adds a rule.
 - **Sentence editor** (v0.2 step 2, written; the **Sentences** view of a rule set, full interface
   only: `rules_model.js`, `rules_editor.js`, registered by `main.js` so the light bundle does not
   carry it; no change on the gateway). A block `on <trigger> [if (<cond>)] do <commands> [else

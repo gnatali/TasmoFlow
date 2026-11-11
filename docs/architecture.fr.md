@@ -439,6 +439,12 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   L'interface vérifie `on <déclencheur> do … endon` (à titre indicatif, `rules_lint.js`) ; le
   moteur de règles de Tasmota n'a pas de commande de contrôle de syntaxe. Le contrôle par
   compilation Berry viendra avec l'édition du Berry.
+- **Disposition de l'écran Règles** (11 novembre 2026) : un onglet par jeu de règles (`Rule1` à
+  `Rule3`, avec un point pour son état) et un pour les règles Berry, au lieu de trois colonnes. En
+  vue *Phrases*, chaque bloc est une **tuile** (lignes Quand / Si / Alors / Sinon) ; *Modifier* ouvre
+  le formulaire dans une **fenêtre par-dessus la page** (`<dialog>` natif : Échap et le fond la
+  ferment, le bouton *Terminé* reste visible sur téléphone), et non sur place ; une tuile en
+  pointillés ajoute une règle.
 - **Éditeur en phrases** (v0.2 étape 2, écrit ; la vue **Phrases** d'un jeu de règles, interface
   complète seulement : `rules_model.js`, `rules_editor.js`, enregistré par `main.js` pour que
   l'interface légère ne le contienne pas ; rien ne change sur la passerelle). Un bloc
