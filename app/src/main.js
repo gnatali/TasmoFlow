@@ -6,7 +6,8 @@ import { boot } from './boot.js';
 import { DevicesView, EventsView, ConsoleView, DiagView } from './views.js';
 import { RulesView, registerEditor } from './rules.js';
 import { SentenceEditor } from './rules_editor.js';
+import { ConflictBanner } from './rules_conflicts_view.js';
 import { GatewaysView } from './gateways.js';
 
-registerEditor(SentenceEditor);
+registerEditor(SentenceEditor, ConflictBanner);
 boot({ devices: DevicesView, rules: RulesView, events: EventsView, console: ConsoleView, gateways: GatewaysView, diag: DiagView }, false);

@@ -43,6 +43,10 @@ const TEXTS = {
     rule_zbSkipped: "Des appareils Zigbee dont le nom contient un espace ne peuvent pas servir de déclencheur : renommez-les (ZbName) ou désactivez SetOption83.",
     rule_finish: 'Terminé', rule_editTitle: 'Modifier la règle', rule_noCond: 'aucune condition', rule_noElse: 'aucune autre action',
     rule_custom: 'Personnalisé…', rule_list: 'Choisir dans la liste', rule_pickEvent: 'Choisir un événement', rule_pickAction: 'Choisir une action',
+    rule_autoexecNone: "Aucun fichier autoexec.be sur la passerelle.", rule_autoexecCut: 'Début du fichier : {n} octets sur {size}.',
+    rule_autoexecHelp: "Lecture seule : pour le modifier, utilisez le gestionnaire de fichiers de Tasmota (Console → Gestion du système de fichiers).",
+    rule_conflicts: 'Règles qui peuvent se gêner', rule_tile: 'règle',
+    rule_cCancel: "basculé deux fois : l'effet s'annule", rule_cContradict: 'ordres contraires', rule_cDuplicate: 'même ordre donné deux fois',
     tuyaWaiting: 'Pilote Tuya en attente :', tuyaLowMem: 'Mémoire libre insuffisante pour lire la configuration Tuya : seuls les états booléens sont proposés.'
   },
   en: {
@@ -86,6 +90,10 @@ const TEXTS = {
     rule_zbSkipped: 'Zigbee devices whose name contains a space cannot be used as a trigger: rename them (ZbName) or turn SetOption83 off.',
     rule_finish: 'Done', rule_editTitle: 'Edit rule', rule_noCond: 'no condition', rule_noElse: 'no other action',
     rule_custom: 'Custom…', rule_list: 'Pick from the list', rule_pickEvent: 'Pick an event', rule_pickAction: 'Pick an action',
+    rule_autoexecNone: 'No autoexec.be file on the gateway.', rule_autoexecCut: 'Start of the file: {n} of {size} bytes.',
+    rule_autoexecHelp: "Read only: to change it, use Tasmota's file manager (Consoles → Manage File system).",
+    rule_conflicts: 'Rules that may clash', rule_tile: 'rule',
+    rule_cCancel: 'toggled twice: the effect cancels out', rule_cContradict: 'opposite orders', rule_cDuplicate: 'the same order given twice',
     tuyaWaiting: 'Tuya driver waiting:', tuyaLowMem: 'Not enough free memory to read the Tuya configuration: only boolean states are offered.'
   }
 };

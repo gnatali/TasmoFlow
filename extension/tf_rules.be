@@ -13,6 +13,8 @@
 #   /api/rule_apply?n=1&step=  applies it: step bak, then put, then check (see step())
 #   /api/rule_restore?n=1      puts the previous copy back (the current text becomes the new
 #                              previous copy, so a restore can be undone)
+#   /api/autoexec              /autoexec.be as text, read only, at most MAX_VIEW bytes. The one
+#                              file this API reads: the others (tuya.json...) hold keys
 #
 # Every write first copies the current text to /tf_rule<n>.bak, writes with `Rule<n>`, reads
 # the rule set back and, if it differs, the client restores the copy.
@@ -22,6 +24,7 @@ import json
 import string
 
 class tf_rules
+  static var MAX_VIEW = 6000            # bytes of autoexec.be sent
   static var MAX_LEN = 2200             # Tasmota stores up to about 2 KB (Unishox compression)
 
   var tf                                # the tasmoflow instance
@@ -237,7 +240,24 @@ class tf_rules
     end
   end
 
+  # autoexec.be, read only: {"exists":false} or {"exists":true,"size":N,"text":"..."}
+  def api_autoexec(cnx, uri, verb)
+    if self.tf.authorized(cnx, uri) == nil   return   end
+    var s = '{"exists":false}'
+    try
+      var f = open("/autoexec.be", "r")
+      var size_all = f.size()
+      var b = f.readbytes(size_all > self.MAX_VIEW ? self.MAX_VIEW : size_all)
+      f.close()
+      s = format('{"exists":true,"size":%i,"text":%s}', size_all, json.dump(b.asstring()))
+    except ..
+    end
+    cnx.send(200, "application/json", s)
+    cnx.content_stop()
+  end
+
   def register(web)
+    web.on("/api/autoexec", self, self.api_autoexec)
     web.on("/api/rules", self, self.api_rules)
     web.on("/api/rule_set", self, self.api_rule_set)
     web.on("/api/rule_apply", self, self.api_rule_apply)

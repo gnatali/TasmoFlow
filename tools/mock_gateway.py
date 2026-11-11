@@ -6,7 +6,7 @@ Mimics the extension's two servers:
   - port --web (8080 by default): /tf page, extracted as is from
     extension/tasmoflow.be to test the real loader;
   - port --api (8384 by default): /lite.js (gzip), /api/status, /api/devices,
-    /api/cmd, /api/rules, /api/rule_set, /api/rule_apply, /api/rule_restore and /api/events (SSE), with the same CORS headers as tf_http.be.
+    /api/cmd, /api/rules, /api/autoexec, /api/rule_set, /api/rule_apply, /api/rule_restore and /api/events (SSE), with the same CORS headers as tf_http.be.
 
 Three fake Zigbee devices send events every 2 seconds. Four fake Tuya devices answer
 TuyaEnable, TuyaStatus, TuyaConfig and TuyaSend like the firmware's driver (formats from
@@ -126,7 +126,12 @@ def tuya_command(c):
 RULES = {n: {"on": False, "once": False, "stop": False, "text": "", "bak": None} for n in (1, 2, 3)}
 RULES[1].update(on=True, text="on Button1#State=3 do Power2 toggle endon")
 RULES[2].update(text="on Time#Minute=60 do Power1 0 endon on System#Boot do Backlog Delay 50; Power1 1 endon")
-BERRY_RULES = [{"rule": "Tuya", "id": "None"}, {"rule": "Button1#State", "id": "my_script"}]
+BERRY_RULES = [{"rule": "Tuya", "id": "nil"}, {"rule": "Button1#State", "id": "my_script"},
+               {"rule": "MtrReceived", "id": "<instance: TuyaLocal()>"}]
+AUTOEXEC = """import tuya_local
+var tl = tuya_local.TuyaLocal()
+tasmota.add_rule("Button1#State", def (v) print("button", v) end, "my_script")
+"""
 RULE_BUF = {"n": 0, "text": ""}
 
 
@@ -290,6 +295,8 @@ class Api(BaseHTTPRequestHandler):
                             "wd": "/.extensions/TasmoFlow.tapp#"})
         elif u.path == "/api/devices":
             self.json(200, list(DEVICES.values()))
+        elif u.path == "/api/autoexec":
+            self.json(200, {"exists": True, "size": len(AUTOEXEC), "text": AUTOEXEC})
         elif u.path == "/api/rules":
             self.json(200, {"rules": [{"n": n, "on": r["on"], "once": r["once"], "stop": r["stop"],
                                        "len": len(r["text"]), "free": 511 - len(r["text"]), "text": r["text"],

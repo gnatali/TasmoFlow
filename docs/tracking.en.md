@@ -50,6 +50,7 @@ Specification (French, outside the repository):
 | 9 Nov | All v0.0 checks passed, memory measured after `tasmota.gc()`; v0.0.1 tagged by Guillaume, GitHub Pages enabled |
 | 9 Nov | v0.1: **Preact + htm chosen** (same screen: 6.6 KB gzipped against 6.3 KB for Lit, 5.4 KB for the prototype without dependency); interface bundled with esbuild (12.9 KB gzipped, then 14.6 KB with Tuya) |
 | 9 Nov | v0.1: **option B decided**: full interface on GitHub Pages only (pinned, SRI), light interface (13.7 KB gzipped, devices + console + diagnostics) in the `.tapp`; second esbuild entry point of the same sources. Reason: `UfsFree` 148 KB of 320 KB and a full interface that will grow |
+| 11 Nov | v0.2 step 4: Berry section (owner of each rule, `autoexec.be` read only: new route, `.tapp` to install again) and the conflict banner (same trigger, same device: toggles cancel, opposite orders, duplicates) |
 | 11 Nov | Rules screen again after a second try: accordion instead of tabs; the trigger and command fields are one choice field (friendly name closed, tree with the current item highlighted open); fixed a rebuild of the edited text at every incoming event |
 | 11 Nov | Rules screen redone after trying it on the gateway (desktop and phone): tabs per rule set, tiles in Sentences view, the edit form in a dialog; device information (`IEEEAddr`, `ModelId`...) no longer offered as a trigger |
 | 11 Nov | v0.2 step 3: device pickers in the sentence editor (Zigbee triggers and `ZbSend` actions, Tuya `TuyaSend` actions, `SetOption83` read for the trigger key, plain-language sentences); `enabled: false` Tuya bindings now used for the controls; suggestion lists always complete (select, not datalist) |
@@ -116,11 +117,11 @@ Left for v0.1 (small):
 
 **Agreed on 11 November 2026, to do later** (not started): a **simple guided mode** for the rule dialog (pick a device, say what happens to it in words, pick what to do), where Zigbee events are learned by pressing the button (the interface listens to the event stream and writes the trigger from what it just saw).
 
-v0.2, left after step 2 (sentence editor written, to check on the gateway: no reinstall, a test
-build is enough): device pickers and friendly names in the editor (Zigbee, Tuya, Matter; check
-in Tasmota's source how Zigbee events appear in rules), `elseif` and several triggers, automations
-(Tasmota rule or Berry), Berry rule editing with a compilation check, `autoexec.be`, conflict
-report.
+v0.2, what is left after step 4: the **guided mode** (agreed, later), Matter in the pickers,
+`elseif` and several triggers in the sentence editor, **automations** (a TasmoFlow automation becomes a
+Tasmota rule or Berry code, Tuya triggers need Berry), **editing** Berry rules and `autoexec.be` with
+copy before write and a compilation check. Steps 2 to 4 (sentence editor, pickers, Berry view and
+conflicts) are written and tried on the gateway in part, see the test plan.
 
 ## Points to check
 

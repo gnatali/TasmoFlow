@@ -173,6 +173,7 @@ Pourquoi :
 | `GET /api/rules?t=` | Les trois jeux de règles Tasmota (état, options, texte, place libre, copie précédente) et les règles Berry (`tf_rules.be`) |
 | `POST /api/rule_set?t=&n=` | Envoie le nouveau texte du jeu `n` (corps de la requête) |
 | `GET /api/rule_apply?t=&n=&step=` | L'applique en trois requêtes : `bak` (copie du texte actuel), `put` (`Rule<n>`), `check` (relecture) ; en cas d'échec l'interface appelle `rule_restore` |
+| `GET /api/autoexec?t=` | `/autoexec.be` en texte, en lecture seule, 6 000 octets au plus (`{"exists":false}` sans lui). Le seul fichier que l'API lit : les autres (`tuya.json`…) contiennent des clés |
 | `GET /api/rule_restore?t=&n=` | Remet la copie précédente du jeu `n` |
 | `GET /api/events?t=&since=` | Flux SSE ; renvoie d'abord les événements gardés après `since` (50 au plus) |
 
@@ -478,6 +479,19 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   qu'un appareil a signalés depuis l'ouverture de l'interface ou dans son dernier état : un bouton
   montre `Click` après son premier appui. Pas encore : Matter, `elseif`, plusieurs déclencheurs,
   déplacement d'un bloc, noms clairs pour les événements propres à la passerelle.
+- **Règles Berry et `autoexec.be`** (v0.2 étape 4, lecture seule) : la section Berry liste les
+  déclencheurs de `tasmota._rules` (motif et propriétaire : l'identifiant, ou la classe de l'objet qui
+  l'a enregistré ; `nil` et `None` ne s'affichent pas) et montre `/autoexec.be`, d'où viennent
+  d'habitude ces règles. Pas encore de modification : un script qui ne compile pas ou qui plante peut
+  arrêter Berry au démarrage, donc l'écriture demande la copie avant écriture et le contrôle de
+  compilation prévus pour elle (pour plus tard).
+- **Règles qui se gênent** (`rules_conflicts.js`, interface complète, sans coût sur la passerelle) :
+  la liste au-dessus des jeux de règles nomme les blocs de jeux actifs qui se déclenchent sur le même
+  événement et agissent sur le même appareil : deux bascules (l'effet s'annule), un *allumer* et un
+  *éteindre* (ordres contraires), ou le même ordre deux fois. Seules les commandes qui nomment leur
+  cible sont comparées (`Power<n> on|off|toggle`, `ZbSend` avec `Power`, `TuyaSend` avec
+  `true|false|toggle`) ; les autres déclencheurs et commandes sont ignorés, ainsi que les
+  automatisations Matter / Google Home que la passerelle ne voit pas.
 - **Moteur au choix.** Une action TasmoFlow devient une règle Tasmota (indépendante de Berry,
   place limitée) ou du Berry (sans limite, conditions et minuteries avancées).
 - **Conflits.** Deux règles qui agissent sur le même appareil sont signalées : par exemple une
@@ -513,6 +527,8 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [ ] v0.1 : avec le pilote Tuya désactivé (`TuyaEnable 0`) ou absent, la section Tuya est masquée
 - [x] v0.1 : mémoire au repos après `tasmota.gc()` : 75 Ko libres, Berry 35 Ko, soit 9 Ko (cible : 15 Ko) ; interface ouverte 63 Ko / 48 Ko (`import` en cache, voir [Mémoire](#mémoire))
 - [x] v0.1 : avec le chargement sans cache, la mémoire revient en partie 5 minutes après la fermeture du dernier onglet : 59 Ko libres / Berry 48 Ko interface ouverte, 69 Ko / 39 Ko après (75 Ko / 35 Ko avant la première ouverture)
+- [ ] v0.2 : section Berry : la liste correspond à `Br print(tasmota._rules)` avec leur propriétaire, et `autoexec.be` s'affiche en texte (`.tapp` réinstallée, `Restart 1` ; la route est nouvelle)
+- [ ] v0.2 : conflits : deux jeux de règles actifs qui basculent la même lumière sur le même déclencheur affichent le bandeau « Règles qui peuvent se gêner » ; il disparaît quand l'un est éteint
 - [ ] v0.2 : sélecteurs d'appareils : dans une nouvelle règle, la liste des déclencheurs propose vos appareils Zigbee (attributs signalés) et les listes de commandes proposent `ZbSend` (allumer, éteindre, basculer) et vos appareils Tuya ; avec `SetOption83` actif et un appareil nommé, le déclencheur porte le nom (`ZbReceived#Lampe#Power`), sinon l'adresse ; la règle enregistrée fonctionne (appui sur le bouton, la lumière bascule) ; la phrase se lit `Lampe · Power = 1` / `basculer Lampe`
 - [ ] v0.2 : vue Phrases : un jeu de règles saisi en vue Texte s'affiche en phrases ; modifier la valeur d'un déclencheur, ajouter un `if` / `else` et une deuxième commande, ajouter et supprimer une règle, puis Enregistrer donne le texte attendu (`Rule<n>` dans la console) ; une règle qui n'entre dans aucune phrase reste en texte
 - [x] v0.2 (10 novembre 2026) : écran Règles : les trois jeux affichent le texte de `Rule1` à `Rule3` ; enregistrer une règle de plus de 600 caractères (corps POST) se relit à l'identique quand elle est saisie sur plusieurs lignes (stockée sur une ligne, affichée un bloc par ligne ; sinon l'ancien texte est remis et une erreur s'affiche) ; « Copie précédente » puis « Restaurer » remet l'ancien texte

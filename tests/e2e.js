@@ -193,6 +193,8 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
       '0123456789abcdef0123456789abcdef', { timeout: 4000 });
     await p.getByRole('button', { name: /Règles Berry/ }).click();
     await p.locator('ul.berry').getByText('Button1#State').waitFor();
+    await p.locator('ul.berry').getByText('TuyaLocal', { exact: true }).waitFor();   // the owner of a rule registered from an object
+    await p.locator('pre.code').getByText('tuya_local').first().waitFor();            // autoexec.be, read only
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'rules.png'), fullPage: true });
   });
   await test('sentence editor: tiles, edit in a dialog, add, condition, delete, raw block, save', async p => {
@@ -297,6 +299,26 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     const want = 'on ZbReceived#0x3C4D#Power=1 do Backlog ZbSend {"device":"0x3C4D","send":{"Power":"Toggle"}}; TuyaSend Ventilateur,20,toggle endon';
     if (text !== want) throw new Error('stored: ' + text);
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'pickers.png'), fullPage: true });
+  });
+  await test('conflicts: two rule sets toggling the same light on the same event', async p => {
+    await openFull(p);
+    await p.getByRole('button', { name: 'Règles' }).click();
+    const same = 'on Button1#State=3 do Power2 toggle endon';
+    for (const n of [1, 3]) {
+      const r = await rule(p, n);
+      await r.getByRole('textbox').fill(same);
+      await r.getByRole('button', { name: 'Enregistrer' }).click();
+      await r.getByText(/Enregistré/).waitFor({ timeout: 4000 });
+    }
+    const banner = p.locator('.conflicts');
+    await banner.getByText(/Règles qui peuvent se gêner \(1\)/).waitFor({ timeout: 4000 });
+    await banner.getByText(/l'effet s'annule/).waitFor();
+    await banner.getByText(/Rule1 · règle 1, Rule3 · règle 1/).waitFor();
+    // a rule set that is switched off does not count
+    const r3 = await rule(p, 3);
+    await r3.getByRole('button', { name: 'allumé' }).click();
+    await banner.waitFor({ state: 'detached', timeout: 4000 });
+    if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'conflicts.png'), fullPage: true });
   });
   await test('Tuya: cards, switches, slider, readings, event back, offline device', async p => {
     await openFull(p);

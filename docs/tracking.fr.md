@@ -53,6 +53,7 @@ Cahier des charges (en français, hors du dépôt) :
 | 9 nov. | Tous les points de la v0.0 validés, mémoire mesurée après `tasmota.gc()` ; tag v0.0.1 créé par Guillaume, GitHub Pages activé |
 | 9 nov. | v0.1 : **Preact + htm retenu** (même écran : 6,6 Ko gzip contre 6,3 Ko pour Lit, 5,4 Ko pour le prototype sans dépendance) ; interface assemblée avec esbuild (12,9 Ko gzip, puis 14,6 Ko avec Tuya) |
 | 9 nov. | v0.1 : **option B décidée** : interface complète sur GitHub Pages seulement (figée, SRI), interface légère (13,7 Ko gzip, appareils + console + diagnostic) dans la `.tapp` ; second point d'entrée esbuild des mêmes sources. Raison : `UfsFree` 148 Ko sur 320 Ko et une interface complète qui va grossir |
+| 11 nov. | v0.2 étape 4 : section Berry (propriétaire de chaque règle, `autoexec.be` en lecture seule : nouvelle route, `.tapp` à réinstaller) et bandeau des conflits (même déclencheur, même appareil : bascules qui s'annulent, ordres contraires, doublons) |
 | 11 nov. | Écran Règles encore après un deuxième essai : accordéon au lieu d'onglets ; les champs de déclencheur et de commande forment un seul champ à choix (nom lisible fermé, arbre avec l'élément courant en évidence ouvert) ; correction d'une reconstruction du texte en cours de saisie à chaque événement reçu |
 | 11 nov. | Écran Règles refait après essai sur la passerelle (ordinateur et téléphone) : onglets par jeu de règles, tuiles en vue Phrases, formulaire de modification dans une fenêtre ; les informations d'appareil (`IEEEAddr`, `ModelId`…) ne sont plus proposées comme déclencheur |
 | 11 nov. | v0.2 étape 3 : sélecteurs d'appareils dans l'éditeur en phrases (déclencheurs Zigbee et actions `ZbSend`, actions Tuya `TuyaSend`, lecture de `SetOption83` pour la clé du déclencheur, phrases en langage clair) ; les liaisons Tuya `enabled: false` servent maintenant aux contrôles ; listes de suggestions toujours complètes (select, pas datalist) |
@@ -122,12 +123,12 @@ Reste pour la v0.1 (petit) :
 
 **Accepté le 11 novembre 2026, à faire plus tard** (pas commencé) : un **mode guidé simple** pour la fenêtre de règle (choisir un appareil, dire en mots ce qui lui arrive, choisir quoi faire), où les événements Zigbee s'apprennent en appuyant sur le bouton (l'interface écoute le flux d'événements et écrit le déclencheur d'après ce qu'elle vient de voir).
 
-v0.2, reste après l'étape 2 (éditeur en phrases écrit, à vérifier sur la passerelle : pas de
-réinstallation, une version de test suffit) : sélecteurs d'appareils et noms lisibles dans
-l'éditeur (Zigbee, Tuya, Matter ; voir dans le code de Tasmota comment les événements Zigbee
-apparaissent dans les règles), `elseif` et plusieurs déclencheurs, actions (règle Tasmota ou
-Berry), édition des règles Berry avec contrôle de compilation, `autoexec.be`, signalement des
-conflits.
+v0.2, ce qui reste après l'étape 4 : le **mode guidé** (accepté, plus tard), Matter dans les
+sélecteurs, `elseif` et plusieurs déclencheurs dans l'éditeur en phrases, les **actions** (une
+automatisation TasmoFlow devient une règle Tasmota ou du Berry, les déclencheurs Tuya demandent du
+Berry), la **modification** des règles Berry et d'`autoexec.be` avec copie avant écriture et contrôle de
+compilation. Les étapes 2 à 4 (éditeur en phrases, sélecteurs, vue Berry et conflits) sont écrites et
+en partie essayées sur la passerelle, voir le plan de test.
 
 ## Points à vérifier
 

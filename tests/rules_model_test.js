@@ -8,7 +8,7 @@ const esbuild = require('esbuild');
 const SRC = path.join(__dirname, '..', 'app', 'src');
 // the modules are plain ES modules: bundle them to CommonJS for Node
 const out = esbuild.buildSync({
-  stdin: { contents: "export * from './rules_model.js'; export * from './rules_lint.js'; export * from './rules_devices.js';", resolveDir: SRC },
+  stdin: { contents: "export * from './rules_model.js'; export * from './rules_lint.js'; export * from './rules_devices.js'; export * from './rules_conflicts.js';", resolveDir: SRC },
   loader: { '.css': 'text' }, define: { __BUILD__: '""' },
   bundle: true, format: 'cjs', write: false, logLevel: 'silent'
 }).outputFiles[0].text;
@@ -17,7 +17,7 @@ globalThis.localStorage = { getItem: () => null, setItem() {} };
 globalThis.document = { documentElement: {} };
 const m = { exports: {} };
 new Function('module', 'exports', out)(m, m.exports);
-const { zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
+const { findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
 
 let n = 0;
 const ok = (name, f) => { f(); n++; };
@@ -160,6 +160,30 @@ ok('plain-language names', () => {
   assert.strictEqual(describeCommand('ZbSend {"device":"0x3C4D","send":{"Power":"Toggle"}}', devs, lab), 'basculer 0x3C4D');
   assert.strictEqual(describeCommand('TuyaSend Fan,20,true', devs, lab), 'allumer Fan (DP 20)');
   assert.strictEqual(describeCommand('Power1 on', devs, lab), null);
+});
+
+// ---- conflicts
+ok('command info: what a command switches', () => {
+  assert.deepStrictEqual(commandInfo('Power2 TOGGLE'), { target: 'Power2', verb: 'toggle' });
+  assert.deepStrictEqual(commandInfo('Power 1'), { target: 'Power1', verb: 'on' });
+  assert.deepStrictEqual(commandInfo('ZbSend {"device":"0x3C4D","send":{"Power":"Off"}}'), { target: 'zb:0x3c4d', verb: 'off' });
+  assert.deepStrictEqual(commandInfo('TuyaSend Fan,20,true'), { target: 'tuya:fan#20', verb: 'on' });
+  assert.strictEqual(commandInfo('Delay 10'), null);
+  assert.strictEqual(commandInfo('TuyaSend Fan,62,3'), null);
+});
+ok('conflicts: toggles cancel, orders contradict, duplicates, disabled sets and other triggers ignored', () => {
+  const sets = [
+    { n: 1, on: true, text: 'on Button1#State=3 do Power2 toggle endon on Time#Minute=5 do Power1 on endon' },
+    { n: 2, on: true, text: 'on Button1#State=3 do Backlog Delay 5; Power2 toggle endon on Time#Minute=5 do Power1 off endon on Button1#State=2 do Power2 toggle endon' },
+    { n: 3, on: false, text: 'on Button1#State=3 do Power2 toggle endon' }
+  ];
+  const c = findConflicts(sets);
+  assert.strictEqual(c.length, 2);
+  const cancel = c.find(x => x.kind === 'cancel');
+  assert.deepStrictEqual([cancel.target, cancel.where.map(w => w.n + ':' + w.i)], ['Power2', ['1:0', '2:0']]);
+  assert.strictEqual(c.find(x => x.kind === 'contradict').target, 'Power1');
+  assert.strictEqual(findConflicts([{ n: 1, on: true, text: 'on a#b do Power1 on endon on a#b do Power1 on endon' }])[0].kind, 'duplicate');
+  assert.strictEqual(findConflicts([{ n: 1, on: true, text: 'on a#b do if (Var1==1) Power1 on else Power1 off endif endon' }]).length, 0);   // one block, two branches
 });
 
 console.log(`ok     rule model (${n} checks)`);

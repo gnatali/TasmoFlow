@@ -2,7 +2,7 @@
 // Rules of the gateway: the three Tasmota rule sets (Rule1 to Rule3) and the Berry rules.
 // Every write goes through the gateway, which keeps a copy of the previous text first (see
 // extension/tf_rules.be). The light interface only enables/disables and restores.
-import { useState } from 'preact/hooks';
+import { useState, useEffect } from 'preact/hooks';
 import { html } from './html.js';
 import { t } from './i18n.js';
 import { S, cmd, get, post, loadRules } from './state.js';
@@ -11,7 +11,8 @@ import { lintRule, flatRule, showRule } from './rules_lint.js';
 
 // the sentence editor, registered by the full interface only (not part of the light bundle)
 let Editor = null;
-export const registerEditor = c => { Editor = c; };
+let Banner = null;                                  // the list of rules that clash, same story
+export const registerEditor = (c, banner) => { Editor = c; Banner = banner || null; };
 
 const SOFT_LIMIT = 512;      // beyond it Tasmota compresses the text (up to about 2 KB)
 const HARD_LIMIT = 2000;
@@ -92,6 +93,24 @@ function RuleCard({ r, note, setNote, mode, setMode }) {
   </article>`;
 }
 
+// who registered a Berry rule: its id, or the class of the object that did
+const owner = id => { const m = /^<instance: ([^(>]+)/.exec(id); return m ? m[1] : (id === 'nil' || id === 'None' ? '' : id); };
+
+// Berry rules (read only) and the script that usually creates them, autoexec.be (read only too)
+function BerryRules({ berry }) {
+  const [auto, setAuto] = useState(null);
+  useEffect(() => { get('/api/autoexec').then(setAuto).catch(() => setAuto({ error: true })); }, []);
+  return html`${berry.length
+      ? html`<ul class="berry">${berry.map(b => html`<li><code>${b.rule}</code> <span class="q">${owner(b.id)}</span></li>`)}</ul>`
+      : html`<p class="q">${t('rule_noBerry')}</p>`}
+    <h4>autoexec.be</h4>
+    ${!auto ? html`<p class="q">${t('loading')}</p>`
+      : auto.error ? html`<p class="q">${t('error')}</p>`
+      : !auto.exists ? html`<p class="q">${t('rule_autoexecNone')}</p>`
+      : html`<pre class="code">${auto.text}</pre>
+        <p class="q">${auto.text.length < auto.size ? t('rule_autoexecCut').replace('{n}', auto.text.length).replace('{size}', auto.size) + ' ' : ''}${t('rule_autoexecHelp')}</p>`}`;
+}
+
 // An accordion section. Defined here, not inside RulesView: a component created at every render
 // is a new type each time, and Preact would rebuild everything below it (the text being edited
 // included) whenever an event arrives.
@@ -110,12 +129,11 @@ export function RulesView() {
   const [open, setOpen] = useState({ 1: true });        // accordion: each section opens and closes on its own
   if (!rules) return html`<p>${t('loading')}</p>`;
   const toggle = k => () => setOpen({ ...open, [k]: !open[k] });
-  return html`<div class="accs">
+  return html`${Banner ? html`<${Banner} rules=${rules.rules}/>` : null}<div class="accs">
     ${rules.rules.map(r => html`<${Section} key=${r.n} title=${'Rule' + r.n + (r.on ? '' : ' · ' + t('off'))} dot=${r.on} open=${!!open[r.n]} toggle=${toggle(r.n)}>
       <${RuleCard} key=${r.n + '|' + r.text + '|' + r.on + r.once + r.stop + '|' + r.bak} r=${r} note=${note} setNote=${setNote}
         mode=${modes[r.n] || 'text'} setMode=${m => setModes({ ...modes, [r.n]: m })}/></${Section}>`)}
     <${Section} key="berry" title=${t('rule_berry') + ' (' + rules.berry.length + ')'} open=${!!open[0]} toggle=${toggle(0)}>
-      ${rules.berry.length ? html`<ul class="berry">${rules.berry.map(b => html`<li><code>${b.rule}</code> <span class="q">${b.id === 'None' ? '' : b.id}</span></li>`)}</ul>`
-        : html`<p class="q">${t('rule_noBerry')}</p>`}</${Section}>
+      <${BerryRules} berry=${rules.berry}/></${Section}>
   </div>`;
 }

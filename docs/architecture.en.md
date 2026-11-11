@@ -164,6 +164,7 @@ Why:
 | `GET /api/rules?t=` | The three Tasmota rule sets (state, options, text, free space, previous copy) and the Berry rules (`tf_rules.be`) |
 | `POST /api/rule_set?t=&n=` | Sends the new text of rule set `n` (request body) |
 | `GET /api/rule_apply?t=&n=&step=` | Applies it in three requests: `bak` (copy of the current text), `put` (`Rule<n>`), `check` (read back); on failure the interface calls `rule_restore` |
+| `GET /api/autoexec?t=` | `/autoexec.be` as text, read only, at most 6,000 bytes (`{"exists":false}` without it). The one file the API reads: the others (`tuya.json`...) hold keys |
 | `GET /api/rule_restore?t=&n=` | Puts the previous copy of rule set `n` back |
 
 Events carry a sequence number and a `type`: `zigbee` (`device`, `name`, `attrs`) and `tuya`
@@ -455,6 +456,17 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   listed are the ones a device has reported since the interface opened or in its last state:
   a button shows `Click` after its first press. Not yet: Matter, `elseif`, several triggers,
   moving a block, plain names for the gateway's own events.
+- **Berry rules and `autoexec.be`** (v0.2 step 4, read only): the Berry section lists the triggers
+  of `tasmota._rules` (pattern and owner: the id, or the class of the object that registered it;
+  `nil` and `None` are not shown) and shows `/autoexec.be`, where such rules usually come from. No
+  editing yet: a script that does not compile or crashes can stop Berry at boot, so writing needs
+  the copy-before-write and the compilation check designed for it (left for later).
+- **Rules that clash** (`rules_conflicts.js`, full interface, no cost on the gateway): the list
+  above the rule sets names blocks of enabled rule sets that fire on the same trigger and act on the
+  same device: two toggles (the effect cancels out), an *on* and an *off* (opposite orders), or the
+  same order twice. Only commands that name their target are compared (`Power<n> on|off|toggle`,
+  `ZbSend` with `Power`, `TuyaSend` with `true|false|toggle`); other triggers and other kinds of
+  command are ignored, and so are the Matter / Google Home automations the gateway cannot see.
 - **Engine of choice.** A TasmoFlow automation becomes either a Tasmota rule (independent of
   Berry, limited space) or Berry code (no limit, advanced conditions and timers).
 - **Conflicts.** Two rules acting on the same device are reported: for example a Tasmota rule
@@ -490,6 +502,8 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [ ] v0.1: with the Tuya driver disabled (`TuyaEnable 0`) or absent, the Tuya section is hidden
 - [x] v0.1: memory at rest after `tasmota.gc()`: 75 KB free, Berry 35 KB, i.e. 9 KB (target 15 KB); with an interface open 63 KB / 48 KB (cached `import`, see [Memory](#memory))
 - [x] v0.1: with the uncached loading, the memory partly returns 5 minutes after the last tab is closed: 59 KB free / Berry 48 KB with the interface open, 69 KB / 39 KB after (75 KB / 35 KB before the first opening)
+- [ ] v0.2: Berry section: the rules list matches `Br print(tasmota._rules)` with their owner, and `autoexec.be` shows as text (`.tapp` installed again, `Restart 1`; the route is new)
+- [ ] v0.2: conflicts: two enabled rule sets that toggle the same light on the same trigger show the banner "Rules that may clash"; it disappears when one is switched off
 - [ ] v0.2: device pickers: in a new rule, the trigger list offers your Zigbee devices (attributes they reported) and the command lists offer `ZbSend` (on, off, toggle) and your Tuya devices; with `SetOption83` on and a named device, the trigger carries the name (`ZbReceived#Lampe#Power`), off the address; the saved rule works (press the button, the light toggles); the sentence reads `Lampe · Power = 1` / `basculer Lampe`
 - [ ] v0.2: Sentences view: a rule set typed in Text view shows as sentences; editing a trigger value, adding an `if` / `else` and a second command, adding and deleting a rule, then Save gives the expected text (`Rule<n>` in the console); a rule that fits no sentence stays text
 - [x] v0.2 (10 November 2026): Rules screen: the three rule sets show the text of `Rule1` to `Rule3`; saving a rule of more than 600 characters (POST body) reads back identical when typed on several lines (stored on one line, shown one block per line; otherwise the old text is put back and an error is shown); "Previous copy" then "Restore" brings the old text back
