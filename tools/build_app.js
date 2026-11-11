@@ -2,7 +2,7 @@
 // Bundles app/src/ (Preact + htm) into two files from the same sources:
 //   dist/app.js   full interface, published on GitHub Pages (pinned version, SRI hash)
 //   dist/lite.js  light interface, kept gzipped in the .tapp as the local copy
-// Usage: npm run build
+// Usage: npm run build   (TF_BUILD=<id> npm run build tags a test build: the id shows in the header)
 const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
@@ -30,6 +30,7 @@ esbuild.build({
   target: ['es2020'],
   legalComments: 'none',
   banner: { js: `/* TasmoFlow ${VERSION}, GPL-3.0-only, https://github.com/gnatali/TasmoFlow */` },
+  define: { __BUILD__: JSON.stringify(process.env.TF_BUILD || '') },
   plugins: [cssText],
   logLevel: 'warning'
 }).then(() => {

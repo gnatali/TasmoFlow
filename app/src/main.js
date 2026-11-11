@@ -4,6 +4,11 @@
 // provides window.TASMOFLOW (see config.js).
 import { boot } from './boot.js';
 import { DevicesView, EventsView, ConsoleView, DiagView } from './views.js';
+import { RulesView, registerEditor } from './rules.js';
+import { SentenceEditor } from './rules_editor.js';
+import { ConflictBanner } from './rules_conflicts_view.js';
+import { findConflicts } from './rules_conflicts.js';
 import { GatewaysView } from './gateways.js';
 
-boot({ devices: DevicesView, events: EventsView, console: ConsoleView, gateways: GatewaysView, diag: DiagView }, false);
+registerEditor(SentenceEditor, ConflictBanner, findConflicts);
+boot({ devices: DevicesView, rules: RulesView, events: EventsView, console: ConsoleView, gateways: GatewaysView, diag: DiagView }, false);

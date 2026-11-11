@@ -17,12 +17,16 @@ function Header() {
     ${name ? html`<span class="gw">${name}</span>` : null}
     <span class="sp"></span>
     <span class=${'badge ' + (s.live ? 'ok' : 'bad')}>${s.live ? t('live') : t('reconnecting')}</span>
-    <span class="badge">${'v' + cfg.version + ' · ' + cfg.source + (cfg.lite ? ' · lite' : '')}</span>
+    <span class="badge">${'v' + cfg.version + ' · ' + cfg.source + (cfg.lite ? ' · lite' : '') + (__BUILD__ ? ' · ' + __BUILD__ : '')}</span>
     <button class="b" lang=${lang === 'fr' ? 'en' : 'fr'} aria-label=${lang === 'fr' ? 'English' : 'Français'} onClick=${toggleLang}>${lang === 'fr' ? 'EN' : 'FR'}</button>
   </header>`;
 }
 
 // tabs: { id: component }, in display order
+// an extra banner, put in by the interface that wants one (the light one: update of the .tapp)
+let Extra = null;
+export const registerBanner = c => { Extra = c; };
+
 export function createApp(tabs) {
   return function App() {
     const { tab, error } = S.use();
@@ -32,7 +36,8 @@ export function createApp(tabs) {
       <${Header}/>
       <nav aria-label="TasmoFlow">${Object.keys(tabs).map(k => html`<button key=${k} aria-current=${tab === k ? 'page' : null} onClick=${() => setTab(k)}>${t(k)}</button>`)}</nav>
       <main aria-live="polite">
-        ${cfg.lite ? html`<p class="lite" role="status">${t('liteBanner')} <button class="b" onClick=${() => location.reload()}>${t('retry')}</button></p>` : null}
+        ${Extra ? html`<${Extra}/>` : null}
+        ${cfg.lite && !(cfg.update) ? html`<p class="lite" role="status">${t('liteBanner')} <button class="b" onClick=${() => location.reload()}>${t('retry')}</button></p>` : null}
         ${error ? html`<p class="badge bad">${t('error') + ' : ' + error}</p>` : null}
         <${View}/>
       </main>`;

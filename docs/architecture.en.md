@@ -27,11 +27,12 @@ RAM is the critical resource, so the port 8384 server (`tf_http.be`) is not star
 (v0.1):
 
 - `/tf`, once the password check has passed, starts it. `tf_http.be` is compiled at that moment
-  (`load_tf_http()`, `introspect.module('tf_http', true)`: loaded **without cache**, so
+  (`load_module()`, `introspect.module('tf_http', true)`: loaded **without cache**, so
   `tasmota.gc()` frees it when the server stops): no RAM is spent while no interface is open.
   A plain `import` would cache the module for good, and fails at run time anyway: Tasmota only
-  keeps the `.tapp` folder in `sys.path` while it loads the extension, so `load_tf_http()` adds
-  it back around the call.
+  keeps the `.tapp` folder in `sys.path` while it loads the extension, so `load_module()` adds
+  it back around the call. `tf_rules.be` (rule API, v0.2) is loaded the same way, with the
+  server, and dropped with it.
 - `/tf?w=1` also starts it, **without password and without returning any data**. It lets an
   interface open on another gateway wake this one (see [Several gateways](#several-gateways));
   the API itself still requires the token.
@@ -100,6 +101,52 @@ The interface's **Gateways** screen (v0.1):
 The script guards against starting twice: the GitHub copy may arrive after the timeout, when
 the light interface is already running.
 
+### Test build
+
+`workflow_dispatch` of `build.yml` (job `preview`) publishes `dev/app.js` and `dev/TasmoFlow.tapp`
+on GitHub Pages (`tools/publish_pages.sh`, branch `gh-pages`, shared lock with the release job).
+`pack_tapp.py --dev` gives that `.tapp` `DIR = "dev"` and an empty `SRI`: the `/tf` page adds
+`?t=<millis>` to the address (never cached) and no `integrity`. The version reads
+`X.Y.Z-dev.<commit>` and the interface header shows its own build (`TF_BUILD`, esbuild `define`).
+Deliberately unpinned: for tests only, the release `.tapp` stays pinned (see "Not unpinned"
+below). Reinstalling the `.tapp` is only needed when `extension/` or the light interface changed.
+
+### Updating the .tapp
+
+Decision of 11 November 2026: a simple update from the interface, with the **browser as relay**.
+The gateway's own HTTPS client (`webclient`, `xdrv_52_3_berry_webclient.ino` of Tasmota, commit
+`a281cece`) reserves a 16 KB receive buffer in one piece, accepts any certificate and the free heap is
+52 KB with an interface open (the Tuya driver wants 45 KB); the browser's HTTPS connection is
+verified and costs the gateway nothing.
+
+1. **Publication.** Each tag publishes on GitHub Pages `latest.json` (`version`, `size`, `sha256`,
+   `tapp`) and `vX.Y.Z/TasmoFlow.tapp` (`pack_tapp.py`); a test build publishes `dev/latest.json`
+   next to `dev/TasmoFlow.tapp`. A GitHub release asset cannot be fetched by the browser (no CORS,
+   redirect), Pages can.
+2. **Detection** (the `/tf` page, `tasmoflow.be`): the loader reads the manifest of its channel
+   (1.5 s at most, no cache) before it adds the GitHub script. *Release*: update if the manifest's
+   version is numerically newer. *Test build* (`X.Y.Z-dev.<commit>`): update if the commit differs
+   (commits are not ordered). If so the **light** interface loads with
+   `window.TASMOFLOW.update = {version, size, sha256, url}`; `/tf?u=0` skips the check for the visit;
+   a manifest that cannot be read changes nothing.
+3. **Transfer** (`app/src/update.js`, light interface only): download of the `.tapp` from Pages, then
+   pieces of 1,500 bytes in base64 (2,000 characters, under `MAX_BODY`) to `POST /api/update?off=&size=`.
+4. **Installation** (`extension/tf_update.be`, compiled at the first `/api/update*` request, freed
+   with the server: the 7 KB margin of an open interface does not allow more): writes
+   `<tapp>.new`, then `/api/update_apply?size=&sha256=` checks the size, the zip header and the
+   SHA-256 (1 KB at a time), renames `<tapp>` to `<tapp>.bak` and `<tapp>.new` to `<tapp>` (the
+   copy is put back if that fails: `path.rename`, `path.remove`, `path.exists`,
+   `be_path_tasmota_lib.c`), answers, and runs `Restart 1` 1.5 s later. The copies never end in
+   `.tapp`: Tasmota loads every `*.tapp` of `/` and `/.extensions/`. The official extension manager
+   (`extension_manager.be`) writes over the live file without a temporary file or a check; this
+   does not. `UfsFree` must leave room for two copies plus 20 KB.
+5. **Wait**: the page polls `/api/status` every 2 s (waking the API server with `/tf?w=1`) until
+   `tasmoflow` equals the new version, then reloads; after 120 s (`UPDATE_WAIT_MS`) it says the
+   restart is taking long and links to Tasmota's home page.
+
+Trust: GitHub Pages, as for the full interface; the gateway checks integrity (the SHA-256 of the
+manifest), not authenticity. The first update to a version that has this function is manual.
+
 ### Full interface on GitHub, light interface on the gateway
 
 Decision of 9 November 2026 (option B of the analysis; it replaces "the same full copy in both
@@ -113,7 +160,7 @@ places" of v0.0):
 | Source | `app/src/main.js` | `app/src/main_lite.js`: same code, fewer tabs (`boot.js`) |
 | Budget (gzipped) | 120 KB | 25 KB |
 
-Light interface, planned for v0.2: enable or disable a rule and restore the previous copy of a
+Light interface, since v0.2: enable or disable a rule and restore the previous copy of a
 rule, so that rules stay manageable without GitHub. Never in the light interface: sentence
 editor, groups, scenes, Zigbee plugins, administration (OTA), several gateways.
 
@@ -127,10 +174,8 @@ Why:
   room that rule backups (copy before every write), `tuya.json.bak` and imports need.
 - **Not unpinned**: the full interface stays pinned to the installed version with its SRI hash.
   An unpinned interface would run whatever GitHub serves in a browser holding the gateway's
-  token and full control of Tasmota. Updating it still means a new `.tapp`. A later "update the
-  interface" button could write the new version and its hash to `persist` after the user's
-  approval, which would decouple the two while keeping SRI (the full interface would then have
-  to stay compatible with older APIs).
+  token and full control of Tasmota. Updating it means a new `.tapp`, which the update button now
+  does (see [Updating the .tapp](#updating-the-tapp)).
 - **Kept local, light**: GitHub (account, Pages, repository) must not be a single point of
   failure for controlling the gateway.
 - The light interface is another entry point of the same sources, so no second code base:
@@ -148,14 +193,61 @@ Why:
 | `GET /lite.js` | Light interface (gzip), sent in 1 KB chunks |
 | `GET /api/status?t=` | Versions, free memory, file system, Zigbee state, number of devices |
 | `GET /api/devices?t=` | Zigbee devices: address, name, model, manufacturer, LQI, battery, last message, last attributes |
-| `GET /api/cmd?t=&c=` | Runs a Tasmota command (`c`, encoded) and returns its JSON response |
+| `POST /api/cmd?t=` | Runs the Tasmota command in the body and returns its JSON response (`GET /api/cmd?t=&c=` still works for a short command) |
 | `GET /api/events?t=&since=` | SSE stream; first sends the kept events after `since` (50 at most) |
+| `GET /api/rules?t=` | The three Tasmota rule sets (state, options, text, free space, previous copy) and the Berry rules (`tf_rules.be`) |
+| `POST /api/rule_set?t=&n=` | Sends the new text of rule set `n` (request body) |
+| `GET /api/rule_apply?t=&n=&step=` | Applies it in three requests: `bak` (copy of the current text), `put` (`Rule<n>`), `check` (read back); on failure the interface calls `rule_restore` |
+| `GET /api/autoexec?t=` | `/autoexec.be` as text, read only, at most 6,000 bytes (`{"exists":false}` without it). The one file the API reads: the others (`tuya.json`...) hold keys |
+| `POST /api/update?t=&off=&size=` | A piece (base64, request body) of the new `.tapp`, written to `<tapp>.new` |
+| `GET /api/update_apply?t=&size=&sha256=` | Checks `<tapp>.new`, installs it (`<tapp>.bak` kept), restarts |
+| `GET /api/update_abort?t=` | Deletes `<tapp>.new` |
+| `GET /api/rule_restore?t=&n=` | Puts the previous copy of rule set `n` back |
 
 Events carry a sequence number and a `type`: `zigbee` (`device`, `name`, `attrs`) and `tuya`
 (`name`, `dps`, from the driver's `Tuya` rule).
 
-The asynchronous server only handles `GET`: commands go in the address. A `GET` request
-without custom headers does not trigger an `OPTIONS` preflight request.
+The asynchronous server handles `GET` and `POST` (a body of at most 3,000 bytes, read from
+`Content-Length` and handed over once complete). Neither a `GET` without custom headers nor a
+`POST` in `text/plain` triggers an `OPTIONS` preflight request. A request it will not handle
+gets an error in the API's format, then the connection is closed: request line over 512
+characters `414 {"error":"uri_too_long"}`, invalid request line `400 bad_request`, headers over
+4 KB `431 headers_too_long`, body over 3,000 bytes `413 body_too_long`. The connection is not closed
+at once after such an answer: the rest of the request is read and dropped until the sender has been
+quiet for 200 ms (2 s at most). Closing a socket that holds unread data makes lwIP send a reset, and
+the browser then showed `ERR_CONNECTION_RESET` instead of the 414 (seen on the gateway on 11
+November 2026 with a 900-character URL; the log line `TFL: port 8384 request refused (414
+uri_too_long)` was there, and no restart). Fix not yet checked on the gateway.
+
+### Request parsing without regular expressions
+
+Until 10 November 2026 `tf_http.be` parsed the request line with Tasmota's regular expression
+`^(\w+) (\S+) HTTP\/(\d\.\d)\r\n`, and a request line of 152 characters or more restarted the
+gateway (`Software reset CPU`, the way a panic restarts it; 112 passed). Cause, read in the
+firmware's Tasmota source (commit `TASMOTA_REF`):
+
+- `re.match2()` runs the pattern with `re1_5_recursiveloopprog()`
+  (`lib/libesp32/berry/default/be_re_lib.c`), which has no depth limit: `re1_5_stack_chk()` is
+  an empty macro (`lib/libesp32/re1.5/re1.5.h`).
+- A greedy `e+` compiles to `L: e; RSplit L` (`lib/libesp32/re1.5/compilecode.c`) and
+  `recursiveloop()` calls itself at every `RSplit` (`lib/libesp32/re1.5/recursiveloop.c`):
+  `(\S+)` takes **one C stack frame per character of the URI**.
+- The port 8384 server runs in Tasmota's loop task (`fast_loop`), whose stack is **8 KB**
+  (`SET_ESP32_STACK_SIZE` in `tasmota/my_user_config.h`, `getArduinoLoopTaskStackSize()` in
+  `tasmota/tasmota_support/support_esp32.ino`), already partly used by the loop, the Berry VM
+  and the callback: a URI of 99 characters passed, one of 139 overflowed it.
+- The lazy `(.*?)` of the header values tries the end of the line before each character and
+  stays at the same depth, which is why long `User-Agent` or `Referer` values never crashed. A
+  long header **name** (`[A-Za-z0-9-]+`) would have crashed in the same way.
+
+Since then the request line and the headers are parsed with `string.find()` (`strstr()`, no
+recursion: `lib/libesp32/berry/src/be_strlib.c`) and slices; `tcpclientasync.read()` returns a
+string (`tasmota/tasmota_xdrv_driver/xdrv_52_3_berry_tcpclientasync.ino`). The `re` module is
+no longer loaded by TasmoFlow. `tests/tf_http_test.be` runs the parser of `tf_http.be` on
+standard Berry in CI (in strict mode, as Tasmota compiles): requests in one piece and byte by
+byte, request lines from 112 to 900 characters, POST bodies, invalid lines and headers. A PC's
+stack is much bigger, so this test cannot show the crash itself: that check is done on the
+gateway (test plan).
 
 ## Extension format
 
@@ -287,6 +379,14 @@ Controls come from the Matter bindings of `tuya.json` (`controlsFor` in `app/src
 the one reported back by the device (no optimistic display). The colour of `light3` is not
 offered yet. Device names containing a comma cannot be addressed by `TuyaSend`.
 
+**`"enabled": false`** on a Matter binding only takes the endpoint out of Matter (and out of
+`TuyaActive`): TasmoFlow still uses the binding to know what the DPs mean (found on the gateway on
+11 November 2026: a `light3` and a four-relay receiver, all bindings disabled, were shown as `DP 20`,
+`DP 34`... toggles without dimmer or names). Consequence: the driver then keeps no value for the
+DPs of a disabled binding (it kept only DP 20 and 34 of the `light3`), so a slider with no known
+value is marked `?` until the device reports a change; `"keep": [21, 22, 24]` in `tuya.json` keeps
+them.
+
 ### Memory
 
 The driver waits for **45 KB free** to start, and requires **30 KB** to modify `tuya.json`,
@@ -341,14 +441,71 @@ Berry rules and its own automations. Findings from Tasmota's code at the firmwar
 | Timers | `RuleTimer1` to `RuleTimer8` | `RuleTimer<n> <s>` |
 | Berry rules | no limit; `tasmota._rules` lists each trigger (`trig.rule`) and its id | `tasmota.add_rule`, `tasmota.remove_rule` |
 
-Plan:
+Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `extension/tf_rules.be`,
+`app/src/rules.js`, `rules_lint.js`; the sentence editor and automations come next):
 
 - **Reading.** The three rule sets (text, state, options), the loaded Berry triggers and
-  `autoexec.be`. An `on ... do ... endon` whose syntax is recognised is shown as a sentence; the
+  `autoexec.be` (only the first two so far; TasmoFlow's own `tasmoflow` Tuya rule is hidden). An `on ... do ... endon` whose syntax is recognised is shown as a sentence; the
   others stay as text.
 - **Writing.** Every change goes through a copy of the previous version on the gateway (one-click
   restore), a syntax check (Tasmota rule) or a compilation (Berry) before saving, and the
-  display of the space left in the rule set.
+  display of the space left in the rule set. Implemented: the gateway copies the current text to
+  `/tf_rule<n>.bak` (one previous copy per rule set), writes `Rule<n> <text>`, reads the rule set
+  back and puts the old text back if it differs. The new text travels in a **POST body** (`/api/rule_set`, `Content-Length`, at most 3,000 bytes; `tf_http.be` hands it over once complete). Writing is split into separate requests (`rule_set`, then `bak`, `put`, `check`) so that a failing step is named in the error. **Long data goes in a POST body, never in a URL**: on 9 November 2026 a request line of 152 characters or more made the gateway restart (`RestartReason` "Software reset CPU", `ERR_CONNECTION_RESET`), 112 characters passed; a request of `/api/rule_set` with a 67-character text was enough, while the same commands typed in the console worked. The cause, found on 10 November, was the regular expression that parsed the request line in `tf_http.be` (`\S+`, one stack frame per character), now replaced by plain string handling (see [Request parsing without regular expressions](#request-parsing-without-regular-expressions)); a request line is limited to 512 characters. `/api/cmd` also takes its command in a POST body, which the interface always uses. A restore
+  swaps the two texts, so it can be undone. **No line break goes to the gateway** (kept out of caution:
+  the first failures were put down to line breaks, but the long URL was the cause; a text with line
+  breaks was never tried through a POST, and Tasmota's answer to `Rule<n>` may then be invalid JSON,
+  which `tf_rules.rule()` copes with). A rule
+  set is stored on one line and shown with one `on ... endon` block per line
+  (`showRule()`, `flatRule()`). The interface checks `on <trigger> do ... endon`
+  (advisory, `rules_lint.js`); the Tasmota rule engine has no syntax-check command. The Berry
+  compilation check comes with Berry editing.
+- **Rules screen layout** (11 November 2026): an **accordion**: one section per rule set
+  (`Rule1` to `Rule3`, with a dot for its state) and one for the Berry rules, each opening and
+  closing on its own (tabs were tried first and replaced). A section component is defined at the top
+  level of the file: one created inside the render function is a new type every time and Preact
+  rebuilds everything below it, the text being edited included, at every incoming event (tested). In *Sentences* view each
+  block is a **tile** (When / If / Then / Else lines); *Edit* opens the form in a **dialog over the
+  page** (native `<dialog>`: Escape and the backdrop close it, the *Done* button stays in view on a
+  phone), not in place; a dashed tile adds a rule.
+- **Sentence editor** (v0.2 step 2, written; the **Sentences** view of a rule set, full interface
+  only: `rules_model.js`, `rules_editor.js`, registered by `main.js` so the light bundle does not
+  carry it; no change on the gateway). A block `on <trigger> [if (<cond>)] do <commands> [else
+  <commands>] endon` is read as *When* `Subject#Key` *op value*, *If* `cond`, *Then* commands,
+  *Else* commands; `Backlog a; b` is a list of commands. Anything else stays a **raw block**
+  shown as text (several triggers with `and`/`or`, `elseif`, nested `if`, an operator without a
+  value, an empty body), and a rule set that is not a plain list of blocks only opens in Text
+  view. Opening a rule set never rewrites it: a block is written again only once edited
+  (`src` kept). Triggers and commands use one **choice field**: closed it reads like the tile (`Lampe salon · Power`), open it lists everything as a tree (a group per device) with the current item highlighted; The list floats over everything (`position: fixed`, placed from the field, above it when there is more room there, following it while the dialog scrolls): inside the scrolling dialog an absolute list was cut off. *Custom...* turns it into a text field, so any Tasmota trigger or command can still be written. A `<select>` shows the same text open and closed, and a `<datalist>` only offers what matches the text already typed, so neither fits. `tests/rules_model_test.js`
+  (CI) checks parsing, the writing of every shape, and that nothing is rewritten. **Device pickers** (`rules_devices.js`):
+  next to each trigger and command field a list offers the common ones, then the gateway's own
+  devices. *Zigbee triggers*: `ZbReceived#<key>#<attribute>` for each attribute a device reported;
+  per Tasmota's source (`tasmota/tasmota_xdrv_driver/xdrv_23_zigbee_2a_devices_impl.ino`,
+  `Z_Device::jsonPublishAttrList`, firmware commit `a281cece`) `<key>` is the friendly name only
+  if `SetOption83` is on and the device has one, else the short address `0x%04X`, so the editor
+  reads `SetOption83` and writes the right key; a name with a space cannot be a trigger and is
+  left out with a hint. *Zigbee actions*: `ZbSend {"device":"0x1234","send":{"Power":"On"}}`
+  (on, off, toggle; by address, which never changes) for devices with a `Power` attribute.
+  *Tuya actions*: `TuyaSend <name>,<dp>,true|false|toggle` per switch, `TuyaSend <name>,<dp>,` to
+  complete for a slider (names with a comma left out). *Tuya triggers* are not offered: the
+  `Tuya#Dps#<dp>` rule does not see the device name (Berry rules will). Sentences read in plain
+  language where the pattern is known (`Lampe · Power = 1`, `basculer Lampe`). The attributes
+  listed are the ones a device has reported since the interface opened or in its last state:
+  a button shows `Click` after its first press. Not yet: Matter, `elseif`, several triggers,
+  moving a block, plain names for the gateway's own events.
+- **Berry rules and `autoexec.be`** (v0.2 step 4, read only): the Berry section lists the triggers
+  of `tasmota._rules` (pattern and owner: the id, or the class of the object that registered it;
+  `nil` and `None` are not shown) and shows `/autoexec.be`, where such rules usually come from. No
+  editing yet: a script that does not compile or crashes can stop Berry at boot, so writing needs
+  the copy-before-write and the compilation check designed for it (left for later).
+- **Rules that clash** (`rules_conflicts.js`, full interface, no cost on the gateway): the list
+  above the rule sets names blocks of enabled rule sets that fire on the same trigger and act on the
+  same device: two toggles (the effect cancels out), an *on* and an *off* (opposite orders), or the
+  same order twice. Only commands that name their target are compared (`Power<n> on|off|toggle`,
+  `ZbSend` with `Power`, `TuyaSend` with `true|false|toggle`); other triggers and other kinds of
+  command are ignored, and so are the Matter / Google Home automations the gateway cannot see. The
+  rule sets concerned also carry a ⚠ in their accordion header, so the warning shows wherever the
+  page is scrolled to (the list itself is at the top of the screen).
 - **Engine of choice.** A TasmoFlow automation becomes either a Tasmota rule (independent of
   Berry, limited space) or Berry code (no limit, advanced conditions and timers).
 - **Conflicts.** Two rules acting on the same device are reported: for example a Tasmota rule
@@ -384,4 +541,15 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [ ] v0.1: with the Tuya driver disabled (`TuyaEnable 0`) or absent, the Tuya section is hidden
 - [x] v0.1: memory at rest after `tasmota.gc()`: 75 KB free, Berry 35 KB, i.e. 9 KB (target 15 KB); with an interface open 63 KB / 48 KB (cached `import`, see [Memory](#memory))
 - [x] v0.1: with the uncached loading, the memory partly returns 5 minutes after the last tab is closed: 59 KB free / Berry 48 KB with the interface open, 69 KB / 39 KB after (75 KB / 35 KB before the first opening)
+- [x] v0.2 (11 November 2026, two updates in a row, `dev.1688247` to `dev.e00d0d6` to `dev.f34f8c7`): update (`.tapp` of the previous test build installed, then run `Build` again): `/tf` shows the light interface with the banner and **Update**; the button sends the file, the page waits then reloads on the new build (`dev.<commit>` in the header), `TasmoFlow.tapp.bak` exists next to `TasmoFlow.tapp`, no `.new` is left, no `.tapp` in both `/` and `/.extensions/`; **Later** opens the usual interface; memory at rest and with an interface open unchanged (`tf_update.be` is compiled only when used)
+- [ ] v0.2: update, failure cases: power cut during the transfer (the `.new` is not loaded at boot), a wrong `sha256` in `latest.json` (refused, nothing changed)
+- [ ] v0.2: Berry section: the rules list matches `Br print(tasmota._rules)` with their owner, and `autoexec.be` shows as text (`.tapp` installed again, `Restart 1`; the route is new)
+- [ ] v0.2: conflicts: two enabled rule sets that toggle the same light on the same trigger show the banner "Rules that may clash"; it disappears when one is switched off
+- [ ] v0.2: device pickers: in a new rule, the trigger list offers your Zigbee devices (attributes they reported) and the command lists offer `ZbSend` (on, off, toggle) and your Tuya devices; with `SetOption83` on and a named device, the trigger carries the name (`ZbReceived#Lampe#Power`), off the address; the saved rule works (press the button, the light toggles); the sentence reads `Lampe · Power = 1` / `basculer Lampe`
+- [ ] v0.2: Sentences view: a rule set typed in Text view shows as sentences; editing a trigger value, adding an `if` / `else` and a second command, adding and deleting a rule, then Save gives the expected text (`Rule<n>` in the console); a rule that fits no sentence stays text
+- [x] v0.2 (10 November 2026): Rules screen: the three rule sets show the text of `Rule1` to `Rule3`; saving a rule of more than 600 characters (POST body) reads back identical when typed on several lines (stored on one line, shown one block per line; otherwise the old text is put back and an error is shown); "Previous copy" then "Restore" brings the old text back
+- [x] v0.2: enabling/disabling, "once only" and "stop on error" act on the real rule set; the Berry rules list matches `Br print(tasmota._rules)`
+- [x] v0.2: the light interface (GitHub blocked) shows the Rules tab with enable/disable and restore, without the editor
+- [x] v0.2 (11 November 2026): memory with the rule API loaded (`tf_rules.be` is compiled with the API server), after `tasmota.gc()`: at rest 75-76 KB free / Berry 39 KB (8 to 9 KB), interface open 52 KB / 55 KB (32 KB), 5 minutes after closing 70 KB / 39 KB (14 KB, budget 15 KB)
+- [x] v0.2: long URLs (test build with the string parser, `.tapp` installed again, `Restart 1`): `http://<gateway>:8384/api/status?t=<token>&p=<a repeated 130 times>`, then 90 and 50, answer the status; request lines of 190 and 512 characters answer too; one of 900 characters answers `{"error":"uri_too_long"}`; the gateway never restarts (`Status 1`: `RestartReason` unchanged, uptime keeps growing); the interface still works (devices, console, Rules screen: save and restore)
 - [ ] v0.1: find what stays allocated after the first opening (6 KB free heap, 4 KB Berry), and check that `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)

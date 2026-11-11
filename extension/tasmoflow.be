@@ -67,6 +67,7 @@ end
 class tasmoflow
   static var VERSION = "@@VERSION@@"
   static var CDN = "@@CDN@@"            # GitHub Pages address ('' = local copy only)
+  static var DIR = "@@APP_DIR@@"        # folder of app.js there: vX.Y.Z, or "dev" (test build, see below)
   static var SRI = "@@SRI@@"            # SRI hash (sha384) of app.js
   static var PORT = 8384
   static var IDLE_MS = 300000           # API server stopped after 5 minutes without a client
@@ -75,6 +76,8 @@ class tasmoflow
 
   var wd                                # .tapp folder, e.g. '/.extensions/TasmoFlow.tapp#'
   var web                               # tf_http server on port 8384
+  var rules                             # tf_rules (rule API), loaded with the server
+  var upd                               # tf_update (update API), loaded at the first /api/update request
   var token
   var events                            # [ [seq, SSE text], ... ]
   var seq
@@ -219,12 +222,25 @@ class tasmoflow
     end
     if !webserver.check_privileged_access()   return nil   end
     self.start_api()
+    var url = ''
+    if size(self.CDN) > 0
+      url = self.CDN + self.DIR + "/app.js"
+      # test build (dev folder, no SRI, replaced at every run): never served from a cache
+      if self.DIR == 'dev'    url += "?t=" + str(tasmota.millis())    end
+    end
+    # manifest of the latest version of this channel (releases: the root, test builds: dev/); the
+    # loader compares it with VERSION. /tf?u=0 ("Later") skips the check for this visit.
+    var upd = ''
+    if size(self.CDN) > 0 && !webserver.has_arg("u")
+      upd = self.CDN + (self.DIR == 'dev' ? 'dev/' : '') + 'latest.json'
+    end
     var cfg = {
       'version': self.VERSION,
       'port': self.PORT,
       'token': self.token,
-      'cdn': size(self.CDN) > 0 ? f"{self.CDN}v{self.VERSION}/app.js" : '',
-      'sri': self.SRI
+      'cdn': url,
+      'sri': self.SRI,
+      'upd': upd
     }
     webserver.content_open(200, "text/html")
     webserver.content_send(
@@ -246,8 +262,20 @@ class tasmoflow
         'function local(){if(fell)return;fell=true;clearTimeout(t);'
           'add(c.api+"/lite.js","",function(){'
             'box.textContent="TasmoFlow: interface not found (port "+c.port+")";});}'
-        'if(c.cdn){add(c.cdn,c.sri,local);t=setTimeout(local,3000);}'
-        'else{local();}'
+        'var started=false;'
+        'function go(){if(started)return;started=true;'
+          'if(c.cdn){add(c.cdn,c.sri,local);t=setTimeout(local,3000);}else{local();}}'
+        'function newer(a,b){'
+          'if(/-dev/.test(b))return a!==b;'
+          'a=a.split(".");b=b.split(".");'
+          'for(var i=0;i<3;i++){var x=+a[i]||0,y=+b[i]||0;if(x!==y)return x>y;}return false;}'
+        'if(c.upd){'
+          'setTimeout(go,1500);'
+          'fetch(c.upd,{cache:"no-store"}).then(function(r){return r.json();}).then(function(j){'
+            'if(!started&&j&&j.version&&newer(j.version,c.version)){'
+              'started=true;j.url=new URL(j.tapp,c.upd).href;c.update=j;local();}else{go();}'
+          '}).catch(go);}'
+        'else{go();}'
       '})(window.TASMOFLOW);'
       '</script></body></html>')
     webserver.content_close()
@@ -262,9 +290,10 @@ class tasmoflow
 
   # Tasmota only keeps the .tapp folder in sys.path while it loads the extension, then removes
   # it: a later `import tf_http` fails ("module not found") unless the folder is added back.
+  # Loads the file `name`.be of the .tapp and returns what it returns (a class), or nil.
   # Never raises: an error here must not stop /tf from answering (Tasmota then sends nothing,
   # and the browser shows ERR_EMPTY_RESPONSE).
-  def load_tf_http()
+  def load_module(name)
     import sys
     var path = sys.path()
     var added = path.find(self.wd) == nil
@@ -274,9 +303,9 @@ class tasmoflow
       # not cached (like autoexec.be does for this extension): a cached module stays in RAM for
       # good, an uncached one is freed by tasmota.gc() once stop_api() dropped every reference
       import introspect
-      cls = introspect.module('tf_http', true)
+      cls = introspect.module(name, true)
     except .. as e, m
-      log(f"TFL: cannot load tf_http.be from '{self.wd}' ({e} {m})", 1)
+      log(f"TFL: cannot load {name}.be from '{self.wd}' ({e} {m})", 1)
     end
     var i = path.find(self.wd)
     if added && i != nil    path.remove(i)    end
@@ -286,7 +315,7 @@ class tasmoflow
   def start_api()
     self.touch()
     if self.web != nil || !tasmota.is_network_up()   return   end
-    var tf_http = self.load_tf_http()   # compiled here, the first time: no RAM before
+    var tf_http = self.load_module('tf_http')   # compiled here, the first time: no RAM before
     if tf_http == nil    return    end
     try
       self.web = tf_http(self.PORT)
@@ -300,6 +329,12 @@ class tasmoflow
     self.web.on("/api/devices", self, self.api_devices)
     self.web.on("/api/cmd", self, self.api_cmd)
     self.web.on("/api/events", self, self.api_events)
+    self.web.on("/api/update", self, self.api_update)            # also /api/update_apply, /api/update_abort
+    var tf_rules = self.load_module('tf_rules')
+    if tf_rules != nil
+      self.rules = tf_rules(self)
+      self.rules.register(self.web)
+    end
     var zb = self.zb()
     if zb != nil    zb.add_handler(self)    end
     # state changes of the firmware's Tuya driver ({"Tuya":{"Name":...,"Dps":{...}}}); the
@@ -318,6 +353,8 @@ class tasmoflow
     self.events = []
     self.web.close()
     self.web = nil
+    self.rules = nil
+    self.upd = nil
     tasmota.gc()                        # frees the compiled tf_http class
     log("TFL: API server stopped", 2)
   end
@@ -386,17 +423,34 @@ class tasmoflow
     cnx.content_stop()
   end
 
-  # any Tasmota command: /api/cmd?t=...&c=ZbSend%20...
+  # any Tasmota command: POST /api/cmd?t=... with the command as the body (a URL of more than
+  # about 130 characters made the gateway restart), or GET /api/cmd?t=...&c=ZbInfo for a short one
   def api_cmd(cnx, uri, verb)
     var q = self.authorized(cnx, uri)
     if q == nil   return   end
-    var c = q.find('c', '')
+    var c = verb == 'POST' ? cnx.body() : q.find('c', '')
     if size(c) == 0
       self.send_json(cnx, 400, '{"error":"cmd"}')
       return
     end
     var r = tasmota.cmd(c, true)
     self.send_json(cnx, 200, r == nil ? '{}' : json.dump(r))
+  end
+
+  # update of the .tapp (tf_update.be): compiled at the first request, so it costs no RAM until
+  # someone updates, and freed with the server
+  def api_update(cnx, uri, verb)
+    var q = self.authorized(cnx, uri)
+    if q == nil   return   end
+    if self.upd == nil
+      var cls = self.load_module('tf_update')
+      if cls != nil    self.upd = cls(self)    end
+    end
+    if self.upd == nil
+      self.send_json(cnx, 500, '{"error":"module"}')
+      return
+    end
+    self.upd.handle(cnx, uri, verb, q)
   end
 
   # SSE stream: /api/events?t=...&since=<last seq received>

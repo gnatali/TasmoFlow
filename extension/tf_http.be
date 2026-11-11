@@ -3,14 +3,18 @@
 # Copy of lib/libesp32/berry_tasmota/src/embedded/webserver_async.be (Tasmota, GPL-3.0,
 # Stephan Hadinger & Theo Arends), commit b7994b52c47777ea3f125723f2ba5db6d3669397.
 # The firmware compiles this class but does not expose it to Berry: the official Leds
-# Panel extension also ships its own copy. Changes: `import re` added below (the class
-# builds its regular expressions when it is defined, and `re` is not a global name in
-# Berry); final test block removed; RAM savings, this extension never needs them: chunked
-# encoding (`set_chunked`, always off here: responses are closed, not chunked), the
-# integer-to-text helpers `bytes_format_hex` and `bytes_append_int`.
+# Panel extension also ships its own copy. Changes: final test block removed; RAM savings,
+# this extension never needs them: chunked encoding (`set_chunked`, always off here:
+# responses are closed, not chunked), the integer-to-text helpers `bytes_format_hex` and
+# `bytes_append_int`; a POST body is handed over (`body()`); the request line and the
+# headers are parsed with `string.find()`, not with the `re` module: its matcher
+# (re1.5 `recursiveloop`) calls itself once per character matched by `\S+`, so a long URL
+# overflowed the 8 KB stack of Tasmota's loop task and restarted the gateway (see
+# docs/architecture.en.md); a request that is too long or invalid gets an error answer
+# ({"error":...}) instead of a silent close.
 #
-
-import re
+# Tested on standard Berry by tests/tf_http_test.be (CI).
+#
 
 #
 # webserber_async.be - implements a generic async non-blocking HTTP server
@@ -58,11 +62,15 @@ class webserver_async
     var buf_in                                      # incoming buffer
     var buf_in_offset
     var buf_out
-    var phase                                       # parsing phase: 0/ status line, 1/ headers, 2/ payload
+    var phase                                       # parsing phase: 0/ status line, 1/ headers, 2/ payload, 3/ refused
+    var linger                                      # refused request: close once quiet after this millis()
+    var linger_max                                  # ... and in any case after this one
     # request
-    var req_verb                                    # verb for request (we support only GET)
+    var req_verb                                    # verb for request (GET, or POST with a small body)
     var req_uri                                     # URI for request
     var req_version                                 # HTTP version for request
+    var req_len                                     # Content-Length of the request (POST body), 0 if none
+    var dispatched                                  # true once the request was handed to its handler
     var header_host                                 # 'Host' header - useful for redirections
     # response
     var resp_headers                                # (string) aggregate headers
@@ -72,10 +80,13 @@ class webserver_async
       200: "OK",
       # 204: "No Content",
       301: "Moved Permanently",
-      # 400: "Bad Request",
+      400: "Bad Request",
       # 401: "Unauthorized",
       # 403: "Payment Required",      # not sure it's useful in Tasmota context
       404: "Not Found",
+      413: "Content Too Large",
+      414: "URI Too Long",
+      431: "Request Header Fields Too Large",
       500: "Internal Server Error",
       # 501: "Not Implemented"
     }
@@ -96,6 +107,10 @@ class webserver_async
       self.buf_in_offset = 0
       self.buf_out = bytes()
       self.phase = 0              # 0 = status line
+      self.linger = 0
+      self.linger_max = 0
+      self.req_len = 0
+      self.dispatched = false
       # util
       self.close_after_send = false
       # response
@@ -173,12 +188,25 @@ class webserver_async
         else                              # or append to current incoming buffer
           self.buf_in += buf_in_new
         end
+        if self.phase == 3    self.linger = tasmota.millis(self.server.LINGER_MS)    end   # still sending
       end
 
       # parse incoming data if any
       if (self.buf_in)
         self.parse()
       end
+    end
+
+    #############################################################
+    # drained: (TasmoFlow) can a refused request's connection be closed now?
+    #
+    # The client may still be sending the rest of its request. Closing a socket that holds
+    # unread data makes lwIP send a reset, and the browser then reports ERR_CONNECTION_RESET
+    # instead of showing the error answer. So after a refusal the input is read and dropped
+    # until it has been quiet for LINGER_MS, and in any case for no more than LINGER_MAX_MS.
+    #
+    def drained()
+      return tasmota.time_reached(self.linger) || tasmota.time_reached(self.linger_max)
     end
 
     #############################################################
@@ -213,7 +241,7 @@ class webserver_async
         # self.buf_in_offset = 0            # TODO really useful?
 
         if self.close_after_send          # close connection if we have sent everything
-          self.close()
+          if self.phase != 3 || self.drained()    self.close()    end
         end
       end
     end
@@ -231,72 +259,99 @@ class webserver_async
         self.parse_http_headers()
       elif self.phase == 2
         self.parse_http_payload()
-      end
-    end
-
-    #############################################################
-    # parse incoming request
-    #
-    # pre: self.buf_in is not empty
-    # post: self.buf_in has made progress (smaller or '')
-    def parse_http_req_line()
-      import re
-      # print("parse_http_req_line", "self.buf_in=", self.buf_in)
-      var m = re.match2(self.server.re_http_srv, self.buf_in, self.buf_in_offset)
-      # print(f"{m=}")
-      # Ex: "GET / HTTP/1.1\r\n"
-      if m
-        var offset = m[0]
-        self.req_verb = m[1]                      # GET/POST...
-        self.req_uri = m[2]                       # /
-        self.req_version = m[3]                   # "1.0" or "1.1"
-        self.phase = 1                            # proceed to parsing headers
-        self.buf_in = self.buf_in[offset .. ]     # remove what we parsed
-        if tasmota.loglevel(4)
-          log(f"WEB: HTTP verb: {self.req_verb} URI: '{self.req_uri}' Version:{self.req_version}", 4)
-        end
-        self.parse_http_headers()
-      elif size(self.buf_in) > 100        # if no match and we still have 100 bytes, then it fails
-        log("WEB: error invalid request", 4)
-        self.close()
+      else                                # TasmoFlow: request refused, what follows is dropped
         self.buf_in = ''
       end
     end
 
     #############################################################
-    # parse incoming headers
-    def parse_http_headers()
-      import re
-      while true
-        # print("parse_http_headers", "self.buf_in_offset=", self.buf_in_offset)
-        var m = re.match2(self.server.re_http_srv_header, self.buf_in, self.buf_in_offset)
-        # print(f"{m=}")
-        # Ex: [32, 'Content-Type', 'application/json']
-        if m
-          self.event_http_header(m[1], m[2])
-          self.buf_in_offset += m[0]
-        else  # no more headers
-          var m2 = re.match2(self.server.re_http_srv_body, self.buf_in, self.buf_in_offset)
-          # print(f"{m2=}")
-          if m2
-            # end of headers
-            # we keep \r\n which is used by pattern
-            self.buf_in = self.buf_in[self.buf_in_offset + m2[0] .. ]   # truncate
-            self.buf_in_offset = 0
+    # refuse: answer a request that will not be handled, then close (TasmoFlow)
+    #
+    # Args:
+    #   code: (int) HTTP status, e.g. 414
+    #   err: (string) error code sent as {"error":err}, like the API's errors
+    #
+    def refuse(code, err)
+      log(f"TFL: port 8384 request refused ({code} {err})", 2)
+      self.phase = 3
+      self.buf_in = ''
+      self.linger = tasmota.millis(self.server.LINGER_MS)
+      self.linger_max = tasmota.millis(self.server.LINGER_MAX_MS)
+      self.send(code, "application/json", '{"error":"' + err + '"}')
+      self.content_stop()
+    end
 
-            # self.event_http_headers_end()     # no more headers
-            self.phase = 2
-            self.parse_http_payload()         # continue to parsing payload
-          end
-          if size(self.buf_in) > 1024       # we don't accept a single header larger than 1KB
-            log("WEB: error header is bigger than 1KB", 4)
-            self.close()
-            self.buf_in = ''
-          end
+    #############################################################
+    # parse incoming request line
+    #
+    # TasmoFlow: plain string handling, no regular expression (see the top of this file).
+    # Ex: "GET /api/status?t=0123 HTTP/1.1\r\n"
+    #
+    # pre: self.buf_in is not empty
+    # post: self.buf_in has made progress (smaller or '')
+    def parse_http_req_line()
+      import string
+      var buf = self.buf_in
+      var lim = self.server.MAX_REQ_LINE
+      var eol = string.find(buf, "\r\n")
+      if eol < 0                                  # the line is not complete yet
+        if size(buf) > lim    self.refuse(414, "uri_too_long")    end
+        return
+      end
+      if eol > lim    self.refuse(414, "uri_too_long")    return    end
+      # "<verb> <uri> HTTP/x.y": sp1 ends the verb, sp2 the URI, then exactly 8 characters
+      var sp1 = string.find(buf, " ")
+      var sp2 = -1
+      if sp1 > 0    sp2 = string.find(buf, " ", sp1 + 1)    end
+      if sp2 <= sp1 + 1 || sp2 != eol - 9 || buf[sp2 + 1 .. sp2 + 5] != "HTTP/" || buf[sp2 + 7] != "."
+        self.refuse(400, "bad_request")
+        return
+      end
+      self.req_verb = buf[0 .. sp1 - 1]           # GET/POST...
+      self.req_uri = buf[sp1 + 1 .. sp2 - 1]      # /
+      self.req_version = buf[sp2 + 6 .. eol - 1]  # "1.0" or "1.1"
+      self.phase = 1                              # proceed to parsing headers
+      self.buf_in = buf[eol + 2 ..]               # remove what we parsed
+      if tasmota.loglevel(4)
+        log(f"WEB: HTTP verb: {self.req_verb} URI: '{self.req_uri}' Version:{self.req_version}", 4)
+      end
+      self.parse_http_headers()
+    end
+
+    #############################################################
+    # parse incoming headers
+    #
+    # TasmoFlow: plain string handling, no regular expression. Each line "<name>:<value>",
+    # spaces before the value skipped; a line without ':' is ignored. The headers (all of
+    # them, up to the empty line) are refused beyond MAX_HEAD bytes.
+    def parse_http_headers()
+      import string
+      var lim = self.server.MAX_HEAD
+      while true
+        var buf = self.buf_in
+        var off = self.buf_in_offset              # start of the current line
+        var eol = string.find(buf, "\r\n", off)
+        if eol < 0                                # the line is not complete yet
+          if size(buf) > lim    self.refuse(431, "headers_too_long")    end
           return
         end
+        if eol == off                             # empty line: end of headers
+          self.buf_in = buf[eol + 2 ..]           # keep the payload only
+          self.buf_in_offset = 0
+          self.phase = 2
+          self.parse_http_payload()               # continue to parsing payload
+          return
+        end
+        if eol > lim    self.refuse(431, "headers_too_long")    return    end
+        # Ex: "Content-Type: application/json"
+        var colon = string.find(buf, ":", off)
+        if colon > off && colon < eol
+          var v = colon + 1
+          while v < eol && buf[v] == " "    v += 1    end
+          self.event_http_header(buf[off .. colon - 1], buf[v .. eol - 1])
+        end
+        self.buf_in_offset = eol + 2
       end
-
     end
 
     #############################################################
@@ -314,6 +369,8 @@ class webserver_async
 
       if (header_key == "Host")
         self.header_host = header_value
+      elif (header_key == "Content-Length" || header_key == "content-length")
+        self.req_len = int(header_value)
       end
     end
 
@@ -333,9 +390,23 @@ class webserver_async
     # Payload is in `self.buf_in`
     #
     def parse_http_payload()
-      # log(f"WEB: parsing payload '{bytes().fromstring(self.buf_in).tohex()}'")
-      # dispatch request before parsing payload
+      if self.dispatched    return    end
+      # TasmoFlow: a POST body is handed over whole, once all of it has arrived. A long URL
+      # made the gateway restart (see docs/architecture.en.md), long data goes in a body.
+      if self.req_len > self.server.MAX_BODY
+        self.refuse(413, "body_too_long")
+        return
+      end
+      if size(self.buf_in) < self.req_len    return    end     # the rest comes later
+      self.dispatched = true
       self.server.dispatch(self, self.req_uri, self.req_verb)
+    end
+
+    # POST body (the first Content-Length bytes of the payload) as a string
+    def body()
+      if self.req_len <= 0    return ''    end
+      var b = self.buf_in[0 .. self.req_len - 1]
+      return type(b) == 'string' ? b : b.asstring()     # buf_in is a string or a bytes()
     end
 
 
@@ -504,14 +575,12 @@ class webserver_async
   # static var TIMEOUT = 1000                       # default timeout: 1000ms
 
   #############################################################
-  # pre-compile REGEX
-  #
-  # static var HTTP_REQ = "^(\\w+) (\\S+) HTTP\\/(\\d\\.\\d)\r\n"
-  # static var HTTP_HEADER_REGEX = "([A-Za-z0-9-]+): (.*?)\r\n"       # extract a header with its 2 parts
-  # static var HTTP_BODY_REGEX   = "\r\n"                             # end of headers
-  static var re_http_srv          = re.compilebytes("^(\\w+) (\\S+) HTTP\\/(\\d\\.\\d)\r\n")
-  static var re_http_srv_header   = re.compilebytes("([A-Za-z0-9-]+): (.*?)\r\n")
-  static var re_http_srv_body     = re.compilebytes("\r\n")
+  # limits (TasmoFlow); the request is parsed without regular expressions
+  static var MAX_REQ_LINE = 512                   # longest request line, CRLF excluded (414 beyond)
+  static var MAX_HEAD = 4096                      # longest header block (431 beyond)
+  static var LINGER_MS = 200                      # refused request: read and drop until quiet for this long
+  static var LINGER_MAX_MS = 2000                 # ... but never longer than this
+  static var MAX_BODY = 3000                      # largest POST body accepted (a rule set: 2200)
 
   #############################################################
   # init

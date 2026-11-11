@@ -64,6 +64,17 @@ ouverte : ouvrir `/tf` la démarre, et elle s'arrête après 5 minutes sans clie
 
 Pour désinstaller : supprimer `TasmoFlow.tapp` et redémarrer.
 
+### Mise à jour
+
+Quand une version plus récente est publiée, ouvrir `/tf` affiche l'**interface légère** (au lieu
+de celle de GitHub) avec un bandeau et un bouton **Mettre à jour** ; **Plus tard** (`/tf?u=0`) ouvre
+l'interface habituelle pour cette visite. Le bouton télécharge la nouvelle `TasmoFlow.tapp` sur
+GitHub Pages, l'envoie à la passerelle, qui contrôle sa taille et son SHA-256 et l'installe (la
+précédente est gardée sous `TasmoFlow.tapp.bak` à côté), puis redémarre : la page attend (2 minutes
+au plus, puis elle renvoie à l'accueil de Tasmota) et se recharge sur la nouvelle version. Un build
+de test cherche le dernier build de test (un commit différent compte comme une mise à jour). La
+première mise à jour vers une version qui a cette fonction se fait à la main, comme ci-dessus.
+
 ## Développement sans passerelle
 
 ```sh
@@ -128,8 +139,25 @@ workflow crée la release), soit sur github.com par **Releases → Draft a new r
 tag → Create new tag** sur `main`, puis **Publish release** (le workflow joint `TasmoFlow.tapp`
 à cette release). GitHub n'a pas d'écran pour créer un tag sans release.
 
+Chaque tag publie aussi `latest.json` (version, taille, SHA-256) et une copie de `TasmoFlow.tapp`
+sur GitHub Pages : c'est ce que lit le bouton de mise à jour. Les builds de test publient `dev/latest.json` de la même façon.
+
 Au premier tag, activer GitHub Pages une fois : **Settings → Pages → Build and deployment →
 Deploy from a branch**, branche `gh-pages`, dossier `/ (root)`.
+
+### Version de test (sans release ni tag)
+
+Pour essayer une modification sur la passerelle sans release : **Actions → Build → Run
+workflow**, sur la branche à essayer. Une fois les tests passés, le workflow publie l'interface
+complète sur `https://gnatali.github.io/TasmoFlow/dev/app.js` (remplacée à chaque lancement ;
+l'en-tête affiche le build, par exemple `dev.1a2b3c4`) et une extension de test sur
+`https://gnatali.github.io/TasmoFlow/dev/TasmoFlow.tapp`.
+
+Installer cette `.tapp` une fois (elle remplace `TasmoFlow.tapp`, puis `Restart 1`). Elle charge
+l'interface `dev/` à chaque ouverture, sans épinglage SRI ni cache : un nouveau lancement
+suffit, il reste à recharger la page. Ne réinstaller la `.tapp` que si `extension/` ou
+l'interface légère ont changé (je le signale). À réserver aux essais : la `.tapp` des releases
+reste épinglée à sa version et à son empreinte.
 
 ## Licence
 

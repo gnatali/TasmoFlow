@@ -43,9 +43,20 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
 - This environment cannot push tags (HTTP 403): Guillaume creates release tags `vX.Y.Z` (equal to
   `VERSION`) on `main`, with git or by publishing a release with a new tag on github.com; the
   workflow then creates (or completes) the release and publishes GitHub Pages.
+- Tests without a release: Guillaume (or I, with the GitHub `actions_run_trigger` tool) runs the
+  `Build` workflow by hand on the branch (`workflow_dispatch`, job `preview`): it publishes the
+  full interface at `.../TasmoFlow/dev/app.js` and a test `.tapp` (`dev/TasmoFlow.tapp`, no SRI).
+  **Tell Guillaume when the `.tapp` must be installed again**: any change in `extension/`, in
+  `main_lite.js` or in what the light interface imports (`views.js` parts it uses, `state.js`,
+  `rules.js`...), or in the loader. An interface-only change needs no reinstall.
+- The update button installs a `.tapp` with the code **already installed**: a change to the update
+  code (`tf_update.be`, the loader, `update.js`) needs the new `.tapp` installed by hand once before it
+  can be tested by updating (a bug of the zip header check, `tohex()` in upper case, showed this).
 - Before pushing: `npm run build` (interface, `app/src/` to `dist/app.js`), `node --check` on `dist/app.js` and `dist/lite.js`,
-  `python3 tools/pack_tapp.py` (size budgets), `node tests/e2e.js` (Playwright, simulated
-  gateway; it builds first). CI also checks the Berry syntax: this environment cannot compile
-  Berry, so re-read Berry diffs carefully.
+  `python3 tools/pack_tapp.py` (size budgets), `node tests/rules_model_test.js` (rule model),
+  `node tests/e2e.js` (Playwright, simulated
+  gateway; it builds first). CI also checks the Berry syntax and runs `tests/tf_http_test.be`
+  (request parser on standard Berry): this environment cannot compile Berry, so re-read Berry
+  diffs carefully.
 - Check Tasmota internals in its source (firmware commit `TASMOTA_REF` of the firmware
   repository's workflow) before relying on them; cite the file in `docs/architecture.en.md`.

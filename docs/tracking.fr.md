@@ -9,20 +9,33 @@ Cahier des charges (en français, hors du dépôt) :
 
 ## État (9 novembre 2026)
 
+- **v0.1 publiée** : tag `v0.1.0`, `.tapp` jointe à la release, interface publiée sur GitHub
+  Pages (PR n° 1 à 3 fusionnées). Installée sur la passerelle : démarrage/arrêt du serveur,
+  mémoire et interface légère après redémarrage vérifiés ; les autres points `[ ]` du plan de
+  test restent à faire.
+- **v0.2 commencée** (branche `claude/modest-pascal-8854i4`) : étape 1 **écrite et vérifiée sur
+  la passerelle** (modification, copie précédente, restauration) : l'écran **Règles** (`Rule1` à `Rule3` et règles Berry, édition, copie de la
+  version précédente avant chaque écriture, restauration, activation/désactivation, aussi dans
+  l'interface légère). Passe contre la fausse passerelle (`node tests/e2e.js`, 10 tests) ; le
+  code Berry (`extension/tf_rules.be`) a seulement été relu, pas compilé. Ensuite : éditeur en
+  phrases, actions, édition des règles Berry avec contrôle de compilation, `autoexec.be`.
+
 - **v0.0 (prototype) terminée**, publiée en
   [v0.0.1](https://github.com/gnatali/TasmoFlow/releases/tag/v0.0.1) et vérifiée sur la
   passerelle (ZB-GW03 avec le pilote Tuya local). L'interface se charge depuis GitHub Pages
   (en-tête « v0.0.1 · github ») et se rabat sur la copie locale.
 - [PR #1](https://github.com/gnatali/TasmoFlow/pull/1) fusionnée (fichiers de suivi,
   `.claude/rules/`).
-- **v0.1 (pilotage) écrite, à vérifier sur la passerelle** (branche
-  `claude/modest-pascal-8854i4`, pas encore fusionnée) : interface Preact + htm, serveur d'API à
-  la demande, écran Passerelles, appareils Tuya dans le tableau de bord. Tout passe contre la
-  fausse passerelle (`node tests/e2e.js`, 9 tests) ; **rien n'a encore tourné sur une vraie
-  passerelle**, et les changements Berry ont seulement été relus, pas compilés (la CI vérifie
-  la syntaxe).
-- **Suite** : installer la `.tapp` v0.1 sur la ZB-GW03, dérouler les nouveaux points `[ ]` du
-  [plan de test](architecture.fr.md#plan-de-test-sur-la-passerelle), mesurer la mémoire ; puis la v0.2.
+- **v0.1 (pilotage)** : interface Preact + htm, serveur d'API à la demande, écran Passerelles,
+  appareils Tuya dans le tableau de bord (détails plus bas).
+- **Plantage des URL longues corrigé dans le code** (10 novembre, branche `ccr-77cdec39-duy9lp`) :
+  cause trouvée dans le source de Tasmota (le moteur de `re` s'appelle lui-même une fois par
+  caractère de l'URI et déborde la pile de 8 Ko de la boucle) ; `tf_http.be` lit désormais les
+  requêtes avec `string.find()`. À vérifier sur la passerelle avec une version de test (`.tapp` à
+  réinstaller) : voir le point « URL longues » du plan de test.
+- **Suite** : dérouler les points `[ ]` du
+  [plan de test](architecture.fr.md#plan-de-test-sur-la-passerelle) sur la ZB-GW03 (v0.1 et les
+  nouveaux de la v0.2). Mémoire avec l'API des règles mesurée le 11 novembre (plus bas).
 
 ## Historique
 
@@ -40,6 +53,20 @@ Cahier des charges (en français, hors du dépôt) :
 | 9 nov. | Tous les points de la v0.0 validés, mémoire mesurée après `tasmota.gc()` ; tag v0.0.1 créé par Guillaume, GitHub Pages activé |
 | 9 nov. | v0.1 : **Preact + htm retenu** (même écran : 6,6 Ko gzip contre 6,3 Ko pour Lit, 5,4 Ko pour le prototype sans dépendance) ; interface assemblée avec esbuild (12,9 Ko gzip, puis 14,6 Ko avec Tuya) |
 | 9 nov. | v0.1 : **option B décidée** : interface complète sur GitHub Pages seulement (figée, SRI), interface légère (13,7 Ko gzip, appareils + console + diagnostic) dans la `.tapp` ; second point d'entrée esbuild des mêmes sources. Raison : `UfsFree` 148 Ko sur 320 Ko et une interface complète qui va grossir |
+| 11 nov. | Bouton de mise à jour (décision : le navigateur relaie la `.tapp` depuis GitHub Pages) : manifestes `latest.json` / `dev/latest.json`, l'interface légère propose la mise à jour quand le canal a une version plus récente (builds de test : un commit différent), la passerelle contrôle taille et SHA-256 et se remplace (`tf_update.be`, `.bak` gardé), la page attend le redémarrage (120 s au plus). Passerelle simulée : 414 au-delà de 512 caractères au lieu de couper la connexion |
+| 11 nov. | **Bouton de mise à jour validé sur la passerelle** (deux mises à jour de suite, l'ancien `.bak` remplacé la seconde fois, rien ne reste). Restent à essayer : la mémoire avant et après, la coupure de courant pendant l'envoi et un `sha256` faux |
+| 11 nov. | Bouton de mise à jour : troisième build de test publié (encore un commit qui ne touche que la documentation) pour répéter la mise à jour sur la passerelle |
+| 11 nov. | Bouton de mise à jour : le premier essai a échoué sur `bytes.tohex()` en majuscules (le contrôle de l'en-tête zip refusait tout fichier) ; corrigé, la `.tapp` corrigée installée à la main, deuxième essai avec un autre commit qui ne touche que la documentation |
+| 11 nov. | Bouton de mise à jour : premier essai sur la passerelle lancé avec un second build de test (un commit qui ne touche que la documentation, pour donner au manifeste une autre version) |
+| 11 nov. | v0.2 étape 4 : section Berry (propriétaire de chaque règle, `autoexec.be` en lecture seule : nouvelle route, `.tapp` à réinstaller) et bandeau des conflits (même déclencheur, même appareil : bascules qui s'annulent, ordres contraires, doublons) |
+| 11 nov. | Écran Règles encore après un deuxième essai : accordéon au lieu d'onglets ; les champs de déclencheur et de commande forment un seul champ à choix (nom lisible fermé, arbre avec l'élément courant en évidence ouvert) ; correction d'une reconstruction du texte en cours de saisie à chaque événement reçu |
+| 11 nov. | Écran Règles refait après essai sur la passerelle (ordinateur et téléphone) : onglets par jeu de règles, tuiles en vue Phrases, formulaire de modification dans une fenêtre ; les informations d'appareil (`IEEEAddr`, `ModelId`…) ne sont plus proposées comme déclencheur |
+| 11 nov. | v0.2 étape 3 : sélecteurs d'appareils dans l'éditeur en phrases (déclencheurs Zigbee et actions `ZbSend`, actions Tuya `TuyaSend`, lecture de `SetOption83` pour la clé du déclencheur, phrases en langage clair) ; les liaisons Tuya `enabled: false` servent maintenant aux contrôles ; listes de suggestions toujours complètes (select, pas datalist) |
+| 10 nov. | v0.2 étape 2 : éditeur en phrases (vue **Phrases** d'un jeu de règles : Quand / Si / Alors / Sinon, les blocs bruts restent en texte, rien n'est réécrit tant qu'il n'est pas modifié) ; tests unitaires du modèle de règles en CI ; aucun changement sur la passerelle |
+| 10 nov. | v0.2 étape 1 vérifiée sur la passerelle (version de test) : modification, enregistrement, copie précédente et restauration fonctionnent. Découvert en chemin : **une ligne de requête de 152 caractères ou plus fait redémarrer la passerelle** (112 passaient), donc les données longues passent dans un corps POST (`tf_http.be` remet les corps `Content-Length` ; `/api/cmd` et `/api/rule_set` les lisent) |
+| 10 nov. | Plantage des URL longues expliqué par le source de Tasmota : `re.match2()` exécute `recursiveloop()` de re1.5, qui s'appelle elle-même une fois par caractère de `(\S+)` sans limite de profondeur, dans la pile de 8 Ko de la tâche de boucle. `tf_http.be` lit la ligne de requête et les en-têtes avec `string.find()` (ligne de requête jusqu'à 512 caractères, sinon 414 ; en-têtes 4 Ko, sinon 431 ; corps 3 000 octets, sinon 413) ; `tests/tf_http_test.be` exécute l'analyseur sur le Berry standard dans la CI |
+| 9 nov. | Version de test sans release : un lancement manuel de `Build` publie `dev/app.js` et une `.tapp` de test (sans SRI) sur GitHub Pages ; la `.tapp` n'est réinstallée que si `extension/` ou l'interface légère changent |
+| 9 nov. | v0.1 publiée (tag `v0.1.0`) ; v0.2 commencée : écran Règles, `tf_rules.be` (lecture, écriture par morceaux, copie de la version précédente, restauration), contrôle de syntaxe des jeux de règles dans l'interface, règles dans l'interface légère |
 | 9 nov. | v0.1 : serveur d'API à la demande (`/tf`, `/tf?w=1`, 5 minutes d'inactivité), `tf_http.be` compilé à la demande et allégé ; écran Passerelles ; appareils Tuya (`TuyaEnable`, `TuyaStatus`, `TuyaConfig`, `TuyaSend`, règle `Tuya` sur le flux d'événements) ; pilote Tuya simulé et tests |
 
 ## Mesures sur la passerelle
@@ -55,6 +82,11 @@ Après `tasmota.gc()`, passerelle avec le pilote Tuya (9 novembre 2026) :
 | **v0.1**, interface ouverte (`import` en cache) | 63 Ko | 48 Ko | 21 Ko |
 | **v0.1**, interface ouverte (chargement sans cache) | 59 Ko | 48 Ko | 25 Ko |
 | **v0.1**, 5 minutes après sa fermeture | 69 Ko | 39 Ko | **15 Ko** |
+| **v0.2** étape 1 (Règles, POST), extension chargée, aucune interface ouverte (11 novembre) | 75 Ko, 76 Ko | 39 Ko, 39 Ko | **8 à 9 Ko** |
+| **v0.2** étape 1, interface ouverte (10 novembre) | 52 Ko | 55 Ko | 32 Ko |
+| **v0.2** étape 1, 5 minutes après sa fermeture (11 novembre, deux essais) | 70 Ko, 70 Ko | 39 Ko, 39 Ko | **14 Ko** |
+
+Le budget de 15 Ko est tenu avec l'API des règles : **8 à 9 Ko au repos, 14 Ko cinq minutes après la fermeture de l'interface** (15 Ko en v0.1). Interface ouverte, le coût est de 32 Ko (25 Ko en v0.1) : `tf_rules.be` et le corps POST ajoutent 7 Ko tant que le serveur tourne. Le pilote Tuya demande 45 Ko libres pour démarrer : 52 Ko laissent 7 Ko de marge. `HeapUsed` de Berry revient à 39 Ko après la fermeture, comme en v0.1. Environ 6 Ko de mémoire libre ne sont toujours pas rendus après la première ouverture (75 à 70 Ko, comme en v0.1 : 75 à 69 Ko), cause inconnue (voir le point ouvert du plan de test).
 
 Cible : 15 Ko. Tailles : `TasmoFlow.tapp` 45 Ko (budget 150 Ko), `app.js.gz` 5,4 Ko (budget
 120 Ko).
@@ -76,8 +108,9 @@ Fait dans le code et la fausse passerelle (voir l'[architecture](architecture.fr
    ouverte. Le chargement sans cache rend 10 Ko sur 16 à l'arrêt du serveur ; **6 Ko (Berry :
    4 Ko) restent alloués, cause inconnue**. Pistes, à départager avec la console Berry : le
    pilote Tuya qui garde des données après `TuyaConfig` / `TuyaStatus` (les lancer à la main,
-   puis `Br tasmota.gc()`), des modules chargés à la première utilisation (`re`, `introspect`,
-   `sys`), ou une référence qui retient encore la classe `tf_http`.
+   puis `Br tasmota.gc()`), des modules chargés à la première utilisation (`re`, que
+   `tf_http.be` n'utilise plus depuis le 10 novembre ; `introspect`, `sys`), ou une référence qui
+   retient encore la classe `tf_http`.
 3. **Appareils Tuya dans le tableau de bord** (F7.1 à F7.3) : interrupteurs, variateurs,
    température de couleur, vitesse de ventilateur, mesures, mise à jour en direct, masqués sans
    le pilote.
@@ -87,18 +120,31 @@ Reste pour la v0.1 (petit) :
 
 - **Couleur des liaisons `light3`** (`colour_data_v2`, `hhhhssssvvvv`) : pas encore proposée.
 - **Noms de sous-appareils Tuya** contenant une virgule, que `TuyaSend` ne sait pas adresser.
-- **Périmètre de l'interface légère en v0.2** : ajouter l'activation et la désactivation d'une
-  règle et la restauration de la copie précédente (voir le tableau de l'architecture), pour que
-  les règles restent gérables sans GitHub.
-- **`VERSION` vaut `0.1.0`** (passée avant le tag, pour distinguer les builds). Tant que Guillaume n'a pas tagué `v0.1.0`, `gnatali.github.io/TasmoFlow/v0.1.0/app.js` n'existe pas (404) : la passerelle retombe aussitôt sur l'interface légère. L'interface complète ne se charge depuis GitHub qu'après le tag.
+- **`VERSION` vaut `0.1.0`** jusqu'à la prochaine version : un build v0.2 ne se distingue de la
+  v0.1.0 que par l'onglet Règles (passer `VERSION` avant de tagger `v0.2.0`).
 - **Vérifications sur la passerelle** : les points `[ ]` marqués v0.1 du plan de test, en
   particulier que le `tcpserver` du port 8384 peut être fermé puis ré-écouté, et la mémoire
   utilisée par `TuyaConfig`.
 
-Ensuite la v0.2 : toutes les règles (`Rule1` à `Rule3`, Berry, actions), éditeur en phrases,
-sauvegarde avant écriture.
+**Accepté le 11 novembre 2026, à faire plus tard** (pas commencé) : un **mode guidé simple** pour la fenêtre de règle (choisir un appareil, dire en mots ce qui lui arrive, choisir quoi faire), où les événements Zigbee s'apprennent en appuyant sur le bouton (l'interface écoute le flux d'événements et écrit le déclencheur d'après ce qu'elle vient de voir).
+
+Ensuite, dans cet ordre (à confirmer avec Guillaume) : mesurer la mémoire de cette version (au repos, interface ouverte, après fermeture) ; ouvrir la pull request (la branche a une quarantaine de commits d'avance sur `main`) ; passer `VERSION` à `0.2.0` avant le tag, sinon `latest.json` et le bouton de mise à jour ne font rien pour les passerelles en release.
+
+v0.2, ce qui reste après l'étape 4 : le **mode guidé** (accepté, plus tard), Matter dans les
+sélecteurs, `elseif` et plusieurs déclencheurs dans l'éditeur en phrases, les **actions** (une
+automatisation TasmoFlow devient une règle Tasmota ou du Berry, les déclencheurs Tuya demandent du
+Berry), la **modification** des règles Berry et d'`autoexec.be` avec copie avant écriture et contrôle de
+compilation. Les étapes 2 à 4 (éditeur en phrases, sélecteurs, vue Berry et conflits) sont écrites et
+en partie essayées sur la passerelle, voir le plan de test.
 
 ## Points à vérifier
+
+- **Une URL longue fait redémarrer la passerelle** (port 8384, ligne de requête de 152 caractères
+  ou plus) : cause trouvée et corrigée dans le code (10 novembre, voir
+  [Lecture des requêtes sans expressions régulières](architecture.fr.md#lecture-des-requêtes-sans-expressions-régulières)
+  et [investigations/long-url-crash.md](investigations/long-url-crash.md), en anglais). Vérifié sur la
+  passerelle le 11 novembre ; la fausse passerelle répond maintenant 414 au-delà de 512 caractères,
+  comme la vraie.
 
 - Écriture d'un DP d'un appareil Tuya Zigbee (TS0601, cluster `EF00`) avec `ZbSend` : à essayer
   sur un appareil réel (nécessaire pour la v0.3).

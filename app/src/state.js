@@ -15,6 +15,8 @@ export const S = createStore({
   gw: LOCAL,                // gateway shown
   status: null,
   devices: null,            // { "0x1234": { addr, name, model, ..., attrs: {} } }
+  zbNames: false,           // SetOption83: Zigbee rule triggers carry the friendly name, not the address
+  rules: null,              // { rules: [{ n, on, once, stop, len, free, text, bak }], berry: [{ rule, id }] }
   tuya: null,               // { state, detail, nodes: { name: { connected, ip, version, dps } }, conf, lowMem }
   events: [],
   live: false,
@@ -29,6 +31,8 @@ let lastSeq = 0;
 let lastWake = 0;
 
 export const cmd = c => api.cmd(c);
+export const get = (path, params) => api.get(path, params);
+export const post = (path, params, body) => api.post(path, params, body);
 export const current = gw => S.get().gw === gw;
 const fail = (gw, e) => { if (current(gw)) S.set({ error: e.message }); };
 
@@ -45,6 +49,14 @@ export function loadDevices() {
     list.forEach(d => { d.attrs = d.info || {}; devices[d.addr] = d; });
     if (current(gw)) S.set({ devices });
   }).catch(e => fail(gw, e));
+}
+
+export function loadRules() {
+  const gw = S.get().gw;
+  api.cmd('SetOption83').then(r => { if (current(gw)) S.set({ zbNames: /^(ON|1)$/i.test(String((r || {}).SetOption83)) }); })
+    .catch(() => {});
+  return api.get('/api/rules').then(rules => { if (current(gw)) S.set({ rules, error: null }); })
+    .catch(e => fail(gw, e));
 }
 
 // Local Tuya devices: state of the firmware's driver, devices, then (memory permitting) their
@@ -74,7 +86,7 @@ export async function loadTuya() {
 
 // A gateway's API server only runs while an interface is open (memory): the main server's
 // /tf?w=1 starts it. The answer is opaque (no CORS on port 80), only the effect matters.
-function wake(gw) {
+export function wake(gw) {
   fetch('http://' + new URL(gw.api).hostname + '/tf?w=1', { mode: 'no-cors' }).catch(() => {});
 }
 
@@ -144,6 +156,7 @@ function start() {
     if (!current(gw)) return;
     S.set({ startMs: performance.now() - T0 });
     connectEvents();
+    if (S.get().tab === 'rules') loadRules();
     return loadTuya();
   }).catch(e => fail(gw, e));
 }
@@ -154,13 +167,14 @@ export function selectGateway(id) {
   closeEvents();
   api = client(gw);
   lastSeq = 0;
-  S.set({ gw, status: null, devices: null, tuya: null, events: [], live: false, error: null });
+  S.set({ gw, status: null, devices: null, tuya: null, rules: null, events: [], live: false, error: null });
   start();
 }
 
 export function setTab(tab) {
   S.set({ tab });
   if (tab === 'diag') loadStatus();
+  if (tab === 'rules') loadRules();
 }
 
 export function addRemote(gw) {

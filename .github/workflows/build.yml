@@ -24,19 +24,30 @@ jobs:
         with:
           node-version: "22"
 
+      # azure.archive.ubuntu.com, the runner's default apt mirror, was unreachable (11 November
+      # 2026): use archive.ubuntu.com and retry downloads. Also covers Playwright's --with-deps.
+      - name: Use a reachable apt mirror
+        run: |
+          echo "http://archive.ubuntu.com/ubuntu/" | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+          sudo sed -i 's|azure\.archive\.ubuntu\.com|archive.ubuntu.com|g' /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          echo 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/80retries > /dev/null
+          sudo apt-get update || true
+
       - name: Build the interface (Preact + htm, esbuild)
         run: |
           npm ci
           npm run build
           node --check dist/app.js
           node --check dist/lite.js
+          node tests/rules_model_test.js
 
-      - name: Berry syntax
+      - name: Berry syntax and request parser test
         run: |
           sudo apt-get install -y --no-install-recommends libreadline-dev
           git clone --depth 1 https://github.com/berry-lang/berry.git "$RUNNER_TEMP/berry"
           make -C "$RUNNER_TEMP/berry" -j"$(nproc)"
           "$RUNNER_TEMP/berry/berry" tools/check_syntax.be extension/*.be
+          "$RUNNER_TEMP/berry/berry" -s tests/tf_http_test.be
 
       - name: Build the .tapp and check size budgets
         run: python3 tools/pack_tapp.py
@@ -83,20 +94,44 @@ jobs:
             gh release create "$GITHUB_REF_NAME" dist/TasmoFlow.tapp --title "TasmoFlow $GITHUB_REF_NAME" --generate-notes
           fi
 
-      # Cumulative gh-pages branch: every version stays published under /vX.Y.Z/,
-      # because a gateway not yet updated still loads its own version.
+      # Cumulative gh-pages branch: every version stays published under /vX.Y.Z/
       - name: Publish the interface on GitHub Pages
+        run: tools/publish_pages.sh "Interface $GITHUB_REF_NAME"
+
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
+
+  # Test build, started by hand (Actions > Build > Run workflow, on any branch): publishes the
+  # full interface at https://gnatali.github.io/TasmoFlow/dev/app.js, replaced at every run, and a
+  # test .tapp (dev/TasmoFlow.tapp) that loads it without SRI pin. No release, no tag. The .tapp
+  # only has to be installed again when extension/ or the light interface changed.
+  preview:
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build the test interface and .tapp
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git fetch origin gh-pages; then
-            git worktree add "$RUNNER_TEMP/pages" FETCH_HEAD
-            git -C "$RUNNER_TEMP/pages" checkout -B gh-pages
-          else
-            git worktree add --orphan -b gh-pages "$RUNNER_TEMP/pages"
-          fi
-          cp -r dist/pages/. "$RUNNER_TEMP/pages/"
-          touch "$RUNNER_TEMP/pages/.nojekyll"
-          git -C "$RUNNER_TEMP/pages" add -A
-          git -C "$RUNNER_TEMP/pages" commit -m "Interface $GITHUB_REF_NAME"
-          git -C "$RUNNER_TEMP/pages" push origin gh-pages
+          id="dev.$(git rev-parse --short=7 HEAD)"
+          npm ci
+          TF_BUILD="$id" npm run build
+          python3 tools/pack_tapp.py --dev --build-id "${id#dev.}"
+
+      - name: Publish dev/ on GitHub Pages
+        run: tools/publish_pages.sh "Test build ${GITHUB_REF_NAME} $(git rev-parse --short=7 HEAD)"
