@@ -30,8 +30,21 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
   const results = [];
   const ctxOpts = { locale: 'fr-FR', viewport: { width: 1280, height: 800 } };
   const src = p => p.evaluate(() => window.TASMOFLOW && window.TASMOFLOW.source);
-  // the rule set `n` of the Rules screen: its tab, then its panel
-  const rule = async (p, n) => { await p.getByRole('tab', { name: new RegExp('^Rule' + n) }).click(); return p.getByRole('tabpanel'); };
+  // the rule set `n` of the Rules screen: its accordion section, opened, then the section's content
+  const rule = async (p, n) => {
+    const head = p.getByRole('button', { name: new RegExp('^Rule' + n) });
+    if ((await head.getAttribute('aria-expanded')) !== 'true') await head.click();
+    return p.getByRole('region', { name: new RegExp('^Rule' + n) });
+  };
+  // a field of the edit dialog ("Quand", "Alors 1"...): pick an item of its list, or write it
+  const choose = async (dlg, label, option) => {
+    await dlg.getByRole('button', { name: new RegExp('^' + label + ' :') }).click();
+    await dlg.getByRole('option', { name: option, exact: true }).click();
+  };
+  const write = async (dlg, label, text) => {
+    await choose(dlg, label, 'Personnalisé…');
+    await dlg.getByLabel(label, { exact: true }).fill(text);
+  };
   const cards = p => p.waitForSelector('article.card >> nth=2', { timeout: 6000 });
 
   async function test(name, fn) {
@@ -44,7 +57,8 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
       if (errors.length) throw new Error('JS error: ' + errors.join(' | '));
       results.push([name, true]);
     } catch (e) {
-      results.push([name, false, e.message.split('\n')[0]]);
+      if (process.env.DEBUG) await page.screenshot({ path: path.join(SHOTS || '/tmp', 'fail-' + results.length + '.png'), fullPage: true }).catch(() => {});
+      results.push([name, false, process.env.DEBUG ? e.message : e.message.split('\n')[0]]);
     }
     await ctx.close();
   }
@@ -151,6 +165,10 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     if (!(await r1.getByRole('button', { name: 'Enregistrer' }).isDisabled())) throw new Error('save allowed');
     await box.fill('on Power1#State=1 do Power2 1');
     await r1.getByRole('alert').filter({ hasText: 'endon' }).waitFor();
+    // what is being typed survives the events that arrive meanwhile (they re-render the screen)
+    await box.fill('on Time#Minute=5 do Power1 0 endon');
+    await wait(3500);
+    if ((await box.inputValue()) !== 'on Time#Minute=5 do Power1 0 endon') throw new Error('the text being edited was lost');
     // longer than a request line: sent in a POST body
     const long = Array.from({ length: 24 }, (_, i) => `on Time#Minute=${i} do Power1 0 endon`).join('\n');
     await box.fill(long);
@@ -173,7 +191,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await (await rule(p, 2)).getByRole('checkbox', { name: 'une seule fois' }).click();
     await p.waitForFunction(async t => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[1].once,
       '0123456789abcdef0123456789abcdef', { timeout: 4000 });
-    await p.getByRole('tab', { name: /Règles Berry/ }).click();
+    await p.getByRole('button', { name: /Règles Berry/ }).click();
     await p.locator('ul.berry').getByText('Button1#State').waitFor();
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'rules.png'), fullPage: true });
   });
@@ -195,10 +213,10 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await dlg.getByRole('checkbox', { name: 'Si' }).check();
     await dlg.getByLabel('Si', { exact: true }).last().fill('Var1==1');
     await dlg.getByRole('checkbox', { name: 'Sinon' }).check();
-    await dlg.getByLabel('Sinon 1').fill('Power2 off');
+    await write(dlg, 'Sinon 1', 'Power2 off');
     // a second command in Then
     await dlg.getByRole('button', { name: 'Ajouter une commande' }).first().click();
-    await dlg.getByLabel('Alors 2').fill('Var1 0');
+    await write(dlg, 'Alors 2', 'Var1 0');
     await dlg.getByRole('button', { name: 'Terminé' }).click();
     await dlg.waitFor({ state: 'hidden' });
     await r1.locator('.tile .chip', { hasText: 'Var1==1' }).waitFor();             // the tile shows the condition
@@ -206,11 +224,12 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await r1.getByRole('button', { name: /Ajouter une règle/ }).click();
     await dlg.waitFor();
     if (!(await r1.getByRole('button', { name: 'Enregistrer' }).isDisabled())) throw new Error('an empty block can be saved');
-    await dlg.getByLabel('Alors 1').fill('Power1 on');
-    // the suggestions stay available once a field holds a value
-    await dlg.getByRole('combobox', { name: 'Suggestions' }).nth(0).selectOption('Time#Minute');
-    if ((await dlg.getByLabel('Quand').inputValue()) !== 'Time#Minute') throw new Error('suggestion not applied');
-    await dlg.getByLabel('Quand').fill('System#Boot');
+    await write(dlg, 'Alors 1', 'Power1 on');
+    // one field: closed it reads like the tile, open it lists everything with the current item highlighted
+    await choose(dlg, 'Quand', 'Time#Minute');
+    await dlg.getByRole('button', { name: /^Quand : Time#Minute/ }).click();
+    if ((await dlg.getByRole('option', { name: 'Time#Minute', exact: true }).getAttribute('aria-selected')) !== 'true') throw new Error('current item not highlighted');
+    await dlg.getByRole('option', { name: 'System#Boot', exact: true }).click();
     await p.keyboard.press('Escape');                                              // Escape closes the dialog
     await dlg.waitFor({ state: 'hidden' });
     await r1.getByRole('alert').filter({ hasText: /déclencheur est vide/ }).count();   // (the trigger is filled now: no alert)
@@ -248,16 +267,13 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await r3.getByRole('button', { name: /Ajouter une règle/ }).click();
     const dlg = p.getByRole('dialog');
     await dlg.waitFor();
-    const picks = dlg.getByRole('combobox', { name: 'Suggestions' });
-    await picks.nth(0).selectOption('ZbReceived#0x3C4D#Power');           // trigger: a Zigbee device attribute
-    if ((await dlg.getByLabel('Quand').inputValue()) !== 'ZbReceived#0x3C4D#Power') throw new Error('trigger not filled');
-    // device information (IEEEAddr, ModelId...) is not an event to wait for
-    if (await dlg.locator('option[value$="#IEEEAddr"], option[value$="#ModelId"]').count()) throw new Error('device information offered as a trigger');
+    await choose(dlg, 'Quand', 'Power');                                 // a Zigbee device attribute
+    await dlg.getByRole('button', { name: /^Quand : Lampe salon · Power/ }).waitFor();   // closed, it reads like the tile
     await dlg.getByLabel('Comparaison').selectOption('=');
     await dlg.getByLabel('Valeur').fill('1');
-    await picks.nth(1).selectOption('ZbSend {"device":"0x3C4D","send":{"Power":"Toggle"}}');   // the first Then
+    await choose(dlg, 'Alors 1', 'basculer');                           // the first Then: switch the lamp over
     await dlg.getByRole('button', { name: 'Ajouter une commande' }).click();
-    await dlg.getByRole('combobox', { name: 'Suggestions' }).nth(2).selectOption('TuyaSend Ventilateur,20,toggle');
+    await choose(dlg, 'Alors 2', 'Lumière ventilateur · basculer');     // a Tuya device
     await dlg.getByRole('button', { name: 'Terminé' }).click();
     await r3.locator('.tile .chip', { hasText: 'Lampe salon · Power = 1' }).waitFor();             // plain language
     await r3.locator('.tile .chip', { hasText: /basculer Lampe salon/ }).waitFor();

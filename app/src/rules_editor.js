@@ -29,28 +29,55 @@ function actionGroups(s) {
     ...tuyaActions(s.tuya, verbs())];
 }
 
-// A <datalist> only offers what matches the text already typed: once a field holds a value, the
-// other suggestions are gone. A list that always shows everything and fills the field instead.
-function Pick({ groups, onPick }) {
-  return html`<select class="pick" aria-label=${t('rule_suggest')} value="" onChange=${e => {
-    const v = e.target.value;
-    e.target.value = '';
-    if (v) onPick(v);
-  }}>
-    <option value="">▾</option>
-    ${groups.map(g => html`<optgroup label=${g.group}>${g.items.map(i => html`<option value=${i.value}>${i.label}</option>`)}</optgroup>`)}
-  </select>`;
+// One field for "what": closed, it reads like the tile ("Lampe salon · Power"); open, it lists
+// everything as a tree (a group per device) with the current item highlighted. "Custom" turns it
+// into a text field, so any Tasmota trigger or command can still be written. A native <select>
+// cannot do this: it shows the same text open and closed, and a <datalist> only offers what
+// matches the text already typed.
+function Choice({ label, value, groups, friendly, onChange, placeholder }) {
+  const [open, setOpen] = useState(false);
+  const [edit, setEdit] = useState(false);
+  const box = useRef();
+  useEffect(() => {
+    if (!open) return;
+    const away = e => { if (box.current && !box.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('click', away);
+    const sel = box.current && box.current.querySelector('.sel');
+    if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: 'nearest' });
+    return () => document.removeEventListener('click', away);
+  }, [open]);
+  const known = groups.some(g => g.items.some(i => i.value === value));
+  const pick = v => {
+    onChange(v);
+    setOpen(false);
+    setEdit(v.endsWith(','));                      // `TuyaSend Name,62,` still needs its value
+  };
+  // Escape closes the list, not the dialog around it
+  const key = e => { if (open && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false); } };
+  return html`<div class="choice" ref=${box} onKeyDown=${key}>
+    ${edit
+      ? html`<div class="row tight"><input class="grow" value=${value} aria-label=${label} onInput=${e => onChange(e.target.value)}/>
+          <button class="b" aria-label=${t('rule_list')} title=${t('rule_list')} onClick=${() => { setEdit(false); setOpen(true); }}>▾</button></div>`
+      : html`<button class="b choice-btn" aria-haspopup="listbox" aria-expanded=${open} aria-label=${label + ' : ' + (friendly || placeholder)}
+          onClick=${() => setOpen(!open)}><span>${friendly || html`<i>${placeholder}</i>`}</span><span aria-hidden="true">▾</span></button>`}
+    ${open ? html`<div class="pop" role="listbox" aria-label=${label}>
+      ${value && !known ? html`<button role="option" aria-selected="true" class="pitem sel" onClick=${() => setOpen(false)}>${friendly || value}</button>` : null}
+      ${groups.map(g => html`<div class="pgroup">${g.group}</div>
+        ${g.items.map(i => html`<button role="option" aria-selected=${i.value === value} class=${'pitem' + (i.value === value ? ' sel' : '')} onClick=${() => pick(i.value)}>${i.label}</button>`)}`)}
+      <button role="option" class="pitem custom" onClick=${() => { setEdit(true); setOpen(false); }}><span aria-hidden="true">✎ </span>${t('rule_custom')}</button>
+    </div>` : null}
+  </div>`;
 }
 
 // the commands of Then / Else, one field each
-function Commands({ label, list, set, groups, bare }) {
+function Commands({ label, list, set, groups, bare, s }) {
   const rows = list.length ? list : [''];
   const put = (i, v) => set(rows.map((x, k) => k === i ? v : x));
   const Box = bare ? 'div' : 'fieldset';
   return html`<${Box} class=${bare ? '' : 'cmds'}>${bare ? null : html`<legend>${label}</legend>`}
-    ${rows.map((c, i) => html`<div class="row tight">
-      <input class="grow" value=${c} aria-label=${label + ' ' + (i + 1)} onInput=${e => put(i, e.target.value)}/>
-      <${Pick} groups=${groups} onPick=${v => put(i, v)}/>
+    ${rows.map((c, i) => html`<div class="row tight cmdrow">
+      <${Choice} label=${label + ' ' + (i + 1)} value=${c} groups=${groups} placeholder=${t('rule_pickAction')}
+        friendly=${c ? (describeCommand(c, s.devices, verbs()) || c) : ''} onChange=${v => put(i, v)}/>
       ${rows.length > 1 ? html`<button class="b" aria-label=${t('rule_removeCmd')} onClick=${() => set(rows.filter((_, k) => k !== i))}>×</button>` : null}
     </div>`)}
     <button class="b" onClick=${() => set([...rows, ''])}>${t('rule_addCmd')}</button>
@@ -99,10 +126,8 @@ function BlockForm({ b, change, s }) {
   const acts = actionGroups(s);
   return html`<div class="form">
     <fieldset class="cmds"><legend>${t('rule_when')}</legend>
-      <div class="row tight">
-        <input class="grow" value=${b.subject} aria-label=${t('rule_when')} placeholder="Button1#State" onInput=${e => change({ subject: e.target.value })}/>
-        <${Pick} groups=${trig.groups} onPick=${v => change({ subject: v })}/>
-      </div>
+      <${Choice} label=${t('rule_when')} value=${b.subject} groups=${trig.groups} placeholder=${t('rule_pickEvent')}
+        friendly=${b.subject ? (describeSubject(b.subject, s.devices, s.zbNames) || b.subject) : ''} onChange=${v => change({ subject: v })}/>
       ${trig.skipped ? html`<div class="q">${t('rule_zbSkipped')}</div>` : null}
       <div class="row tight">
         <select aria-label=${t('rule_operator')} value=${b.op} onChange=${e => change({ op: e.target.value, value: e.target.value ? b.value : '' })}>
@@ -116,9 +141,9 @@ function BlockForm({ b, change, s }) {
     <fieldset class="cmds"><legend><label><input type="checkbox" checked=${hasCond} onChange=${e => change({ cond: e.target.checked ? '' : null, else: null })}/> ${t('rule_if')}</label></legend>
       ${hasCond ? html`<input class="grow" value=${b.cond} aria-label=${t('rule_if')} placeholder="Var1==1" onInput=${e => change({ cond: e.target.value })}/>` : html`<span class="q">${t('rule_noCond')}</span>`}
     </fieldset>
-    <${Commands} label=${t('rule_then')} list=${b.then} set=${v => change({ then: v })} groups=${acts}/>
+    <${Commands} label=${t('rule_then')} list=${b.then} set=${v => change({ then: v })} groups=${acts} s=${s}/>
     ${hasCond ? html`<fieldset class="cmds"><legend><label><input type="checkbox" checked=${!!b.else} onChange=${e => change({ else: e.target.checked ? [''] : null })}/> ${t('rule_else')}</label></legend>
-      ${b.else ? html`<${Commands} label=${t('rule_else')} list=${b.else} set=${v => change({ else: v })} groups=${acts} bare=${true}/>` : html`<span class="q">${t('rule_noElse')}</span>`}</fieldset>` : null}
+      ${b.else ? html`<${Commands} label=${t('rule_else')} list=${b.else} set=${v => change({ else: v })} groups=${acts} s=${s} bare=${true}/>` : html`<span class="q">${t('rule_noElse')}</span>`}</fieldset>` : null}
   </div>`;
 }
 

@@ -42,6 +42,7 @@ const TEXTS = {
     rule_vOn: 'allumer', rule_vOff: 'éteindre', rule_vToggle: 'basculer', rule_gwEvents: 'Événements de la passerelle', rule_commands: 'Commandes courantes',
     rule_zbSkipped: "Des appareils Zigbee dont le nom contient un espace ne peuvent pas servir de déclencheur : renommez-les (ZbName) ou désactivez SetOption83.",
     rule_finish: 'Terminé', rule_editTitle: 'Modifier la règle', rule_noCond: 'aucune condition', rule_noElse: 'aucune autre action',
+    rule_custom: 'Personnalisé…', rule_list: 'Choisir dans la liste', rule_pickEvent: 'Choisir un événement', rule_pickAction: 'Choisir une action',
     tuyaWaiting: 'Pilote Tuya en attente :', tuyaLowMem: 'Mémoire libre insuffisante pour lire la configuration Tuya : seuls les états booléens sont proposés.'
   },
   en: {
@@ -84,6 +85,7 @@ const TEXTS = {
     rule_vOn: 'turn on', rule_vOff: 'turn off', rule_vToggle: 'toggle', rule_gwEvents: 'Gateway events', rule_commands: 'Common commands',
     rule_zbSkipped: 'Zigbee devices whose name contains a space cannot be used as a trigger: rename them (ZbName) or turn SetOption83 off.',
     rule_finish: 'Done', rule_editTitle: 'Edit rule', rule_noCond: 'no condition', rule_noElse: 'no other action',
+    rule_custom: 'Custom…', rule_list: 'Pick from the list', rule_pickEvent: 'Pick an event', rule_pickAction: 'Pick an action',
     tuyaWaiting: 'Tuya driver waiting:', tuyaLowMem: 'Not enough free memory to read the Tuya configuration: only boolean states are offered.'
   }
 };

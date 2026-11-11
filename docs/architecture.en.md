@@ -422,8 +422,11 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   (`showRule()`, `flatRule()`). The interface checks `on <trigger> do ... endon`
   (advisory, `rules_lint.js`); the Tasmota rule engine has no syntax-check command. The Berry
   compilation check comes with Berry editing.
-- **Rules screen layout** (11 November 2026): one tab per rule set (`Rule1` to `Rule3`, with a dot
-  for its state) and one for the Berry rules, instead of three columns. In *Sentences* view each
+- **Rules screen layout** (11 November 2026): an **accordion**: one section per rule set
+  (`Rule1` to `Rule3`, with a dot for its state) and one for the Berry rules, each opening and
+  closing on its own (tabs were tried first and replaced). A section component is defined at the top
+  level of the file: one created inside the render function is a new type every time and Preact
+  rebuilds everything below it, the text being edited included, at every incoming event (tested). In *Sentences* view each
   block is a **tile** (When / If / Then / Else lines); *Edit* opens the form in a **dialog over the
   page** (native `<dialog>`: Escape and the backdrop close it, the *Done* button stays in view on a
   phone), not in place; a dashed tile adds a rule.
@@ -435,7 +438,7 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   shown as text (several triggers with `and`/`or`, `elseif`, nested `if`, an operator without a
   value, an empty body), and a rule set that is not a plain list of blocks only opens in Text
   view. Opening a rule set never rewrites it: a block is written again only once edited
-  (`src` kept). Triggers and commands are free text; a list of suggestions next to each field fills it (a `<datalist>` was dropped: it only offers what matches the text already typed, so nothing showed once a field had a value). `tests/rules_model_test.js`
+  (`src` kept). Triggers and commands use one **choice field**: closed it reads like the tile (`Lampe salon · Power`), open it lists everything as a tree (a group per device) with the current item highlighted; *Custom...* turns it into a text field, so any Tasmota trigger or command can still be written. A `<select>` shows the same text open and closed, and a `<datalist>` only offers what matches the text already typed, so neither fits. `tests/rules_model_test.js`
   (CI) checks parsing, the writing of every shape, and that nothing is rewritten. **Device pickers** (`rules_devices.js`):
   next to each trigger and command field a list offers the common ones, then the gateway's own
   devices. *Zigbee triggers*: `ZbReceived#<key>#<attribute>` for each attribute a device reported;

@@ -439,8 +439,12 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   L'interface vérifie `on <déclencheur> do … endon` (à titre indicatif, `rules_lint.js`) ; le
   moteur de règles de Tasmota n'a pas de commande de contrôle de syntaxe. Le contrôle par
   compilation Berry viendra avec l'édition du Berry.
-- **Disposition de l'écran Règles** (11 novembre 2026) : un onglet par jeu de règles (`Rule1` à
-  `Rule3`, avec un point pour son état) et un pour les règles Berry, au lieu de trois colonnes. En
+- **Disposition de l'écran Règles** (11 novembre 2026) : un **accordéon** : une section par jeu de
+  règles (`Rule1` à `Rule3`, avec un point pour son état) et une pour les règles Berry, chacune
+  s'ouvrant et se fermant seule (des onglets ont été essayés puis remplacés). Le composant de section
+  est défini au niveau du fichier : un composant créé dans la fonction de rendu est un nouveau type à
+  chaque fois et Preact reconstruit tout ce qu'il contient, le texte en cours de saisie compris, à
+  chaque événement reçu (testé). En
   vue *Phrases*, chaque bloc est une **tuile** (lignes Quand / Si / Alors / Sinon) ; *Modifier* ouvre
   le formulaire dans une **fenêtre par-dessus la page** (`<dialog>` natif : Échap et le fond la
   ferment, le bouton *Terminé* reste visible sur téléphone), et non sur place ; une tuile en
@@ -454,7 +458,7 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   texte (plusieurs déclencheurs avec `and`/`or`, `elseif`, `if` imbriqués, opérateur sans
   valeur, corps vide), et un jeu de règles qui n'est pas une suite de blocs ne s'ouvre qu'en
   vue Texte. Ouvrir un jeu de règles ne le réécrit jamais : un bloc n'est réécrit qu'une fois
-  modifié (`src` conservé). Déclencheurs et commandes sont du texte libre ; une liste de suggestions à côté de chaque champ le remplit (un `<datalist>` a été abandonné : il ne propose que ce qui correspond au texte déjà saisi, donc rien n'apparaissait dès qu'un champ avait une valeur).
+  modifié (`src` conservé). Déclencheurs et commandes utilisent un **champ à choix** : fermé, il se lit comme la tuile (`Lampe salon · Power`) ; ouvert, il liste tout en arbre (un groupe par appareil) avec l'élément courant en évidence ; *Personnalisé…* le transforme en champ texte, donc tout déclencheur ou toute commande Tasmota reste écrivable. Un `<select>` affiche le même texte ouvert et fermé, et un `<datalist>` ne propose que ce qui correspond au texte déjà saisi : aucun des deux ne convient.
   `tests/rules_model_test.js` (CI) vérifie la lecture, l'écriture de chaque forme et l'absence de
   réécriture. **Sélecteurs
   d'appareils** (`rules_devices.js`) : à côté de chaque champ de déclencheur et de commande, une liste
