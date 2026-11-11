@@ -26,6 +26,10 @@ paths:
   gateway (`Software reset CPU`, browser: `ERR_CONNECTION_RESET`; 112 passed). `tf_http.be` now
   parses with `string.find()` and refuses a request line over 512 characters (414), headers
   over 4 KB (431), a body over 3,000 bytes (413). Details and sources: `docs/architecture.en.md`.
+- After refusing a request (414, 400, 431, 413) `tf_http.be` keeps reading and dropping the input
+  until the sender is quiet (200 ms, 2 s at most) before closing: closing a socket with unread
+  data makes lwIP reset the connection and the browser shows `ERR_CONNECTION_RESET`, not the
+  error answer.
 - Long data still goes in a **POST body** (`cnx.body()`, `Content-Length`), not in a URL:
   `/api/cmd` and `/api/rule_set`. The simulated gateway cuts the connection on a request line
   over 120 characters until the string parser is checked on the gateway.

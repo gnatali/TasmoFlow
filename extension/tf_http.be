@@ -63,6 +63,8 @@ class webserver_async
     var buf_in_offset
     var buf_out
     var phase                                       # parsing phase: 0/ status line, 1/ headers, 2/ payload, 3/ refused
+    var linger                                      # refused request: close once quiet after this millis()
+    var linger_max                                  # ... and in any case after this one
     # request
     var req_verb                                    # verb for request (GET, or POST with a small body)
     var req_uri                                     # URI for request
@@ -105,6 +107,8 @@ class webserver_async
       self.buf_in_offset = 0
       self.buf_out = bytes()
       self.phase = 0              # 0 = status line
+      self.linger = 0
+      self.linger_max = 0
       self.req_len = 0
       self.dispatched = false
       # util
@@ -184,12 +188,25 @@ class webserver_async
         else                              # or append to current incoming buffer
           self.buf_in += buf_in_new
         end
+        if self.phase == 3    self.linger = tasmota.millis(self.server.LINGER_MS)    end   # still sending
       end
 
       # parse incoming data if any
       if (self.buf_in)
         self.parse()
       end
+    end
+
+    #############################################################
+    # drained: (TasmoFlow) can a refused request's connection be closed now?
+    #
+    # The client may still be sending the rest of its request. Closing a socket that holds
+    # unread data makes lwIP send a reset, and the browser then reports ERR_CONNECTION_RESET
+    # instead of showing the error answer. So after a refusal the input is read and dropped
+    # until it has been quiet for LINGER_MS, and in any case for no more than LINGER_MAX_MS.
+    #
+    def drained()
+      return tasmota.time_reached(self.linger) || tasmota.time_reached(self.linger_max)
     end
 
     #############################################################
@@ -224,7 +241,7 @@ class webserver_async
         # self.buf_in_offset = 0            # TODO really useful?
 
         if self.close_after_send          # close connection if we have sent everything
-          self.close()
+          if self.phase != 3 || self.drained()    self.close()    end
         end
       end
     end
@@ -258,6 +275,8 @@ class webserver_async
       log(f"TFL: port 8384 request refused ({code} {err})", 2)
       self.phase = 3
       self.buf_in = ''
+      self.linger = tasmota.millis(self.server.LINGER_MS)
+      self.linger_max = tasmota.millis(self.server.LINGER_MAX_MS)
       self.send(code, "application/json", '{"error":"' + err + '"}')
       self.content_stop()
     end
@@ -559,6 +578,8 @@ class webserver_async
   # limits (TasmoFlow); the request is parsed without regular expressions
   static var MAX_REQ_LINE = 512                   # longest request line, CRLF excluded (414 beyond)
   static var MAX_HEAD = 4096                      # longest header block (431 beyond)
+  static var LINGER_MS = 200                      # refused request: read and drop until quiet for this long
+  static var LINGER_MAX_MS = 2000                 # ... but never longer than this
   static var MAX_BODY = 3000                      # largest POST body accepted (a rule set: 2200)
 
   #############################################################

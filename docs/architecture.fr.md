@@ -185,7 +185,12 @@ en `text/plain` n'entraînent de requête préalable `OPTIONS`. Une requête qu'
 reçoit une erreur au format de l'API, puis la connexion est fermée : ligne de requête de plus de
 512 caractères `414 {"error":"uri_too_long"}`, ligne de requête invalide `400 bad_request`,
 en-têtes de plus de 4 Ko `431 headers_too_long`, corps de plus de 3 000 octets
-`413 body_too_long`.
+`413 body_too_long`. La connexion n'est pas fermée aussitôt après une telle réponse : le reste de
+la requête est lu et jeté jusqu'à ce que l'émetteur se soit tu 200 ms (2 s au plus). Fermer une
+prise qui contient des données non lues fait envoyer une réinitialisation par lwIP, et le
+navigateur affichait alors `ERR_CONNECTION_RESET` au lieu du 414 (constaté sur la passerelle le 11
+novembre 2026 avec une URL de 900 caractères ; la ligne de journal `TFL: port 8384 request refused
+(414 uri_too_long)` était là, sans redémarrage). Correctif pas encore vérifié sur la passerelle.
 
 ### Lecture des requêtes sans expressions régulières
 

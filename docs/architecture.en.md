@@ -174,7 +174,12 @@ The asynchronous server handles `GET` and `POST` (a body of at most 3,000 bytes,
 `POST` in `text/plain` triggers an `OPTIONS` preflight request. A request it will not handle
 gets an error in the API's format, then the connection is closed: request line over 512
 characters `414 {"error":"uri_too_long"}`, invalid request line `400 bad_request`, headers over
-4 KB `431 headers_too_long`, body over 3,000 bytes `413 body_too_long`.
+4 KB `431 headers_too_long`, body over 3,000 bytes `413 body_too_long`. The connection is not closed
+at once after such an answer: the rest of the request is read and dropped until the sender has been
+quiet for 200 ms (2 s at most). Closing a socket that holds unread data makes lwIP send a reset, and
+the browser then showed `ERR_CONNECTION_RESET` instead of the 414 (seen on the gateway on 11
+November 2026 with a 900-character URL; the log line `TFL: port 8384 request refused (414
+uri_too_long)` was there, and no restart). Fix not yet checked on the gateway.
 
 ### Request parsing without regular expressions
 

@@ -11,6 +11,10 @@ import string
 
 # What the firmware provides and standard Berry lacks
 class fake_tasmota
+  var now                                     # virtual clock, advanced by the test loop
+  def init() self.now = 1000 end
+  def millis(d) return self.now + (d == nil ? 0 : d) end
+  def time_reached(t) return self.now >= t end
   def add_fast_loop(cb) end
   def remove_fast_loop(cb) end
   def add_driver(d) end
@@ -67,9 +71,11 @@ def run(chunks)
   seen.clear()
   var cl = fake_client(chunks)
   var cnx = tf_http.webserver_async_cnx(srv, cl)
-  var budget = size(chunks) + 5               # every chunk, then sending and closing
+  var budget = size(chunks) + 300             # every chunk, then sending and closing; a refused
+                                              # request waits for its sender to be quiet (virtual time)
   while budget > 0 && !cl.closed
     cnx.loop()
+    global.tasmota.now += 10
     budget -= 1
   end
   var code = nil
@@ -192,6 +198,33 @@ expect("POST, body of 2200 bytes", ["POST /api/rule_set?t=" + TOKEN + " HTTP/1.1
        text[0 .. 999], text[1000 ..]], 200, {'body': text})
 expect("POST, body over 3000 bytes: 413",
        ["POST " + STATUS + " HTTP/1.1\r\nContent-Length: 3001\r\n\r\n" + repeat("b", 3001)], 413, nil)
+
+# A refused request is not closed while its sender is still sending: closing a socket with
+# unread data makes lwIP reset the connection, and the browser then shows ERR_CONNECTION_RESET
+# instead of the 414 answer (seen on the gateway, 11 November 2026)
+def refused_run(chunks, iterations)
+  var cl = fake_client(chunks)
+  var cnx = tf_http.webserver_async_cnx(srv, cl)
+  var unread = -1                             # chunks left when the connection closed
+  var at = -1
+  var i = 0
+  while i < iterations && !cl.closed
+    cnx.loop()
+    global.tasmota.now += 10
+    i += 1
+  end
+  if cl.closed    unread = size(cl.chunks)    at = i    end
+  return [cl, unread, at]
+end
+var l900 = get(long_line(900))
+var rr = refused_run([l900[0 .. 599], l900[600 ..]], 400)
+check("refused request: the answer is the 414", string.find(rr[0].out, "HTTP/1.1 414 ") == 0, rr[0].out[0 .. 40])
+check("refused request: closed once the rest of the request was read", rr[0].closed && rr[1] == 0, [rr[0].closed, rr[1]])
+check("refused request: not closed at once", rr[2] >= 15, rr[2])      # 200 ms of 10 ms steps
+var flood = []
+for k: 1 .. 600    flood.push(repeat("z", 50))    end
+rr = refused_run([repeat("a", 600)] + flood, 400)
+check("refused request: a sender that never stops is cut after 2 s", rr[0].closed && rr[1] > 0 && rr[2] <= 220, [rr[0].closed, rr[1], rr[2]])
 
 # Incomplete request: no answer, the connection waits for the rest
 var r = run(["GET " + STATUS + " HTTP/1.1\r\nHost: gw\r\n"])
