@@ -422,7 +422,7 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   shown as text (several triggers with `and`/`or`, `elseif`, nested `if`, an operator without a
   value, an empty body), and a rule set that is not a plain list of blocks only opens in Text
   view. Opening a rule set never rewrites it: a block is written again only once edited
-  (`src` kept). Triggers and commands are free text with suggestions. `tests/rules_model_test.js`
+  (`src` kept). Triggers and commands are free text; a list of suggestions next to each field fills it (a `<datalist>` was dropped: it only offers what matches the text already typed, so nothing showed once a field had a value). `tests/rules_model_test.js`
   (CI) checks parsing, the writing of every shape, and that nothing is rewritten. Not yet: device
   pickers (Zigbee, Tuya, Matter), friendly names for triggers and commands, `elseif`, several
   triggers, moving a block.

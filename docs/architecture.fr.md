@@ -439,7 +439,7 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   texte (plusieurs déclencheurs avec `and`/`or`, `elseif`, `if` imbriqués, opérateur sans
   valeur, corps vide), et un jeu de règles qui n'est pas une suite de blocs ne s'ouvre qu'en
   vue Texte. Ouvrir un jeu de règles ne le réécrit jamais : un bloc n'est réécrit qu'une fois
-  modifié (`src` conservé). Déclencheurs et commandes sont du texte libre avec des suggestions.
+  modifié (`src` conservé). Déclencheurs et commandes sont du texte libre ; une liste de suggestions à côté de chaque champ le remplit (un `<datalist>` a été abandonné : il ne propose que ce qui correspond au texte déjà saisi, donc rien n'apparaissait dès qu'un champ avait une valeur).
   `tests/rules_model_test.js` (CI) vérifie la lecture, l'écriture de chaque forme et l'absence de
   réécriture. Pas encore : sélecteurs d'appareils (Zigbee, Tuya, Matter), noms lisibles des
   déclencheurs et des commandes, `elseif`, plusieurs déclencheurs, déplacement d'un bloc.

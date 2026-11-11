@@ -203,6 +203,10 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await r1.getByRole('alert').filter({ hasText: 'déclencheur est vide' }).waitFor();
     await r1.getByLabel('Quand').fill('System#Boot');
     await r1.getByLabel('Alors 1').fill('Power1 on');
+    // the suggestions stay available once a field holds a value
+    await r1.getByRole('combobox', { name: 'Suggestions' }).nth(0).selectOption('Time#Minute');
+    if ((await r1.getByLabel('Quand').inputValue()) !== 'Time#Minute') throw new Error('suggestion not applied');
+    await r1.getByLabel('Quand').fill('System#Boot');
     await r1.getByRole('button', { name: 'Enregistrer' }).click();
     await r1.getByText(/Enregistré/).waitFor({ timeout: 4000 });
     const want = 'on Button1#State=1 do if (Var1==1) Backlog Power2 toggle; Var1 0 else Power2 off endif endon on System#Boot do Power1 on endon';
