@@ -31,7 +31,7 @@ import path
 import crypto
 
 class tf_update
-  static var MAX_SIZE = 153600          # the .tapp budget (pack_tapp.py)
+  static var MAX_SIZE = 153600          # largest .tapp accepted (pack_tapp.py's budget is smaller: room to grow)
   static var MARGIN_KB = 20             # free file system left after the copy and the new file
 
   var tf                                # the tasmoflow instance

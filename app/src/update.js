@@ -74,7 +74,7 @@ export async function runUpdate(info) {
 // the banner of the light interface (registered by main_lite.js)
 export function UpdateBanner() {
   const info = cfg.update;
-  const u = U.use();
+  const u = U.get();
   if (!info) return null;
   if (u.phase === 'idle' || u.phase === 'error') {
     return html`<p class="lite update" role="status">${t('updateAvailable').replace('{v}', info.version)}

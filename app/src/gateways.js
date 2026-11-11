@@ -1,11 +1,37 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Gateways screen: link to use this gateway from another interface, list of the others.
+// Gateways screen: link to use this gateway from another interface, list of the others, and the
+// gateway picker of the header. Full interface only (main.js).
 import { useState } from 'preact/hooks';
 import { html } from './html.js';
 import { t } from './i18n.js';
-import { S, reach, selectGateway, addRemote, removeRemote } from './state.js';
-import { parseLink, makeLink } from './remotes.js';
+import { S, reach, selectGateway } from './state.js';
+import { loadRemotes, saveRemotes, parseLink, makeLink } from './remotes.js';
 import cfg from './config.js';
+
+// the other gateways saved in this browser, read once before the interface starts
+export const initGateways = () => S.set({ gws: loadRemotes() });
+
+function addRemote(gw) {
+  const gws = [...S.get().gws, gw];
+  saveRemotes(gws);
+  S.set({ gws });
+}
+
+function removeRemote(id) {
+  const gws = S.get().gws.filter(g => g.id !== id);
+  saveRemotes(gws);
+  if (S.get().gw.id === id) selectGateway('local');
+  S.set({ gws });
+}
+
+// in the header, once another gateway is saved
+export function GatewayPicker() {
+  const s = S.get();
+  return s.gws.length ? html`<select aria-label=${t('gateway')} value=${s.gw.id} onChange=${e => selectGateway(e.target.value)}>
+    <option value="local">${t('thisGateway')}</option>
+    ${s.gws.map(g => html`<option value=${g.id}>${g.name}</option>`)}
+  </select>` : null;
+}
 
 // Clipboard API needs a secure context, which http://<gateway> is not: fall back to execCommand
 function copyText(text, input) {
@@ -80,7 +106,7 @@ function AddForm() {
 }
 
 export function GatewaysView() {
-  const { gws, gw } = S.use();
+  const { gws, gw } = S.get();
   return html`
     <${ThisGateway}/>
     <h2>${t('others')}</h2>

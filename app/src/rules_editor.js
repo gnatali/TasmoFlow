@@ -173,7 +173,7 @@ function BlockForm({ b, change, s }) {
 
 // text: the rule set as written now; setText(newText) after every change
 export function SentenceEditor({ text, setText }) {
-  const s = S.use();                                 // devices, Tuya, SetOption83
+  const s = S.get();                                 // devices, Tuya, SetOption83
   const [blocks, setBlocks] = useState(() => parseRuleSet(text));
   const [open, setOpen] = useState(-1);
   if (!blocks) return html`<p class="q">${t('rule_noSentence')}</p>`;

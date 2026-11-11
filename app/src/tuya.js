@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Local Tuya devices, through the firmware's Tuya driver only (Tuya* commands, `Tuya` event).
 // TasmoFlow never shows, stores or sends a local key: TuyaConfig already masks it.
-import { useState } from 'preact/hooks';
 import { html } from './html.js';
 import { t } from './i18n.js';
 import { cmd } from './state.js';
+import { createStore } from './store.js';
 import { controlsFor } from './tuya_model.js';
+
+// the driver's answer to the last command of each device, when it was not "Done": { name: text }
+const M = createStore({});
 
 function Control({ c, node, send }) {
   const v = node.dps[c.dp];
@@ -26,7 +29,8 @@ function Control({ c, node, send }) {
 }
 
 export function TuyaCard({ name, node, entry }) {
-  const [msg, setMsg] = useState(null);
+  const msg = M.get()[name];
+  const setMsg = text => M.set({ [name]: text });
   const send = (dp, value) => cmd('TuyaSend ' + name + ',' + dp + ',' + value).then(r => {
     const x = r.TuyaSend;
     setMsg(x === 'Done' ? null : typeof x === 'string' ? x : JSON.stringify(x));

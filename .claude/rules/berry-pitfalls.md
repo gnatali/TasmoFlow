@@ -47,6 +47,11 @@ paths:
   (`tf_streamer`), at the client's pace (`buf_out_empty()`).
 - Files inside a `.tapp` are opened with `open(tasmota.wd + "name")`; a `.tapp` is an
   uncompressed zip (`tools/pack_tapp.py`).
+- The `.tapp` holds **minified** Berry (`pack_tapp.py`, `minify_berry()`): no comments, no
+  indentation, no blank between a word and a sign (`static var VERSION= "0.2.0"`). Never parse the
+  shipped files expecting the source's layout (the simulated gateway's version regex once did), and
+  read a line number of a gateway error in the minified file (`python3 -m zipfile -e`). Comments
+  cost nothing in the `.tapp`: keep writing them in `extension/`.
 - More pitfalls of Berry under Tasmota (strict mode, solidification, 32-bit integers): see the
   firmware repository's `.claude/rules/berry-pitfalls.md`.
 - A `.tapp`'s folder is in `sys.path` **only while Tasmota loads it** (`tasmota.load()` pushes

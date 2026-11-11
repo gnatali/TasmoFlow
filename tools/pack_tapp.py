@@ -11,9 +11,11 @@ Writes into dist/:
                           version is the latest (version, size, sha256, relative path)
 
 The .tapp holds lite.js.gz, the light interface served by the gateway when GitHub cannot be
-reached (the full one only lives on GitHub Pages, to spare the 320 KB file system). The SRI
-hash of app.js is written into tasmoflow.be: the /tf page refuses a GitHub copy that differs
-from the installed version's.
+reached or an update is offered: device control and the update only (the full one only lives on
+GitHub Pages, to spare the 320 KB file system). Its Berry files are minified (no comments, no
+indentation, see minify_berry()): the commented sources stay in extension/. The SRI hash of
+app.js is written into tasmoflow.be: the /tf page refuses a GitHub copy that differs from the
+installed version's.
 
 Test build (`--dev`): the .tapp loads https://<cdn>/dev/app.js with no SRI pin and a cache-busting
 query, so one published dev/app.js can be replaced at every run without a release or a new
@@ -39,10 +41,11 @@ APP = ROOT / "dist" / "app.js"      # built by `npm run build` from app/src/
 LITE = ROOT / "dist" / "lite.js"
 DIST = ROOT / "dist"
 
-# budgets from the specification (non-functional requirements)
+# size budgets (the specification allowed 150 KB for the .tapp, 25 KB for lite.js.gz; Guillaume
+# asked on 11 November 2026 for half of v0.2.0's 83,069 B .tapp: device control and update only)
 MAX_APP_GZ = 120 * 1024             # full interface (GitHub Pages)
-MAX_LITE_GZ = 25 * 1024             # light interface (file system of the gateway)
-MAX_TAPP = 150 * 1024
+MAX_LITE_GZ = 14 * 1024             # light interface (file system of the gateway)
+MAX_TAPP = 83069 // 2
 
 # fixed date in the zip and the gzip: two builds of the same code give the same file
 ZIP_DATE = (2026, 1, 1, 0, 0, 0)
@@ -57,6 +60,102 @@ def version_hex(version):
     if max(major, minor, patch) > 255:
         sys.exit(f"invalid VERSION: {version!r} (each number <= 255)")
     return f"0x{major:02X}{minor:02X}{patch:02X}00"
+
+
+def berry_scan(src, name):
+    """Splits Berry source into ('str', text), ('com', text), ('sp', text) and ('code', char)
+    pieces. Strings are kept whole (no Berry string spans lines); `#` starts a comment to the
+    end of the line, `#-` a block comment closed by `-#` (the Berry lexer's rules)."""
+    i, n = 0, len(src)
+    while i < n:
+        c = src[i]
+        if c in "'\"":
+            j = i + 1
+            while j < n and src[j] != c:
+                if src[j] == "\n":
+                    sys.exit(f"{name}: line break inside a string")
+                j += 2 if src[j] == "\\" else 1
+            if j >= n:
+                sys.exit(f"{name}: unterminated string")
+            yield "str", src[i:j + 1]
+            i = j + 1
+        elif c == "#":
+            if src.startswith("#-", i):
+                j = src.find("-#", i + 2)
+                if j < 0:
+                    sys.exit(f"{name}: unterminated block comment")
+                j += 2
+            else:
+                j = src.find("\n", i)
+                j = n if j < 0 else j
+            yield "com", src[i:j]
+            i = j
+        elif c in " \t\r\n":
+            j = i
+            while j < n and src[j] in " \t\r\n":
+                j += 1
+            yield "sp", src[i:j]
+            i = j
+        else:
+            yield "code", c
+            i += 1
+
+
+def berry_tokens(src, name):
+    """Tokens that matter to Berry: strings, words (names, keywords, numbers), other characters."""
+    out, word = [], ""
+    for kind, text in berry_scan(src, name):
+        if kind == "code" and (text.isalnum() or text == "_"):
+            word += text
+            continue
+        if word:
+            out.append(word)
+            word = ""
+        if kind in ("str", "code"):
+            out.append(text)
+    if word:
+        out.append(word)
+    return out
+
+
+def berry_word(c):
+    return c.isalnum() or c == "_"
+
+
+def needs_space(a, b):
+    """Must a blank stay between the characters a and b? Yes between two words (`return x`), and
+    between two signs (`= =` is not `==`, `/ ->` is a lambda). Also kept next to a string (`f 'x'`
+    is not the f-string `f'x'`) and next to a dot (`1 .. 3` is not `1. .3`). A word and a sign
+    need none (`x = 1` is `x=1`)."""
+    if a in "'\"." or b in "'\".":
+        return True
+    return berry_word(a) == berry_word(b)
+
+
+def minify_berry(src, name, notice):
+    """The .tapp carries Berry without comments, indentation or needless blanks (60 % smaller);
+    the commented source is in the repository. Strings are left untouched. Line breaks stay (a
+    break and a space are the same size), empty lines go. Checked: the token sequence is the same
+    as the source's, so no two words were glued together."""
+    parts = list(berry_scan(src, name))
+    out = []
+    for i, (kind, text) in enumerate(parts):
+        if kind == "com":
+            kind, text = "sp", " "              # a block comment may sit between two words
+        if kind != "sp":
+            out.append(text)
+        elif "\n" in text:
+            out.append("\n")
+        elif out and i + 1 < len(parts) and parts[i + 1][0] != "com" and parts[i + 1][1].strip():
+            if needs_space(out[-1][-1], parts[i + 1][1][0]):
+                out.append(" ")
+        else:
+            out.append(" ")
+    lines = [line.strip() for line in "".join(out).split("\n")]
+    out = "\n".join(([f"# {notice}"] if notice else []) + [line for line in lines if line]) + "\n"
+    if berry_tokens(out, name) != berry_tokens(src, name):
+        sys.exit(f"{name}: minified Berry differs from the source")
+    return out
 
 
 def substitute(text, values, name):
@@ -97,16 +196,25 @@ def main():
             sys.exit("--dev needs a --cdn address")
     values = {"VERSION": shown, "VERSION_HEX": version_hex(version), "CDN": args.cdn, "APP_DIR": app_dir,
               "SRI": sri}
+    # one notice for the extension, one for the code taken from Tasmota (the other files are ours)
+    notice = f"TasmoFlow {shown} GPL-3.0-only, source: github.com/gnatali/TasmoFlow"
+    notices = {"tasmoflow.be": notice,
+               "tf_http.be": notice + ", from Tasmota's webserver_async.be (C) 2023 Stephan Hadinger & Theo Arends"}
+
+    def berry(name):
+        src = substitute((EXT / name).read_text(), values, name)
+        return minify_berry(src, name, notices.get(name)).encode()
+
+    ext_manifest = json.loads(substitute((EXT / "manifest.json").read_text(), values, "manifest.json"))
     files = {
-        "autoexec.be": (EXT / "autoexec.be").read_bytes(),
-        "manifest.json": substitute((EXT / "manifest.json").read_text(), values, "manifest.json").encode(),
-        "tasmoflow.be": substitute((EXT / "tasmoflow.be").read_text(), values, "tasmoflow.be").encode(),
-        "tf_http.be": (EXT / "tf_http.be").read_bytes(),
-        "tf_rules.be": (EXT / "tf_rules.be").read_bytes(),
-        "tf_update.be": (EXT / "tf_update.be").read_bytes(),
+        "autoexec.be": berry("autoexec.be"),
+        "manifest.json": json.dumps(ext_manifest, separators=(",", ":")).encode(),
+        "tasmoflow.be": berry("tasmoflow.be"),
+        "tf_http.be": berry("tf_http.be"),
+        "tf_rules.be": berry("tf_rules.be"),
+        "tf_update.be": berry("tf_update.be"),
         "lite.js.gz": lite_gz,
     }
-    json.loads(files["manifest.json"])          # the manifest must stay valid JSON
 
     DIST.mkdir(exist_ok=True)
     out = DIST / "dev" if args.dev else DIST

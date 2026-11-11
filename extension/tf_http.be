@@ -6,8 +6,8 @@
 # Panel extension also ships its own copy. Changes: final test block removed; RAM savings,
 # this extension never needs them: chunked encoding (`set_chunked`, always off here:
 # responses are closed, not chunked), the integer-to-text helpers `bytes_format_hex` and
-# `bytes_append_int`; a POST body is handed over (`body()`); the request line and the
-# headers are parsed with `string.find()`, not with the `re` module: its matcher
+# `bytes_append_int`, `write_raw` (same as `write`); a POST body is handed over (`body()`); the
+# request line and the headers are parsed with `string.find()`, not with the `re` module: its matcher
 # (re1.5 `recursiveloop`) calls itself once per character matched by `\S+`, so a long URL
 # overflowed the 8 KB stack of Tasmota's loop task and restarted the gateway (see
 # docs/architecture.en.md); a request that is too long or invalid gets an error answer
@@ -454,7 +454,7 @@ class webserver_async
       self.resp_headers = nil
 
       # send status-line and headers
-      self.write_raw(response)
+      self.write(response)
 
       # send first part of content
       if (content)    self.write(content)   end
@@ -463,24 +463,10 @@ class webserver_async
     #############################################################
     # write: writes a bytes or string piece of content
     #
-    # If content is empty, nothing is sent
+    # If content is empty, nothing is sent (TasmoFlow: also used for the status line and the
+    # headers, the original's identical `write_raw` is removed)
     #
     def write(v)
-      if type(v) == 'string'          # if string, convert to bytes
-        v = bytes().fromstring(v)
-      end
-
-      self._write(v)
-    end
-
-    #############################################################
-    # write_raw: low-level write of string or bytes
-    #
-    # If content is empty, nothing is sent
-    #
-    def write_raw(v)
-      if (size(v) == 0)   return end
-
       if type(v) == 'string'          # if string, convert to bytes
         v = bytes().fromstring(v)
       end
@@ -541,7 +527,6 @@ class webserver_async
     def dispatch(cnx, uri, verb)
       import string
       if string.find(uri, self.uri_prefix) == 0
-        var match = false
         if (self.verb == nil) || (self.verb == verb)
           # method is valid
           var cb_obj = self.cb_obj

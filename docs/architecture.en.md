@@ -155,14 +155,43 @@ places" of v0.0):
 | | Full interface (`dist/app.js`) | Light interface (`dist/lite.js`) |
 | --- | --- | --- |
 | Where | GitHub Pages only, `vX.Y.Z/`, pinned by the `.tapp` with its SRI hash | In the `.tapp` as `lite.js.gz`, served on port 8384 |
-| Used | Normally | When the browser cannot reach GitHub (no internet, GitHub down, wrong hash) |
-| Content | Everything: devices, events, console, Gateways, and later rules, sentence editor, scenes, administration | Devices (Zigbee and Tuya, switches, sliders, pairing), console, diagnostics, French and English |
-| Source | `app/src/main.js` | `app/src/main_lite.js`: same code, fewer tabs (`boot.js`) |
-| Budget (gzipped) | 120 KB | 25 KB |
+| Used | Normally | When the browser cannot reach GitHub (no internet, GitHub down, wrong hash), and to offer an update |
+| Content | Everything: devices, rules and sentence editor, events, console, Gateways, diagnostics, and later scenes, administration | Device control (Zigbee and Tuya: switches, sliders, readings, pairing) and the update of the `.tapp`, French and English. One screen, no tab bar |
+| Source | `app/src/main.js` | `app/src/main_lite.js`: same code, one screen (`boot.js`) |
+| Budget (gzipped) | 120 KB | 14 KB |
 
-Light interface, since v0.2: enable or disable a rule and restore the previous copy of a
-rule, so that rules stay manageable without GitHub. Never in the light interface: sentence
-editor, groups, scenes, Zigbee plugins, administration (OTA), several gateways.
+**Decision of 11 November 2026** (Guillaume): the `.tapp` must be half its v0.2.0 size (83,069 B):
+the light interface keeps only **device control and the update**; everything else (rules, console,
+diagnostics, events, several gateways) is in the full interface only. It replaces the rules of the
+light interface added in v0.2 (enable, disable, restore). Without GitHub, rules keep running on the
+gateway and Tasmota's own pages stay available (console, `Rule<n>`).
+
+How the light bundle stays small, with the same sources:
+
+- `main_lite.js` imports only `views.js` (devices), `tuya.js` and `update.js`; the full interface's
+  screens are in their own modules (`rules*.js`, `gateways.js`, `views_full.js`), with their texts
+  (`i18n_full.js`, added by `addTexts()`) and styles (`style_full.css`). What a screen loads when
+  it opens is registered by `main.js` (`onTab()`), the gateway picker of the header too.
+- No `preact/hooks` in the light bundle: the stores (`store.js`) have no `use()`; after any `set()`
+  the interface renders again from its root (`boot.js`, once per task) and Preact only changes what
+  differs. The full interface's own screens still use hooks for their local state.
+- The Berry files are **minified** by `pack_tapp.py` (`minify_berry()`): no comments, no
+  indentation, no blank between a word and a sign; strings untouched, line breaks kept. It checks
+  that the token sequence equals the source's, and CI compiles the minified copies and runs
+  `tests/tf_http_test.be` on the minified `tf_http.be`. The commented sources stay in `extension/`;
+  a line number in a gateway error message refers to the minified file.
+
+| Size (bytes) | v0.2.0 | 11 November 2026 |
+| --- | --- | --- |
+| `tasmoflow.be` | 19,516 | 10,741 |
+| `tf_http.be` | 25,710 | 7,421 |
+| `tf_rules.be` | 9,095 | 4,330 |
+| `tf_update.be` | 6,384 | 2,935 |
+| `lite.js.gz` | 21,086 | 13,385 |
+| **`TasmoFlow.tapp`** | **83,069** | **39,807** (-52 %; budget 41,534) |
+
+Never in the light interface: rules, sentence editor, groups, scenes, Zigbee plugins,
+administration (OTA), console, diagnostics, several gateways.
 
 Why:
 
@@ -179,12 +208,12 @@ Why:
 - **Kept local, light**: GitHub (account, Pages, repository) must not be a single point of
   failure for controlling the gateway.
 - The light interface is another entry point of the same sources, so no second code base:
-  same API client, same Tuya model, same texts. Today it is only 1 KB smaller (13.7 against
-  14.9 KB gzipped); the gap grows with the full interface.
+  same API client, same Tuya model, same texts (13.4 KB gzipped against 26.4 KB for the full one).
 - The full interface cannot be moved to `https://gnatali.github.io` to manage gateways from
   one place: an HTTPS page calling `http://<gateway>` is blocked (mixed content, Private
   Network Access). It must stay loaded by the gateway's HTTP page.
-- Users who want no GitHub at all (`pack_tapp.py --cdn ''`) only get the light interface.
+- Users who want no GitHub at all (`pack_tapp.py --cdn ''`) only get the light interface, so
+  only device control.
 
 ## Port 8384 API
 
@@ -524,7 +553,8 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] `http://<gateway>/tf` typed in the address bar (without the button) opens the interface
 - [x] Without internet access, `/tf` loads the local copy (Diagnostics tab: "local"); since v0.1 this copy is the light interface (banner, header "· lite"), to check again
 - [x] `open(tasmota.wd + "app.js.gz", "rb")` reads the file inside the `.tapp`, and the browser decompresses the local copy (`lite.js.gz` since v0.1)
-- [ ] v0.1: with the browser offline (or `gnatali.github.io` blocked), `/tf` shows the light interface: devices with toggles, console and diagnostics work, the Gateways and Events tabs are absent, "Retry" loads the full interface once GitHub answers
+- [ ] v0.1: with the browser offline (or `gnatali.github.io` blocked), `/tf` shows the light interface: devices with toggles, console and diagnostics work, the Gateways and Events tabs are absent, "Retry" loads the full interface once GitHub answers (console and diagnostics left the light interface on 11 November 2026: see the item below)
+- [ ] v0.2, reduced `.tapp` (11 November 2026, test build, `.tapp` installed again, `Restart 1`): the `.tapp` is about 39 KB; the boot log shows `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` (the minified Berry loads); with GitHub blocked, `/tf` shows the devices only, without a tab bar: a Zigbee toggle, "Pair", a Tuya switch and slider work and their state comes back, the language button works, "Retry" loads the full interface once GitHub answers; with GitHub reachable, the full interface works as before (Rules: save and restore, Berry rules, `autoexec.be`; console; diagnostics; gateways); an update from the light interface still works; memory at rest and with an interface open unchanged or lower
 - [x] The device list matches `ZbStatus1`
 - [x] A Zigbee button press shows up in the Events tab within 2 s
 - [x] "Toggle" switches a light on and off; "Pair" opens pairing for 60 s
@@ -549,7 +579,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [ ] v0.2: Sentences view: a rule set typed in Text view shows as sentences; editing a trigger value, adding an `if` / `else` and a second command, adding and deleting a rule, then Save gives the expected text (`Rule<n>` in the console); a rule that fits no sentence stays text
 - [x] v0.2 (10 November 2026): Rules screen: the three rule sets show the text of `Rule1` to `Rule3`; saving a rule of more than 600 characters (POST body) reads back identical when typed on several lines (stored on one line, shown one block per line; otherwise the old text is put back and an error is shown); "Previous copy" then "Restore" brings the old text back
 - [x] v0.2: enabling/disabling, "once only" and "stop on error" act on the real rule set; the Berry rules list matches `Br print(tasmota._rules)`
-- [x] v0.2: the light interface (GitHub blocked) shows the Rules tab with enable/disable and restore, without the editor
+- [x] v0.2: the light interface (GitHub blocked) shows the Rules tab with enable/disable and restore, without the editor (removed on 11 November 2026: rules are in the full interface only)
 - [x] v0.2 (11 November 2026): memory with the rule API loaded (`tf_rules.be` is compiled with the API server), after `tasmota.gc()`: at rest 75-76 KB free / Berry 39 KB (8 to 9 KB), interface open 52 KB / 55 KB (32 KB), 5 minutes after closing 70 KB / 39 KB (14 KB, budget 15 KB)
 - [x] v0.2: long URLs (test build with the string parser, `.tapp` installed again, `Restart 1`): `http://<gateway>:8384/api/status?t=<token>&p=<a repeated 130 times>`, then 90 and 50, answer the status; request lines of 190 and 512 characters answer too; one of 900 characters answers `{"error":"uri_too_long"}`; the gateway never restarts (`Status 1`: `RestartReason` unchanged, uptime keeps growing); the interface still works (devices, console, Rules screen: save and restore)
 - [ ] v0.1: find what stays allocated after the first opening (6 KB free heap, 4 KB Berry), and check that `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)

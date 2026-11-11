@@ -162,15 +162,47 @@ deux endroits » de la v0.0) :
 | | Interface complète (`dist/app.js`) | Interface légère (`dist/lite.js`) |
 | --- | --- | --- |
 | Où | GitHub Pages seulement, `vX.Y.Z/`, figée par la `.tapp` avec son empreinte SRI | Dans la `.tapp` sous le nom `lite.js.gz`, servie sur le port 8384 |
-| Utilisée | Normalement | Quand le navigateur ne joint pas GitHub (pas d'internet, GitHub en panne, empreinte fausse) |
-| Contenu | Tout : appareils, événements, console, Passerelles, puis règles, éditeur en phrases, scènes, administration | Appareils (Zigbee et Tuya, interrupteurs, curseurs, appairage), console, diagnostic, français et anglais |
-| Source | `app/src/main.js` | `app/src/main_lite.js` : même code, moins d'onglets (`boot.js`) |
-| Budget (gzip) | 120 Ko | 25 Ko |
+| Utilisée | Normalement | Quand le navigateur ne joint pas GitHub (pas d'internet, GitHub en panne, empreinte fausse), et pour proposer une mise à jour |
+| Contenu | Tout : appareils, règles et éditeur en phrases, événements, console, Passerelles, diagnostic, puis scènes, administration | Pilotage des appareils (Zigbee et Tuya : interrupteurs, curseurs, mesures, appairage) et mise à jour de la `.tapp`, français et anglais. Un seul écran, sans barre d'onglets |
+| Source | `app/src/main.js` | `app/src/main_lite.js` : même code, un seul écran (`boot.js`) |
+| Budget (gzip) | 120 Ko | 14 Ko |
 
-Interface légère, depuis la v0.2 : activer ou désactiver une règle et restaurer la copie
-précédente d'une règle, pour que les règles restent gérables sans GitHub. Jamais dans
-l'interface légère : éditeur de phrases, groupes, scènes, plugins Zigbee, administration (OTA),
-plusieurs passerelles.
+**Décision du 11 novembre 2026** (Guillaume) : la `.tapp` doit faire la moitié de sa taille en
+v0.2.0 (83 069 octets) : l'interface légère ne garde que le **pilotage des appareils et la mise à
+jour** ; tout le reste (règles, console, diagnostic, événements, plusieurs passerelles) n'est que
+dans l'interface complète. Cela remplace les règles de l'interface légère ajoutées en v0.2
+(activer, désactiver, restaurer). Sans GitHub, les règles continuent de tourner sur la passerelle
+et les pages de Tasmota restent disponibles (console, `Rule<n>`).
+
+Comment le paquet léger reste petit, avec les mêmes sources :
+
+- `main_lite.js` n'importe que `views.js` (appareils), `tuya.js` et `update.js` ; les écrans de
+  l'interface complète sont dans leurs propres modules (`rules*.js`, `gateways.js`,
+  `views_full.js`), avec leurs textes (`i18n_full.js`, ajoutés par `addTexts()`) et leurs styles
+  (`style_full.css`). Ce qu'un écran charge à son ouverture est enregistré par `main.js`
+  (`onTab()`), de même que le choix de la passerelle dans l'en-tête.
+- Pas de `preact/hooks` dans le paquet léger : les magasins d'état (`store.js`) n'ont plus de
+  `use()` ; après chaque `set()` l'interface se redessine depuis sa racine (`boot.js`, une fois par
+  tâche) et Preact ne change que ce qui diffère. Les écrans propres à l'interface complète
+  gardent les hooks pour leur état local.
+- Les fichiers Berry sont **minifiés** par `pack_tapp.py` (`minify_berry()`) : sans commentaires,
+  sans indentation, sans blanc entre un mot et un signe ; chaînes intactes, sauts de ligne gardés.
+  Il vérifie que la suite de jetons est celle de la source, et la CI compile les copies minifiées
+  et passe `tests/tf_http_test.be` sur le `tf_http.be` minifié. Les sources commentées restent dans
+  `extension/` ; un numéro de ligne dans un message d'erreur de la passerelle désigne le fichier
+  minifié.
+
+| Taille (octets) | v0.2.0 | 11 novembre 2026 |
+| --- | --- | --- |
+| `tasmoflow.be` | 19 516 | 10 741 |
+| `tf_http.be` | 25 710 | 7 421 |
+| `tf_rules.be` | 9 095 | 4 330 |
+| `tf_update.be` | 6 384 | 2 935 |
+| `lite.js.gz` | 21 086 | 13 385 |
+| **`TasmoFlow.tapp`** | **83 069** | **39 807** (-52 % ; budget 41 534) |
+
+Jamais dans l'interface légère : règles, éditeur de phrases, groupes, scènes, plugins Zigbee,
+administration (OTA), console, diagnostic, plusieurs passerelles.
 
 Pourquoi :
 
@@ -190,13 +222,14 @@ Pourquoi :
 - **Gardé en local, léger** : GitHub (compte, Pages, dépôt) ne doit pas être un point de
   défaillance unique pour piloter la passerelle.
 - L'interface légère est un autre point d'entrée des mêmes sources : pas de seconde base de
-  code, même client d'API, même modèle Tuya, mêmes textes. Aujourd'hui elle n'est que 1 Ko plus
-  petite (13,7 contre 14,9 Ko gzip) ; l'écart grandira avec l'interface complète.
+  code, même client d'API, même modèle Tuya, mêmes textes (13,4 Ko gzip contre 26,4 Ko pour la
+  complète).
 - L'interface complète ne peut pas passer sur `https://gnatali.github.io` pour gérer les
   passerelles depuis un seul endroit : une page HTTPS qui appelle `http://<passerelle>` est
   bloquée (contenu mixte, Private Network Access). Elle doit rester chargée par la page HTTP de
   la passerelle.
-- Qui ne veut aucun GitHub (`pack_tapp.py --cdn ''`) n'a que l'interface légère.
+- Qui ne veut aucun GitHub (`pack_tapp.py --cdn ''`) n'a que l'interface légère, donc
+  seulement le pilotage des appareils.
 
 ## API du port 8384
 
@@ -551,7 +584,8 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] `http://<passerelle>/tf` tapé dans la barre d'adresse (sans passer par le bouton) ouvre l'interface
 - [x] Sans accès Internet, `/tf` charge la copie locale (onglet Diagnostic : « local ») ; depuis la v0.1 cette copie est l'interface légère (bandeau, en-tête « · lite »), à revérifier
 - [x] `open(tasmota.wd + "app.js.gz", "rb")` lit bien le fichier dans la `.tapp`, et le navigateur décompresse la copie locale (`lite.js.gz` depuis la v0.1)
-- [ ] v0.1 : navigateur hors ligne (ou `gnatali.github.io` bloqué), `/tf` affiche l'interface légère : les appareils avec leurs bascules, la console et le diagnostic fonctionnent, les onglets Passerelles et Événements sont absents, « Réessayer » charge l'interface complète dès que GitHub répond
+- [ ] v0.1 : navigateur hors ligne (ou `gnatali.github.io` bloqué), `/tf` affiche l'interface légère : les appareils avec leurs bascules, la console et le diagnostic fonctionnent, les onglets Passerelles et Événements sont absents, « Réessayer » charge l'interface complète dès que GitHub répond (la console et le diagnostic ont quitté l'interface légère le 11 novembre 2026 : voir le point suivant)
+- [ ] v0.2, `.tapp` réduite (11 novembre 2026, build de test, `.tapp` réinstallée, `Restart 1`) : la `.tapp` fait environ 39 Ko ; le journal de démarrage affiche `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` (le Berry minifié se charge) ; GitHub bloqué, `/tf` n'affiche que les appareils, sans barre d'onglets : une bascule Zigbee, « Appairer », un interrupteur et un curseur Tuya fonctionnent et leur état revient, le bouton de langue fonctionne, « Réessayer » charge l'interface complète dès que GitHub répond ; GitHub joignable, l'interface complète marche comme avant (Règles : enregistrer et restaurer, règles Berry, `autoexec.be` ; console ; diagnostic ; passerelles) ; une mise à jour depuis l'interface légère fonctionne toujours ; mémoire au repos et interface ouverte inchangée ou plus basse
 - [x] La liste des appareils correspond à `ZbStatus1`
 - [x] Un appui sur un bouton Zigbee apparaît dans l'onglet Événements en moins de 2 s
 - [x] « Basculer » allume et éteint une lampe ; « Appairer » ouvre l'appairage 60 s
@@ -576,7 +610,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [ ] v0.2 : vue Phrases : un jeu de règles saisi en vue Texte s'affiche en phrases ; modifier la valeur d'un déclencheur, ajouter un `if` / `else` et une deuxième commande, ajouter et supprimer une règle, puis Enregistrer donne le texte attendu (`Rule<n>` dans la console) ; une règle qui n'entre dans aucune phrase reste en texte
 - [x] v0.2 (10 novembre 2026) : écran Règles : les trois jeux affichent le texte de `Rule1` à `Rule3` ; enregistrer une règle de plus de 600 caractères (corps POST) se relit à l'identique quand elle est saisie sur plusieurs lignes (stockée sur une ligne, affichée un bloc par ligne ; sinon l'ancien texte est remis et une erreur s'affiche) ; « Copie précédente » puis « Restaurer » remet l'ancien texte
 - [x] v0.2 : l'activation/désactivation, « une seule fois » et « arrêt sur erreur » agissent sur le vrai jeu de règles ; la liste des règles Berry correspond à `Br print(tasmota._rules)`
-- [x] v0.2 : l'interface légère (GitHub bloqué) montre l'onglet Règles avec activation/désactivation et restauration, sans l'éditeur
+- [x] v0.2 : l'interface légère (GitHub bloqué) montre l'onglet Règles avec activation/désactivation et restauration, sans l'éditeur (retiré le 11 novembre 2026 : les règles ne sont plus que dans l'interface complète)
 - [x] v0.2 (11 novembre 2026) : mémoire avec l'API des règles chargée (`tf_rules.be` est compilé avec le serveur d'API), après `tasmota.gc()` : au repos 75-76 Ko libres / Berry 39 Ko (8 à 9 Ko), interface ouverte 52 Ko / 55 Ko (32 Ko), 5 minutes après la fermeture 70 Ko / 39 Ko (14 Ko, budget 15 Ko)
 - [x] v0.2 : URL longues (version de test avec l'analyseur à base de chaînes, `.tapp` réinstallé, `Restart 1`) : `http://<passerelle>:8384/api/status?t=<jeton>&p=<a répété 130 fois>`, puis 90 et 50, renvoient l'état ; des lignes de requête de 190 et 512 caractères répondent aussi ; une de 900 caractères renvoie `{"error":"uri_too_long"}` ; la passerelle ne redémarre jamais (`Status 1` : `RestartReason` inchangée, la durée de fonctionnement continue d'augmenter) ; l'interface marche toujours (appareils, console, écran Règles : enregistrer et restaurer)
 - [ ] v0.1 : trouver ce qui reste alloué après la première ouverture (6 Ko de mémoire libre, 4 Ko de Berry), et vérifier que `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)

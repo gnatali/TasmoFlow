@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// TasmoFlow, light interface: the copy kept in the .tapp, used when GitHub Pages cannot be
-// reached (no internet access for the browser, GitHub down, wrong SRI hash). Devices, rules (enable,
-// disable, restore), console and diagnostics only: the rest needs the full interface. Same code as main.js, fewer tabs.
+// TasmoFlow, light interface: the copy kept in the .tapp, served by the gateway when GitHub Pages
+// cannot be reached (no internet access for the browser, GitHub down, wrong SRI hash) or when an
+// update of the .tapp is offered. Device control and the update only: everything else (rules,
+// events, console, gateways, diagnostics) is in the full interface. Same sources as main.js.
 import { boot } from './boot.js';
-import { DevicesView, ConsoleView, DiagView } from './views.js';
-import { RulesView } from './rules.js';
-import { registerBanner } from './app.js';
+import { DevicesView } from './views.js';
 import { UpdateBanner } from './update.js';
 
-registerBanner(UpdateBanner);                        // the update of the .tapp is offered here only
-boot({ devices: DevicesView, rules: RulesView, console: ConsoleView, diag: DiagView }, true);
+boot({ devices: DevicesView }, { lite: true, Banner: UpdateBanner });

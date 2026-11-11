@@ -223,7 +223,7 @@ def update_route(path, q, body):
         return 400, {"error": "format"}
     if hashlib.sha256(new).hexdigest() != q.get("sha256", "").lower():
         return 400, {"error": "hash"}
-    ver = re.search(rb'static var VERSION = "([^"]+)"', zipfile.ZipFile(io.BytesIO(new)).read("tasmoflow.be"))
+    ver = re.search(rb'static var VERSION\s*=\s*"([^"]+)"', zipfile.ZipFile(io.BytesIO(new)).read("tasmoflow.be"))
     STATE["next_version"] = ver.group(1).decode() if ver else STATE["version"]
     STATE["down_until"] = float("inf") if STATE["never"] else time.monotonic() + 1.5 + STATE["restart_s"]
     return 200, {"ok": True, "restart": True}

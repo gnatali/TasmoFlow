@@ -27,8 +27,10 @@ firmware.
 ## What v0.1 adds (in progress)
 
 - Interface rebuilt on Preact + htm, built with esbuild into two bundles from the same
-  sources: the **full** one (14.9 KB gzipped, GitHub Pages) and a **light** one (13.7 KB, in the
-  `.tapp`: devices, console, diagnostics) that the gateway serves when GitHub cannot be reached.
+  sources: the **full** one (26.4 KB gzipped, GitHub Pages) and a **light** one (13.4 KB, in the
+  `.tapp`: device control and the update only) that the gateway serves when GitHub cannot be
+  reached. Everything else (rules, console, diagnostics, gateways) is in the full one only, so
+  the `.tapp` is about 39 KB (83 KB in v0.2.0).
 - The port 8384 API server only runs while an interface is open (RAM is the critical resource).
 - **Gateways** screen: use several gateways from one interface (copy a gateway's link, paste it
   in another one's screen).
@@ -50,7 +52,8 @@ The firmware is not modified. How it works: [docs/architecture.en.md](docs/archi
 
    `npm run build` bundles the interface (`app/src/`) into `dist/app.js` (full, for GitHub
    Pages) and `dist/lite.js` (light, kept in the `.tapp`). `pack_tapp.py` writes
-   `dist/TasmoFlow.tapp` and prints the sizes and their budgets.
+   `dist/TasmoFlow.tapp`, with the Berry files of `extension/` minified (no comments), and
+   prints the sizes and their budgets.
 
 2. In Tasmota: **Tools → Manage File system**, upload `dist/TasmoFlow.tapp` (to the root, or
    to `/.extensions/`).
