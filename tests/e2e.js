@@ -232,6 +232,30 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await r1.getByText(/n'entre pas dans une phrase/).waitFor();
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'sentences.png'), fullPage: true });
   });
+  await test('device pickers: Zigbee trigger and action, Tuya action, plain-language sentence', async p => {
+    await openFull(p);
+    await p.getByRole('button', { name: 'Règles' }).click();
+    const r3 = p.locator('article.card', { has: p.getByRole('heading', { name: 'Rule3' }) });
+    await r3.getByRole('button', { name: 'Phrases' }).click();
+    await r3.getByRole('button', { name: 'Ajouter une règle' }).click();
+    const picks = r3.getByRole('combobox', { name: 'Suggestions' });
+    await picks.nth(0).selectOption('ZbReceived#0x3C4D#Power');           // trigger: a Zigbee device attribute
+    if ((await r3.getByLabel('Quand').inputValue()) !== 'ZbReceived#0x3C4D#Power') throw new Error('trigger not filled');
+    await r3.getByLabel('Comparaison').selectOption('=');
+    await r3.getByLabel('Valeur').fill('1');
+    await picks.nth(1).selectOption('ZbSend {"device":"0x3C4D","send":{"Power":"Toggle"}}');   // the first Then
+    await r3.getByRole('button', { name: 'Ajouter une commande' }).click();
+    await r3.getByRole('combobox', { name: 'Suggestions' }).nth(2).selectOption('TuyaSend Ventilateur,20,toggle');
+    await r3.getByText('Lampe salon · Power = 1').waitFor();             // plain language
+    await r3.getByText(/basculer Lampe salon puis basculer Lumière ventilateur|basculer Lampe salon puis basculer Ventilateur/).waitFor();
+    await r3.getByRole('button', { name: 'Enregistrer' }).click();
+    await r3.getByText(/Enregistré/).waitFor({ timeout: 4000 });
+    const text = await p.evaluate(async t => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[2].text,
+      '0123456789abcdef0123456789abcdef');
+    const want = 'on ZbReceived#0x3C4D#Power=1 do Backlog ZbSend {"device":"0x3C4D","send":{"Power":"Toggle"}}; TuyaSend Ventilateur,20,toggle endon';
+    if (text !== want) throw new Error('stored: ' + text);
+    if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'pickers.png'), fullPage: true });
+  });
   await test('Tuya: cards, switches, slider, readings, event back, offline device', async p => {
     await openFull(p);
     const fan = p.locator('article.card', { has: p.getByRole('heading', { name: 'Ventilateur', exact: true }) });

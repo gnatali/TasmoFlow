@@ -450,8 +450,24 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   vue Texte. Ouvrir un jeu de règles ne le réécrit jamais : un bloc n'est réécrit qu'une fois
   modifié (`src` conservé). Déclencheurs et commandes sont du texte libre ; une liste de suggestions à côté de chaque champ le remplit (un `<datalist>` a été abandonné : il ne propose que ce qui correspond au texte déjà saisi, donc rien n'apparaissait dès qu'un champ avait une valeur).
   `tests/rules_model_test.js` (CI) vérifie la lecture, l'écriture de chaque forme et l'absence de
-  réécriture. Pas encore : sélecteurs d'appareils (Zigbee, Tuya, Matter), noms lisibles des
-  déclencheurs et des commandes, `elseif`, plusieurs déclencheurs, déplacement d'un bloc.
+  réécriture. **Sélecteurs
+  d'appareils** (`rules_devices.js`) : à côté de chaque champ de déclencheur et de commande, une liste
+  propose les valeurs courantes, puis les appareils de la passerelle. *Déclencheurs Zigbee* :
+  `ZbReceived#<clé>#<attribut>` pour chaque attribut qu'un appareil a signalé ; d'après le code de
+  Tasmota (`tasmota/tasmota_xdrv_driver/xdrv_23_zigbee_2a_devices_impl.ino`,
+  `Z_Device::jsonPublishAttrList`, commit du firmware `a281cece`), `<clé>` est le nom convivial
+  seulement si `SetOption83` est actif et que l'appareil en a un, sinon l'adresse courte
+  `0x%04X` ; l'éditeur lit donc `SetOption83` et écrit la bonne clé ; un nom avec un espace ne peut
+  pas servir de déclencheur, il est écarté avec une indication. *Actions Zigbee* :
+  `ZbSend {"device":"0x1234","send":{"Power":"On"}}` (allumer, éteindre, basculer ; par adresse, qui
+  ne change jamais) pour les appareils qui ont un attribut `Power`. *Actions Tuya* :
+  `TuyaSend <nom>,<dp>,true|false|toggle` par interrupteur, `TuyaSend <nom>,<dp>,` à compléter pour
+  un curseur (noms avec virgule écartés). Pas de *déclencheurs Tuya* : la règle `Tuya#Dps#<dp>` ne
+  voit pas le nom de l'appareil (les règles Berry le feront). Les phrases se lisent en langage clair
+  quand le motif est connu (`Lampe · Power = 1`, `basculer Lampe`). Les attributs listés sont ceux
+  qu'un appareil a signalés depuis l'ouverture de l'interface ou dans son dernier état : un bouton
+  montre `Click` après son premier appui. Pas encore : Matter, `elseif`, plusieurs déclencheurs,
+  déplacement d'un bloc, noms clairs pour les événements propres à la passerelle.
 - **Moteur au choix.** Une action TasmoFlow devient une règle Tasmota (indépendante de Berry,
   place limitée) ou du Berry (sans limite, conditions et minuteries avancées).
 - **Conflits.** Deux règles qui agissent sur le même appareil sont signalées : par exemple une
@@ -487,6 +503,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [ ] v0.1 : avec le pilote Tuya désactivé (`TuyaEnable 0`) ou absent, la section Tuya est masquée
 - [x] v0.1 : mémoire au repos après `tasmota.gc()` : 75 Ko libres, Berry 35 Ko, soit 9 Ko (cible : 15 Ko) ; interface ouverte 63 Ko / 48 Ko (`import` en cache, voir [Mémoire](#mémoire))
 - [x] v0.1 : avec le chargement sans cache, la mémoire revient en partie 5 minutes après la fermeture du dernier onglet : 59 Ko libres / Berry 48 Ko interface ouverte, 69 Ko / 39 Ko après (75 Ko / 35 Ko avant la première ouverture)
+- [ ] v0.2 : sélecteurs d'appareils : dans une nouvelle règle, la liste des déclencheurs propose vos appareils Zigbee (attributs signalés) et les listes de commandes proposent `ZbSend` (allumer, éteindre, basculer) et vos appareils Tuya ; avec `SetOption83` actif et un appareil nommé, le déclencheur porte le nom (`ZbReceived#Lampe#Power`), sinon l'adresse ; la règle enregistrée fonctionne (appui sur le bouton, la lumière bascule) ; la phrase se lit `Lampe · Power = 1` / `basculer Lampe`
 - [ ] v0.2 : vue Phrases : un jeu de règles saisi en vue Texte s'affiche en phrases ; modifier la valeur d'un déclencheur, ajouter un `if` / `else` et une deuxième commande, ajouter et supprimer une règle, puis Enregistrer donne le texte attendu (`Rule<n>` dans la console) ; une règle qui n'entre dans aucune phrase reste en texte
 - [x] v0.2 (10 novembre 2026) : écran Règles : les trois jeux affichent le texte de `Rule1` à `Rule3` ; enregistrer une règle de plus de 600 caractères (corps POST) se relit à l'identique quand elle est saisie sur plusieurs lignes (stockée sur une ligne, affichée un bloc par ligne ; sinon l'ancien texte est remis et une erreur s'affiche) ; « Copie précédente » puis « Restaurer » remet l'ancien texte
 - [x] v0.2 : l'activation/désactivation, « une seule fois » et « arrêt sur erreur » agissent sur le vrai jeu de règles ; la liste des règles Berry correspond à `Br print(tasmota._rules)`

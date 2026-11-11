@@ -38,9 +38,8 @@ export async function saveRule(n, text) {
 
 const errText = e => t('rule_' + e) === 'rule_' + e ? e : t('rule_' + e);
 
-function RuleCard({ r, note, setNote }) {
+function RuleCard({ r, note, setNote, mode, setMode }) {
   const [text, setText] = useState(showRule(r.text));
-  const [mode, setMode] = useState('text');          // 'text' | 'sentences'
   const [v, setV] = useState(0);                      // new editor state when the text changed elsewhere
   const [busy, setBusy] = useState(false);
   const flat = flatRule(text);
@@ -97,9 +96,10 @@ function RuleCard({ r, note, setNote }) {
 export function RulesView() {
   const { rules } = S.use();
   const [note, setNote] = useState(null);
+  const [modes, setModes] = useState({});               // view of each rule set: 'text' (default) | 'sentences'; kept when a card is rebuilt
   if (!rules) return html`<p>${t('loading')}</p>`;
   return html`
-    <div class="grid wide">${rules.rules.map(r => html`<${RuleCard} key=${r.n + '|' + r.text + '|' + r.on + r.once + r.stop + '|' + r.bak} r=${r} note=${note} setNote=${setNote}/>`)}</div>
+    <div class="grid wide">${rules.rules.map(r => html`<${RuleCard} key=${r.n + '|' + r.text + '|' + r.on + r.once + r.stop + '|' + r.bak} r=${r} note=${note} setNote=${setNote} mode=${modes[r.n] || 'text'} setMode=${m => setModes({ ...modes, [r.n]: m })}/>`)}</div>
     <h2>${t('rule_berry')}</h2>
     ${rules.berry.length ? html`<ul class="berry">${rules.berry.map(b => html`<li><code>${b.rule}</code> <span class="q">${b.id === 'None' ? '' : b.id}</span></li>`)}</ul>`
       : html`<p class="q">${t('rule_noBerry')}</p>`}`;

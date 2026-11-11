@@ -15,6 +15,7 @@ export const S = createStore({
   gw: LOCAL,                // gateway shown
   status: null,
   devices: null,            // { "0x1234": { addr, name, model, ..., attrs: {} } }
+  zbNames: false,           // SetOption83: Zigbee rule triggers carry the friendly name, not the address
   rules: null,              // { rules: [{ n, on, once, stop, len, free, text, bak }], berry: [{ rule, id }] }
   tuya: null,               // { state, detail, nodes: { name: { connected, ip, version, dps } }, conf, lowMem }
   events: [],
@@ -52,6 +53,8 @@ export function loadDevices() {
 
 export function loadRules() {
   const gw = S.get().gw;
+  api.cmd('SetOption83').then(r => { if (current(gw)) S.set({ zbNames: /^(ON|1)$/i.test(String((r || {}).SetOption83)) }); })
+    .catch(() => {});
   return api.get('/api/rules').then(rules => { if (current(gw)) S.set({ rules, error: null }); })
     .catch(e => fail(gw, e));
 }

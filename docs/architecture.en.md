@@ -431,9 +431,22 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   value, an empty body), and a rule set that is not a plain list of blocks only opens in Text
   view. Opening a rule set never rewrites it: a block is written again only once edited
   (`src` kept). Triggers and commands are free text; a list of suggestions next to each field fills it (a `<datalist>` was dropped: it only offers what matches the text already typed, so nothing showed once a field had a value). `tests/rules_model_test.js`
-  (CI) checks parsing, the writing of every shape, and that nothing is rewritten. Not yet: device
-  pickers (Zigbee, Tuya, Matter), friendly names for triggers and commands, `elseif`, several
-  triggers, moving a block.
+  (CI) checks parsing, the writing of every shape, and that nothing is rewritten. **Device pickers** (`rules_devices.js`):
+  next to each trigger and command field a list offers the common ones, then the gateway's own
+  devices. *Zigbee triggers*: `ZbReceived#<key>#<attribute>` for each attribute a device reported;
+  per Tasmota's source (`tasmota/tasmota_xdrv_driver/xdrv_23_zigbee_2a_devices_impl.ino`,
+  `Z_Device::jsonPublishAttrList`, firmware commit `a281cece`) `<key>` is the friendly name only
+  if `SetOption83` is on and the device has one, else the short address `0x%04X`, so the editor
+  reads `SetOption83` and writes the right key; a name with a space cannot be a trigger and is
+  left out with a hint. *Zigbee actions*: `ZbSend {"device":"0x1234","send":{"Power":"On"}}`
+  (on, off, toggle; by address, which never changes) for devices with a `Power` attribute.
+  *Tuya actions*: `TuyaSend <name>,<dp>,true|false|toggle` per switch, `TuyaSend <name>,<dp>,` to
+  complete for a slider (names with a comma left out). *Tuya triggers* are not offered: the
+  `Tuya#Dps#<dp>` rule does not see the device name (Berry rules will). Sentences read in plain
+  language where the pattern is known (`Lampe · Power = 1`, `basculer Lampe`). The attributes
+  listed are the ones a device has reported since the interface opened or in its last state:
+  a button shows `Click` after its first press. Not yet: Matter, `elseif`, several triggers,
+  moving a block, plain names for the gateway's own events.
 - **Engine of choice.** A TasmoFlow automation becomes either a Tasmota rule (independent of
   Berry, limited space) or Berry code (no limit, advanced conditions and timers).
 - **Conflicts.** Two rules acting on the same device are reported: for example a Tasmota rule
@@ -469,6 +482,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [ ] v0.1: with the Tuya driver disabled (`TuyaEnable 0`) or absent, the Tuya section is hidden
 - [x] v0.1: memory at rest after `tasmota.gc()`: 75 KB free, Berry 35 KB, i.e. 9 KB (target 15 KB); with an interface open 63 KB / 48 KB (cached `import`, see [Memory](#memory))
 - [x] v0.1: with the uncached loading, the memory partly returns 5 minutes after the last tab is closed: 59 KB free / Berry 48 KB with the interface open, 69 KB / 39 KB after (75 KB / 35 KB before the first opening)
+- [ ] v0.2: device pickers: in a new rule, the trigger list offers your Zigbee devices (attributes they reported) and the command lists offer `ZbSend` (on, off, toggle) and your Tuya devices; with `SetOption83` on and a named device, the trigger carries the name (`ZbReceived#Lampe#Power`), off the address; the saved rule works (press the button, the light toggles); the sentence reads `Lampe · Power = 1` / `basculer Lampe`
 - [ ] v0.2: Sentences view: a rule set typed in Text view shows as sentences; editing a trigger value, adding an `if` / `else` and a second command, adding and deleting a rule, then Save gives the expected text (`Rule<n>` in the console); a rule that fits no sentence stays text
 - [x] v0.2 (10 November 2026): Rules screen: the three rule sets show the text of `Rule1` to `Rule3`; saving a rule of more than 600 characters (POST body) reads back identical when typed on several lines (stored on one line, shown one block per line; otherwise the old text is put back and an error is shown); "Previous copy" then "Restore" brings the old text back
 - [x] v0.2: enabling/disabling, "once only" and "stop on error" act on the real rule set; the Berry rules list matches `Br print(tasmota._rules)`

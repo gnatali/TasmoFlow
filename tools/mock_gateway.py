@@ -10,7 +10,8 @@ Mimics the extension's two servers:
 
 Three fake Zigbee devices send events every 2 seconds. Four fake Tuya devices answer
 TuyaEnable, TuyaStatus, TuyaConfig and TuyaSend like the firmware's driver (formats from
-docs/tuya-local.en.md of the firmware repository); --no-tuya simulates a gateway without it.
+docs/tuya-local.en.md of the firmware repository); --no-tuya simulates a gateway without it;
+--zb-names answers SetOption83 ON.
 
 Without --cdn the page only finds the light interface (/lite.js), like a browser that cannot
 reach GitHub Pages. --full also serves the full interface (dist/app.js) from the API port,
@@ -326,6 +327,9 @@ class Api(BaseHTTPRequestHandler):
             if not c:
                 self.json(400, {"error": "cmd"})
                 return
+            if c == "SetOption83":     # Zigbee rule triggers: short address (OFF) or friendly name (ON)
+                self.json(200, {"SetOption83": "ON" if self.server.zb_names else "OFF"})
+                return
             rr = rule_command(c)
             if rr is not None:
                 self.json(200, rr)
@@ -372,6 +376,7 @@ def main():
     p.add_argument("--full", action="store_true", help="serve the full interface from the API port, as --cdn would")
     p.add_argument("--token", default=TOKEN, help="API token (32 hexadecimal characters)")
     p.add_argument("--no-tuya", action="store_true", help="gateway without the Tuya driver")
+    p.add_argument("--zb-names", action="store_true", help="SetOption83 ON: Zigbee rule triggers carry the friendly name")
     p.add_argument("--name", default="ZB-GW03 (simulated)", help="DeviceName reported by /api/status")
     a = p.parse_args()
     if a.full:
@@ -380,7 +385,7 @@ def main():
     web = ThreadingHTTPServer(("127.0.0.1", a.web), Web)
     web.api_port, web.cdn, web.sri, web.token = a.api, a.cdn, a.sri, a.token
     api = ThreadingHTTPServer(("127.0.0.1", a.api), Api)
-    api.name, api.token, api.no_tuya = a.name, a.token, a.no_tuya
+    api.name, api.token, api.no_tuya, api.zb_names = a.name, a.token, a.no_tuya, a.zb_names
     api.daemon_threads = True
     threading.Thread(target=simulator, daemon=True).start()
     threading.Thread(target=api.serve_forever, daemon=True).start()
