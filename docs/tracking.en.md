@@ -51,6 +51,7 @@ Specification (French, outside the repository):
 | 9 Nov | v0.1: **Preact + htm chosen** (same screen: 6.6 KB gzipped against 6.3 KB for Lit, 5.4 KB for the prototype without dependency); interface bundled with esbuild (12.9 KB gzipped, then 14.6 KB with Tuya) |
 | 9 Nov | v0.1: **option B decided**: full interface on GitHub Pages only (pinned, SRI), light interface (13.7 KB gzipped, devices + console + diagnostics) in the `.tapp`; second esbuild entry point of the same sources. Reason: `UfsFree` 148 KB of 320 KB and a full interface that will grow |
 | 11 Nov | Update button (decision: the browser relays the `.tapp` from GitHub Pages): manifests `latest.json` / `dev/latest.json`, the light interface offers the update when the channel has a newer version (test builds: a different commit), the gateway checks size and SHA-256 and replaces itself (`tf_update.be`, `.bak` kept), the page waits for the restart (120 s at most). Simulated gateway: 414 above 512 characters instead of cutting the connection |
+| 11 Nov | **Update button validated on the gateway** (two updates in a row, the old `.bak` replaced the second time, nothing left over). Memory before and after, the power cut during the transfer and a wrong `sha256` are still to try |
 | 11 Nov | Update button: third test build published (another docs-only commit) to repeat the update on the gateway |
 | 11 Nov | Update button: first try failed on `bytes.tohex()` being upper case (the zip header check refused every file); fixed, the fixed `.tapp` installed by hand, second try with another docs-only commit |
 | 11 Nov | Update button: first try on the gateway started with a second test build (a commit that only touches the docs, to give the manifest a different version) |
@@ -120,6 +121,8 @@ Left for v0.1 (small):
   the port 8384 `tcpserver` can be closed and listened to again, and `TuyaConfig` memory use.
 
 **Agreed on 11 November 2026, to do later** (not started): a **simple guided mode** for the rule dialog (pick a device, say what happens to it in words, pick what to do), where Zigbee events are learned by pressing the button (the interface listens to the event stream and writes the trigger from what it just saw).
+
+Next, in this order (to confirm with Guillaume): measure the memory of this version (at rest, interface open, after closing); open the pull request (the branch is about 40 commits ahead of `main`); bump `VERSION` to `0.2.0` before the tag, otherwise `latest.json` and the update button do nothing for gateways on a release.
 
 v0.2, what is left after step 4: the **guided mode** (agreed, later), Matter in the pickers,
 `elseif` and several triggers in the sentence editor, **automations** (a TasmoFlow automation becomes a

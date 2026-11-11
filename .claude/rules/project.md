@@ -49,6 +49,9 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
   **Tell Guillaume when the `.tapp` must be installed again**: any change in `extension/`, in
   `main_lite.js` or in what the light interface imports (`views.js` parts it uses, `state.js`,
   `rules.js`...), or in the loader. An interface-only change needs no reinstall.
+- The update button installs a `.tapp` with the code **already installed**: a change to the update
+  code (`tf_update.be`, the loader, `update.js`) needs the new `.tapp` installed by hand once before it
+  can be tested by updating (a bug of the zip header check, `tohex()` in upper case, showed this).
 - Before pushing: `npm run build` (interface, `app/src/` to `dist/app.js`), `node --check` on `dist/app.js` and `dist/lite.js`,
   `python3 tools/pack_tapp.py` (size budgets), `node tests/rules_model_test.js` (rule model),
   `node tests/e2e.js` (Playwright, simulated
