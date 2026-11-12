@@ -579,8 +579,8 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   carry it; no change on the gateway). A block `on <trigger> [if (<cond>)] do <commands> [else
   <commands>] endon` is read as *When* `Subject#Key` *op value*, *If* `cond`, *Then* commands,
   *Else* commands; `Backlog a; b` is a list of commands. Anything else stays a **raw block**
-  shown as text (several triggers with `and`/`or`, `elseif`, nested `if`, an operator without a
-  value, an empty body), and a rule set that is not a plain list of blocks only opens in Text
+  shown as text (triggers joined by `and`/`or`, nested `if`, an operator without a
+  value, an empty body, an empty branch), and a rule set that is not a plain list of blocks only opens in Text
   view. Opening a rule set never rewrites it: a block is written again only once edited
   (`src` kept). Triggers and commands use one **choice field**: closed it reads like the tile (`Lampe salon · Power`), open it lists everything as a tree (a group per device) with the current item highlighted; The list floats over everything (`position: fixed`, placed from the field, above it when there is more room there, following it while the dialog scrolls): inside the scrolling dialog an absolute list was cut off. *Custom...* turns it into a text field, so any Tasmota trigger or command can still be written. A `<select>` shows the same text open and closed, and a `<datalist>` only offers what matches the text already typed, so neither fits. `tests/rules_model_test.js`
   (CI) checks parsing, the writing of every shape, and that nothing is rewritten. **Device pickers** (`rules_devices.js`):
@@ -597,8 +597,42 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   `Tuya#Dps#<dp>` rule does not see the device name (Berry rules will). Sentences read in plain
   language where the pattern is known (`Lampe · Power = 1`, `basculer Lampe`). The attributes
   listed are the ones a device has reported since the interface opened or in its last state:
-  a button shows `Click` after its first press. Not yet: Matter, `elseif`, several triggers,
-  moving a block, plain names for the gateway's own events.
+  a button shows `Click` after its first press. Not yet: Matter, moving a block, plain names for the gateway's own events.
+- **`elseif`, several triggers, device connected** (v0.2, written on 13 November 2026; full interface
+  only, no change on the gateway for TasmoFlow itself). Checked in Tasmota's source (firmware commit
+  `43d9409`, `tasmota/tasmota_xdrv_driver/xdrv_10_rules.ino`):
+  - **`elseif`**: `if (c1) a elseif (c2) b else c endif` is supported (`ProcessIfStatement`), any number of
+    `elseif`, each with its own condition and commands. The sentence gets *Else if* lines (condition, then
+    its own commands); a nested `if`, an `elseif` without a condition or an empty branch stays a raw block.
+  - **Several triggers**: Tasmota has **no `and`/`or` between triggers**. `RuleSetProcess` hands the whole
+    text between `on` and `do` to `RulesRuleMatch`, which reads one `name <op> value`, so `on a#b=1 and c#d=2
+    do` never fires. Several triggers are therefore **several `on ... do ... endon` blocks with the same
+    actions** (any of them fires the rule, the sentence says *or*). The editor writes one block per
+    trigger and reads neighbouring blocks with identical actions back as **one sentence** (`more` in
+    `rules_model.js`); the original text of each block is kept, so opening a rule set still never rewrites it.
+    The same trigger twice stays two blocks (the clash is reported); the conflict check looks at every
+    trigger of a sentence and at every branch. The cost is rule space (the actions are written once per
+    trigger: 512 characters, 2,000 compressed).
+  - **Device connected** (a trigger offered for each device, in the list of triggers):
+    - *Zigbee*: when a paired device is powered up again (or joins), Tasmota publishes
+      `{"ZbState":{"Status":30,"IEEEAddr":...,"ShortAddr":"0x1234",...}}` and runs the rules on it
+      (`Z_ReceiveEndDeviceAnnonce`, `xdrv_23_zigbee_8_parsers.ino`): the trigger is `ZbState#ShortAddr=0x1234`
+      (strings are compared without case, hexadecimal included). It is the device's **announcement**: mains
+      devices (bulbs, plugs, routers) send it when they come back, **battery end devices do not**. A trigger
+      tests one value, so the other `ZbState` messages of the device (pairing steps) match it too. There is
+      no "back" event otherwise: `Reachable` is only ever published as `false`, after a `ZbPing` or a read
+      that got no answer (`Z_Unreachable`, `xdrv_23_zigbee_6_0_commands.ino`), and set to true silently.
+    - *Tuya*: the firmware's driver published nothing when a device connects or disconnects (only a log
+      line). The firmware repository's driver now publishes `{"TuyaConnected":{"Name":"<device>"}}` when a
+      device is ready and `{"TuyaDisconnected":{"Name":"<device>"}}` when a ready device is lost (branch of
+      that repository, to build and flash): the triggers are `TuyaConnected#Name=<device>` and
+      `TuyaDisconnected#Name=<device>`. Without the new firmware they are offered but never fire. A name
+      that contains `= < > ! | $ %` or ` do ` cannot be written in a trigger and is left out. They also
+      fire when the driver starts and connects every device.
+    - In sentences, a device connecting reads `Lampe salon · connecté` / `Ventilateur · déconnecté` and
+      its comparison is hidden (it is part of the trigger).
+    - `tests/rules_model_test.js` checks the model (elseif in every shape, merging and writing several
+      triggers, conflicts) and the pickers; `tests/e2e.js` the dialog.
 - **Guided mode** (v0.2, written on 12 November 2026; full interface only: `rules_guided.js`, logic in
   `rules_guided_model.js`, dialog shared with the form in `rules_modal.js`; no change on the gateway, no
   `.tapp` to install again). The *Guided rule* tile opens a dialog in two steps. **1. When**: a list
@@ -675,6 +709,9 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [ ] v0.2: conflicts: two enabled rule sets that toggle the same light on the same trigger show the banner "Rules that may clash"; it disappears when one is switched off
 - [ ] v0.2: device pickers: in a new rule, the trigger list offers your Zigbee devices (attributes they reported) and the command lists offer `ZbSend` (on, off, toggle) and your Tuya devices; with `SetOption83` on and a named device, the trigger carries the name (`ZbReceived#Lampe#Power`), off the address; the saved rule works (press the button, the light toggles); the sentence reads `Lampe · Power = 1` / `basculer Lampe`
 - [ ] v0.2: guided mode: *Guided rule*, pick the real button, *Learn: press the button*, press it: the device, `Click` and the value it sent are filled in and the sentence reads right; pick a lamp as the action, *Create the rule*, Save: pressing the button switches the lamp (on the gateway, with the interface closed); learning with no device chosen ignores the periodic readings of a sensor and takes the first button press
+- [ ] v0.2: device connected (Zigbee): a rule `on ZbState#ShortAddr=0x<lamp> do ...` (picked as *connected* in the trigger list of a lamp): unplug the lamp, plug it back in: the rule fires (log line `RUL: ZBSTATE#SHORTADDR=...`); a battery sensor never fires it
+- [ ] v0.2: device connected (Tuya, needs the firmware with `TuyaConnected` / `TuyaDisconnected`): `on TuyaConnected#Name=<device> do ...` fires when the device is switched back on, and `TuyaDisconnected#Name=<device>` when it is switched off; a name with a comma works
+- [ ] v0.2: several triggers and else if: three triggers on one sentence give three `on ... endon` blocks in the Text view and one tile when read back; an `elseif` branch runs when its condition holds (`Var1`)
 - [ ] v0.2: Sentences view: a rule set typed in Text view shows as sentences; editing a trigger value, adding an `if` / `else` and a second command, adding and deleting a rule, then Save gives the expected text (`Rule<n>` in the console); a rule that fits no sentence stays text
 - [x] v0.2 (10 November 2026): Rules screen: the three rule sets show the text of `Rule1` to `Rule3`; saving a rule of more than 600 characters (POST body) reads back identical when typed on several lines (stored on one line, shown one block per line; otherwise the old text is put back and an error is shown); "Previous copy" then "Restore" brings the old text back
 - [x] v0.2: enabling/disabling, "once only" and "stop on error" act on the real rule set; the Berry rules list matches `Br print(tasmota._rules)`

@@ -612,8 +612,8 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   `on <déclencheur> [if (<condition>)] do <commandes> [else <commandes>] endon` se lit
   *Quand* `Sujet#Clé` *op valeur*, *Si* `condition`, *Alors* commandes, *Sinon* commandes ;
   `Backlog a; b` est une liste de commandes. Tout le reste reste un **bloc brut** affiché en
-  texte (plusieurs déclencheurs avec `and`/`or`, `elseif`, `if` imbriqués, opérateur sans
-  valeur, corps vide), et un jeu de règles qui n'est pas une suite de blocs ne s'ouvre qu'en
+  texte (déclencheurs reliés par `and`/`or`, `if` imbriqués, opérateur sans
+  valeur, corps vide, branche vide), et un jeu de règles qui n'est pas une suite de blocs ne s'ouvre qu'en
   vue Texte. Ouvrir un jeu de règles ne le réécrit jamais : un bloc n'est réécrit qu'une fois
   modifié (`src` conservé). Déclencheurs et commandes utilisent un **champ à choix** : fermé, il se lit comme la tuile (`Lampe salon · Power`) ; ouvert, il liste tout en arbre (un groupe par appareil) avec l'élément courant en évidence ; La liste flotte par-dessus tout (`position: fixed`, placée d'après le champ, au-dessus quand il y a plus de place, suivant le champ quand la fenêtre défile) : dans la fenêtre qui défile, une liste en position absolue était coupée. *Personnalisé…* le transforme en champ texte, donc tout déclencheur ou toute commande Tasmota reste écrivable. Un `<select>` affiche le même texte ouvert et fermé, et un `<datalist>` ne propose que ce qui correspond au texte déjà saisi : aucun des deux ne convient.
   `tests/rules_model_test.js` (CI) vérifie la lecture, l'écriture de chaque forme et l'absence de
@@ -633,8 +633,48 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   voit pas le nom de l'appareil (les règles Berry le feront). Les phrases se lisent en langage clair
   quand le motif est connu (`Lampe · Power = 1`, `basculer Lampe`). Les attributs listés sont ceux
   qu'un appareil a signalés depuis l'ouverture de l'interface ou dans son dernier état : un bouton
-  montre `Click` après son premier appui. Pas encore : Matter, `elseif`, plusieurs déclencheurs,
-  déplacement d'un bloc, noms clairs pour les événements propres à la passerelle.
+  montre `Click` après son premier appui. Pas encore : Matter, déplacement d'un bloc, noms clairs
+  pour les événements propres à la passerelle.
+- **`elseif`, plusieurs déclencheurs, appareil connecté** (v0.2, écrit le 13 novembre 2026 ; interface
+  complète seulement, rien ne change sur la passerelle pour TasmoFlow lui-même). Vérifié dans la source de
+  Tasmota (commit du firmware `43d9409`, `tasmota/tasmota_xdrv_driver/xdrv_10_rules.ino`) :
+  - **`elseif`** : `if (c1) a elseif (c2) b else c endif` est géré (`ProcessIfStatement`), autant de
+    `elseif` que voulu, chacun avec sa condition et ses commandes. La phrase gagne des lignes *Sinon si*
+    (condition, puis ses commandes) ; un `if` imbriqué, un `elseif` sans condition ou une branche vide
+    reste un bloc brut.
+  - **Plusieurs déclencheurs** : Tasmota n'a **pas de `and`/`or` entre déclencheurs**. `RuleSetProcess`
+    donne tout le texte entre `on` et `do` à `RulesRuleMatch`, qui lit un seul `nom <op> valeur` : `on a#b=1
+    and c#d=2 do` ne se déclenche jamais. Plusieurs déclencheurs sont donc **plusieurs blocs `on ... do ...
+    endon` aux mêmes actions** (n'importe lequel déclenche la règle, la phrase dit *ou*). L'éditeur écrit un
+    bloc par déclencheur et relit les blocs voisins aux actions identiques comme **une seule phrase**
+    (`more` dans `rules_model.js`) ; le texte d'origine de chaque bloc est gardé, donc ouvrir un jeu de
+    règles ne le réécrit toujours jamais. Le même déclencheur deux fois reste deux blocs (le conflit est
+    signalé) ; la détection de conflits regarde chaque déclencheur d'une phrase et chaque branche. Le prix
+    est la place des règles (les actions sont écrites une fois par déclencheur : 512 caractères, 2 000
+    compressés).
+  - **Appareil connecté** (un déclencheur proposé pour chaque appareil, dans la liste des déclencheurs) :
+    - *Zigbee* : quand un appareil appairé est remis sous tension (ou rejoint le réseau), Tasmota publie
+      `{"ZbState":{"Status":30,"IEEEAddr":...,"ShortAddr":"0x1234",...}}` et lance les règles dessus
+      (`Z_ReceiveEndDeviceAnnonce`, `xdrv_23_zigbee_8_parsers.ino`) : le déclencheur est
+      `ZbState#ShortAddr=0x1234` (les chaînes se comparent sans tenir compte de la casse, l'hexadécimal
+      compris). C'est l'**annonce** de l'appareil : les appareils sur secteur (ampoules, prises, routeurs)
+      l'envoient en revenant, **pas les appareils sur batterie**. Un déclencheur teste une seule valeur,
+      donc les autres messages `ZbState` de l'appareil (étapes de l'appairage) le déclenchent aussi. Il
+      n'y a pas d'autre événement « de retour » : `Reachable` n'est publié qu'à `false`, après un `ZbPing`
+      ou une lecture sans réponse (`Z_Unreachable`, `xdrv_23_zigbee_6_0_commands.ino`), et repasse à vrai
+      sans rien publier.
+    - *Tuya* : le pilote du firmware ne publiait rien quand un appareil se connecte ou se déconnecte (une
+      ligne de log seulement). Le pilote du dépôt du firmware publie maintenant
+      `{"TuyaConnected":{"Name":"<appareil>"}}` quand un appareil est prêt et
+      `{"TuyaDisconnected":{"Name":"<appareil>"}}` quand un appareil prêt est perdu (branche de ce dépôt, à
+      compiler et à flasher) : les déclencheurs sont `TuyaConnected#Name=<appareil>` et
+      `TuyaDisconnected#Name=<appareil>`. Sans le nouveau firmware ils sont proposés mais ne se déclenchent
+      jamais. Un nom qui contient `= < > ! | $ %` ou ` do ` ne peut pas s'écrire dans un déclencheur et est
+      écarté. Ils se déclenchent aussi au démarrage du pilote, quand il connecte tous les appareils.
+    - Dans les phrases, un appareil qui se connecte se lit `Lampe salon · connecté` / `Ventilateur ·
+      déconnecté` et sa comparaison est masquée (elle fait partie du déclencheur).
+    - `tests/rules_model_test.js` vérifie le modèle (elseif sous toutes ses formes, fusion et écriture de
+      plusieurs déclencheurs, conflits) et les sélecteurs ; `tests/e2e.js` la fenêtre.
 - **Mode guidé** (v0.2, écrit le 12 novembre 2026 ; interface complète seulement : `rules_guided.js`,
   logique dans `rules_guided_model.js`, fenêtre partagée avec le formulaire dans `rules_modal.js` ; rien ne
   change sur la passerelle, pas de `.tapp` à réinstaller). La tuile *Règle guidée* ouvre une fenêtre en deux
@@ -714,6 +754,9 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [ ] v0.2 : conflits : deux jeux de règles actifs qui basculent la même lumière sur le même déclencheur affichent le bandeau « Règles qui peuvent se gêner » ; il disparaît quand l'un est éteint
 - [ ] v0.2 : sélecteurs d'appareils : dans une nouvelle règle, la liste des déclencheurs propose vos appareils Zigbee (attributs signalés) et les listes de commandes proposent `ZbSend` (allumer, éteindre, basculer) et vos appareils Tuya ; avec `SetOption83` actif et un appareil nommé, le déclencheur porte le nom (`ZbReceived#Lampe#Power`), sinon l'adresse ; la règle enregistrée fonctionne (appui sur le bouton, la lumière bascule) ; la phrase se lit `Lampe · Power = 1` / `basculer Lampe`
 - [ ] v0.2 : mode guidé : *Règle guidée*, choisir le vrai bouton, *Apprendre : appuyez sur le bouton*, appuyer : l'appareil, `Click` et la valeur envoyée sont remplis et la phrase se lit bien ; choisir une lampe comme action, *Créer la règle*, Enregistrer : appuyer sur le bouton bascule la lampe (sur la passerelle, interface fermée) ; l'apprentissage sans appareil choisi ignore les mesures périodiques d'un capteur et prend le premier appui sur un bouton
+- [ ] v0.2 : appareil connecté (Zigbee) : une règle `on ZbState#ShortAddr=0x<lampe> do ...` (choisie comme *connecté* dans la liste des déclencheurs d'une lampe) : débrancher la lampe, la rebrancher : la règle se déclenche (ligne de log `RUL: ZBSTATE#SHORTADDR=...`) ; un capteur sur batterie ne la déclenche jamais
+- [ ] v0.2 : appareil connecté (Tuya, demande le firmware avec `TuyaConnected` / `TuyaDisconnected`) : `on TuyaConnected#Name=<appareil> do ...` se déclenche quand l'appareil est rallumé, et `TuyaDisconnected#Name=<appareil>` quand il est éteint ; un nom avec une virgule fonctionne
+- [ ] v0.2 : plusieurs déclencheurs et sinon si : trois déclencheurs sur une phrase donnent trois blocs `on ... endon` en vue Texte et une seule tuile à la relecture ; une branche `elseif` s'exécute quand sa condition est vraie (`Var1`)
 - [ ] v0.2 : vue Phrases : un jeu de règles saisi en vue Texte s'affiche en phrases ; modifier la valeur d'un déclencheur, ajouter un `if` / `else` et une deuxième commande, ajouter et supprimer une règle, puis Enregistrer donne le texte attendu (`Rule<n>` dans la console) ; une règle qui n'entre dans aucune phrase reste en texte
 - [x] v0.2 (10 novembre 2026) : écran Règles : les trois jeux affichent le texte de `Rule1` à `Rule3` ; enregistrer une règle de plus de 600 caractères (corps POST) se relit à l'identique quand elle est saisie sur plusieurs lignes (stockée sur une ligne, affichée un bloc par ligne ; sinon l'ancien texte est remis et une erreur s'affiche) ; « Copie précédente » puis « Restaurer » remet l'ancien texte
 - [x] v0.2 : l'activation/désactivation, « une seule fois » et « arrêt sur erreur » agissent sur le vrai jeu de règles ; la liste des règles Berry correspond à `Br print(tasmota._rules)`

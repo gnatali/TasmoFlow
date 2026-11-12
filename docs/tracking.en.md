@@ -145,10 +145,12 @@ Left for v0.1 (small):
 
 **Guided mode** (agreed on 11 November 2026, **written** on 12 November 2026): a *Guided rule* tile opens a two-step dialog (pick a device, say what happens to it in words, pick what to do), where a Zigbee trigger can be learned by pressing the button (the interface listens to the event stream and writes the trigger from what it just saw). Full interface only, no `.tapp` to install again; **to try on the gateway with the real button** (test plan). Left for later: conditions in the guided dialog, Tuya and Matter triggers.
 
-Next, in this order (to confirm with Guillaume): measure the memory of this version (at rest, interface open, after closing); open the pull request (the branch is about 40 commits ahead of `main`); then tag `v0.2.0` (the build takes the version from the tag, `latest.json` and the update button follow).
+**`elseif`, several triggers and a *device connected* trigger** (13 November 2026): **written**, full interface only; to try on the gateway (test plan). Tasmota has no `and`/`or` between triggers, so several triggers are several blocks with the same actions. *Connected* is `ZbState#ShortAddr` for Zigbee (the device's announcement: mains devices only), and `TuyaConnected#Name` / `TuyaDisconnected#Name` for Tuya, which **needs the firmware repository's new driver** (branch to build and flash); see the [architecture](architecture.en.md).
+
+v0.2.0 is tagged (13 November 2026). Next: measure the memory of the released version (at rest, interface open, after closing) and try the new items of the test plan on the gateway.
 
 v0.2, what is left after step 4: the **guided mode** (written, to try on the gateway), Matter in the pickers,
-`elseif` and several triggers in the sentence editor, **automations** (a TasmoFlow automation becomes a
+**automations** (a TasmoFlow automation becomes a
 Tasmota rule or Berry code, Tuya triggers need Berry), **editing** Berry rules and `autoexec.be` with
 copy before write and a compilation check. Steps 2 to 4 (sentence editor, pickers, Berry view and
 conflicts) are written and tried on the gateway in part, see the test plan.

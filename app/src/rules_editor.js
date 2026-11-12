@@ -6,10 +6,10 @@ import { useState, useRef, useEffect } from 'preact/hooks';
 import { html } from './html.js';
 import { t } from './i18n.js';
 import { S } from './state.js';
-import { zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand } from './rules_devices.js';
+import { zbTriggers, zbActions, tuyaActions, tuyaTriggers, describeSubject, describeCommand, describeTrigger, describeConnection } from './rules_devices.js';
 import { Modal } from './rules_modal.js';
 import { Guided } from './rules_guided.js';
-import { parseRuleSet, serializeRuleSet, serializeBlock, newBlock, edited, parseCommands, writeCommands, OPERATORS } from './rules_model.js';
+import { parseRuleSet, serializeRuleSet, newBlock, edited, triggersOf, OPERATORS } from './rules_model.js';
 
 // suggestions only: every field stays free text
 const TRIGGERS = ['System#Boot', 'Time#Minute', 'Clock#Timer', 'Rules#Timer', 'Button1#State', 'Switch1#State',
@@ -20,10 +20,11 @@ const items = l => l.map(x => ({ label: x.trim(), value: x }));
 const verbs = () => ({ On: t('rule_vOn'), Off: t('rule_vOff'), Toggle: t('rule_vToggle') });
 
 // What each list offers: the common ones, then the gateway's own devices
+const conn = () => ({ connected: t('rule_connected'), disconnected: t('rule_disconnected') });
 function triggerGroups(s) {
-  const z = zbTriggers(s.devices, s.zbNames);
+  const z = zbTriggers(s.devices, s.zbNames, conn());
   return { skipped: z.skipped, groups: [{ group: t('rule_gwEvents'), items: items(TRIGGERS) },
-    ...z.groups.map(g => ({ ...g, group: 'Zigbee · ' + g.group }))] };
+    ...z.groups.map(g => ({ ...g, group: 'Zigbee · ' + g.group })), ...tuyaTriggers(s.tuya, conn())] };
 }
 function actionGroups(s) {
   return [{ group: t('rule_commands'), items: items(ACTIONS) },
@@ -39,7 +40,7 @@ const css = o => Object.keys(o).map(k => k.replace(/[A-Z]/g, c => '-' + c.toLowe
 // into a text field, so any Tasmota trigger or command can still be written. A native <select>
 // cannot do this: it shows the same text open and closed, and a <datalist> only offers what
 // matches the text already typed.
-function Choice({ label, value, groups, friendly, onChange, placeholder }) {
+function Choice({ label, value, groups, friendly, onChange, placeholder, isSel }) {
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState(false);
   const [pos, setPos] = useState(null);               // where the list floats, in the window
@@ -72,11 +73,12 @@ function Choice({ label, value, groups, friendly, onChange, placeholder }) {
       window.removeEventListener('scroll', place, true);
     };
   }, [open]);
-  const known = groups.some(g => g.items.some(i => i.value === value));
-  const pick = v => {
-    onChange(v);
+  const sel = isSel || (i => i.value === value);        // the item that stands for the current value
+  const known = groups.some(g => g.items.some(sel));
+  const pick = i => {
+    onChange(i.value, i);
     setOpen(false);
-    setEdit(v.endsWith(','));                      // `TuyaSend Name,62,` still needs its value
+    setEdit(i.value.endsWith(','));                      // `TuyaSend Name,62,` still needs its value
   };
   // Escape closes the list, not the dialog around it
   const key = e => { if (open && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false); } };
@@ -89,7 +91,7 @@ function Choice({ label, value, groups, friendly, onChange, placeholder }) {
     ${open && pos ? html`<div class="pop" role="listbox" aria-label=${label} style=${css(pos)}>
       ${value && !known ? html`<button role="option" aria-selected="true" class="pitem sel" onClick=${() => setOpen(false)}>${friendly || value}</button>` : null}
       ${groups.map(g => html`<div class="pgroup">${g.group}</div>
-        ${g.items.map(i => html`<button role="option" aria-selected=${i.value === value} class=${'pitem' + (i.value === value ? ' sel' : '')} onClick=${() => pick(i.value)}>${i.label}</button>`)}`)}
+        ${g.items.map(i => html`<button role="option" aria-selected=${sel(i)} class=${'pitem' + (sel(i) ? ' sel' : '')} onClick=${() => pick(i)}>${i.label}</button>`)}`)}
       <button role="option" class="pitem custom" onClick=${() => { setEdit(true); setOpen(false); }}><span aria-hidden="true">✎ </span>${t('rule_custom')}</button>
     </div>` : null}
   </div>`;
@@ -116,15 +118,17 @@ function Tile({ b, s, onEdit, onDelete }) {
     return html`<div class="tile raw"><code>${b.text}</code><p class="q">${t('rule_rawBlock')}</p>
       <div class="row tight"><button class="b" onClick=${onDelete}>${t('rule_deleteBlock')}</button></div></div>`;
   }
-  const named = describeSubject(b.subject, s.devices, s.zbNames);
-  const when = (named || b.subject || '…') + (b.op ? ' ' + b.op + ' ' + b.value : '');
+  const when = triggersOf(b).map(tr => describeTrigger(tr, s.devices, s.zbNames, conn()));
   const list = l => l.filter(Boolean).map(c => describeCommand(c, s.devices, verbs(), s.tuya) || c);
-  const Line = ({ k, cls, items }) => html`<div class=${'line ' + cls}><b class="kw">${k}</b>
-    <span>${items.length ? items.map(x => html`<span class="chip" title=${x}>${x}</span>`) : '…'}</span></div>`;
+  // `or`: between the triggers of a sentence, any of them fires it
+  const Line = ({ k, cls, items, or }) => html`<div class=${'line ' + cls}><b class="kw">${k}</b>
+    <span>${items.length ? items.map((x, i) => html`${i && or ? html`<span class="or">${t('rule_or')}</span>` : null}<span class="chip" title=${x}>${x}</span>`) : '…'}</span></div>`;
   return html`<div class="tile">
-    <${Line} k=${t('rule_when')} cls="when" items=${[when]}/>
+    <${Line} k=${t('rule_when')} cls="when" items=${when} or=${true}/>
     ${b.cond != null ? html`<${Line} k=${t('rule_if')} cls="if" items=${[b.cond || '…']}/>` : null}
     <${Line} k=${t('rule_then')} cls="then" items=${list(b.then)}/>
+    ${(b.elifs || []).map(e => html`<${Line} k=${t('rule_elseif')} cls="if" items=${[e.cond || '…']}/>
+      <${Line} k=${t('rule_then')} cls="then" items=${list(e.then)}/>`)}
     ${b.else ? html`<${Line} k=${t('rule_else')} cls="else" items=${list(b.else)}/>` : null}
     <div class="row tight">
       <button class="b" onClick=${onEdit}>${t('rule_editBlock')}</button>
@@ -133,28 +137,57 @@ function Tile({ b, s, onEdit, onDelete }) {
   </div>`;
 }
 
+// One trigger: what it waits for (a list of events), then how its value is compared. `n` is its
+// number among the triggers of the sentence (1 for the first, which keeps the field names the
+// form had before there could be several).
+function TriggerRow({ tr, n, change, remove, trig, s }) {
+  const sfx = n > 1 ? ' ' + n : '';
+  const label = n > 1 ? t('rule_or').replace(/^./, c => c.toUpperCase()) + sfx : t('rule_when');   // "Ou 2"
+  const plain = describeConnection(tr, s.devices, conn());            // a device connecting: the list item says it all
+  return html`<div class="trig">
+    <div class="row tight">
+      <${Choice} label=${label} value=${tr.subject} groups=${trig.groups} placeholder=${t('rule_pickEvent')}
+        isSel=${i => i.value === tr.subject && (i.op == null || (i.op === tr.op && i.val === tr.value))}
+        friendly=${plain || (tr.subject ? (describeSubject(tr.subject, s.devices, s.zbNames) || tr.subject) : '')}
+        onChange=${(v, i) => change(i && i.op != null ? { subject: v, op: i.op, value: i.val } : { subject: v })}/>
+      ${remove ? html`<button class="b" aria-label=${t('rule_removeTrigger') + sfx} onClick=${remove}>×</button>` : null}
+    </div>
+    ${plain ? null : html`<div class="row tight">
+      <select aria-label=${t('rule_operator') + sfx} value=${tr.op} onChange=${e => change({ op: e.target.value, value: e.target.value ? tr.value : '' })}>
+        <option value="">${t('rule_anyValue')}</option>
+        ${OPERATORS.map(o => html`<option value=${o}>${o}</option>`)}
+        ${tr.op && !OPERATORS.includes(tr.op) ? html`<option value=${tr.op}>${tr.op}</option>` : null}
+      </select>
+      ${tr.op ? html`<input class="grow" value=${tr.value} aria-label=${t('rule_value') + sfx} placeholder="3" onInput=${e => change({ value: e.target.value })}/>` : null}
+    </div>`}
+  </div>`;
+}
+
 function BlockForm({ b, change, s }) {
   const hasCond = b.cond != null;
   const trig = triggerGroups(s);
   const acts = actionGroups(s);
+  const more = b.more || [];
+  const elifs = b.elifs || [];
+  const putMore = (i, p) => change({ more: more.map((x, k) => k === i ? { ...x, ...p } : x) });
+  const putElif = (i, p) => change({ elifs: elifs.map((x, k) => k === i ? { ...x, ...p } : x) });
   return html`<div class="form">
     <fieldset class="cmds"><legend>${t('rule_when')}</legend>
-      <${Choice} label=${t('rule_when')} value=${b.subject} groups=${trig.groups} placeholder=${t('rule_pickEvent')}
-        friendly=${b.subject ? (describeSubject(b.subject, s.devices, s.zbNames) || b.subject) : ''} onChange=${v => change({ subject: v })}/>
+      <${TriggerRow} tr=${b} n=${1} change=${change} trig=${trig} s=${s}/>
+      ${more.map((tr, i) => html`<${TriggerRow} key=${i} tr=${tr} n=${i + 2} change=${p => putMore(i, p)} remove=${() => change({ more: more.filter((_, k) => k !== i) })} trig=${trig} s=${s}/>`)}
       ${trig.skipped ? html`<div class="q">${t('rule_zbSkipped')}</div>` : null}
-      <div class="row tight">
-        <select aria-label=${t('rule_operator')} value=${b.op} onChange=${e => change({ op: e.target.value, value: e.target.value ? b.value : '' })}>
-          <option value="">${t('rule_anyValue')}</option>
-          ${OPERATORS.map(o => html`<option value=${o}>${o}</option>`)}
-          ${b.op && !OPERATORS.includes(b.op) ? html`<option value=${b.op}>${b.op}</option>` : null}
-        </select>
-        ${b.op ? html`<input class="grow" value=${b.value} aria-label=${t('rule_value')} placeholder="3" onInput=${e => change({ value: e.target.value })}/>` : null}
-      </div>
+      <button class="b" onClick=${() => change({ more: [...more, { subject: '', op: '', value: '' }] })}>${t('rule_addTrigger')}</button>
     </fieldset>
-    <fieldset class="cmds"><legend><label><input type="checkbox" checked=${hasCond} onChange=${e => change({ cond: e.target.checked ? '' : null, else: null })}/> ${t('rule_if')}</label></legend>
+    <fieldset class="cmds"><legend><label><input type="checkbox" checked=${hasCond} onChange=${e => change({ cond: e.target.checked ? '' : null, elifs: [], else: null })}/> ${t('rule_if')}</label></legend>
       ${hasCond ? html`<input class="grow" value=${b.cond} aria-label=${t('rule_if')} placeholder="Var1==1" onInput=${e => change({ cond: e.target.value })}/>` : html`<span class="q">${t('rule_noCond')}</span>`}
     </fieldset>
     <${Commands} label=${t('rule_then')} list=${b.then} set=${v => change({ then: v })} groups=${acts} s=${s}/>
+    ${hasCond ? elifs.map((e, i) => html`<fieldset class="cmds"><legend>${t('rule_elseif') + ' ' + (i + 1)}</legend>
+      <div class="row tight"><input class="grow" value=${e.cond} aria-label=${t('rule_elseif') + ' ' + (i + 1)} placeholder="Var1==2" onInput=${ev => putElif(i, { cond: ev.target.value })}/>
+        <button class="b" aria-label=${t('rule_removeElseif') + ' ' + (i + 1)} onClick=${() => change({ elifs: elifs.filter((_, k) => k !== i) })}>×</button></div>
+      <${Commands} label=${t('rule_then') + ' (' + t('rule_elseif') + ' ' + (i + 1) + ')'} list=${e.then} set=${v => putElif(i, { then: v })} groups=${acts} s=${s} bare=${true}/>
+    </fieldset>`) : null}
+    ${hasCond ? html`<div class="row tight"><button class="b" onClick=${() => change({ elifs: [...elifs, { cond: '', then: [''] }] })}>${t('rule_addElseif')}</button></div>` : null}
     ${hasCond ? html`<fieldset class="cmds"><legend><label><input type="checkbox" checked=${!!b.else} onChange=${e => change({ else: e.target.checked ? [''] : null })}/> ${t('rule_else')}</label></legend>
       ${b.else ? html`<${Commands} label=${t('rule_else')} list=${b.else} set=${v => change({ else: v })} groups=${acts} s=${s} bare=${true}/>` : html`<span class="q">${t('rule_noElse')}</span>`}</fieldset>` : null}
   </div>`;

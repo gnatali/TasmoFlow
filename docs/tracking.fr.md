@@ -152,10 +152,12 @@ Reste pour la v0.1 (petit) :
 
 **Mode guidé** (accepté le 11 novembre 2026, **écrit** le 12 novembre 2026) : une tuile *Règle guidée* ouvre une fenêtre en deux étapes (choisir un appareil, dire en mots ce qui lui arrive, choisir quoi faire), où un déclencheur Zigbee peut s'apprendre en appuyant sur le bouton (l'interface écoute le flux d'événements et écrit le déclencheur d'après ce qu'elle vient de voir). Interface complète seulement, pas de `.tapp` à réinstaller ; **à essayer sur la passerelle avec le vrai bouton** (plan de test). Pour plus tard : conditions dans la fenêtre guidée, déclencheurs Tuya et Matter.
 
-Ensuite, dans cet ordre (à confirmer avec Guillaume) : mesurer la mémoire de cette version (au repos, interface ouverte, après fermeture) ; ouvrir la pull request (la branche a une quarantaine de commits d'avance sur `main`) ; puis tagger `v0.2.0` (le build prend la version dans le tag, `latest.json` et le bouton de mise à jour suivent).
+**`elseif`, plusieurs déclencheurs et un déclencheur *appareil connecté*** (13 novembre 2026) : **écrits**, interface complète seulement ; à essayer sur la passerelle (plan de test). Tasmota n'a pas de `and`/`or` entre déclencheurs : plusieurs déclencheurs sont donc plusieurs blocs aux mêmes actions. *Connecté* est `ZbState#ShortAddr` pour Zigbee (l'annonce de l'appareil : appareils sur secteur seulement), et `TuyaConnected#Name` / `TuyaDisconnected#Name` pour Tuya, ce qui **demande le nouveau pilote du dépôt du firmware** (branche à compiler et à flasher) ; voir l'[architecture](architecture.fr.md).
+
+La v0.2.0 est taguée (13 novembre 2026). Ensuite : mesurer la mémoire de la version publiée (au repos, interface ouverte, après fermeture) et essayer sur la passerelle les nouveaux points du plan de test.
 
 v0.2, ce qui reste après l'étape 4 : le **mode guidé** (écrit, à essayer sur la passerelle), Matter dans les
-sélecteurs, `elseif` et plusieurs déclencheurs dans l'éditeur en phrases, les **actions** (une
+sélecteurs, les **actions** (une
 automatisation TasmoFlow devient une règle Tasmota ou du Berry, les déclencheurs Tuya demandent du
 Berry), la **modification** des règles Berry et d'`autoexec.be` avec copie avant écriture et contrôle de
 compilation. Les étapes 2 à 4 (éditeur en phrases, sélecteurs, vue Berry et conflits) sont écrites et

@@ -54,7 +54,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
   };
   // a field of the edit dialog ("Quand", "Alors 1"...): pick an item of its list, or write it
   const choose = async (dlg, label, option) => {
-    await dlg.getByRole('button', { name: new RegExp('^' + label + ' :') }).click();
+    await dlg.getByRole('button', { name: new RegExp('^' + label.replace(/[()]/g, '\\$&') + ' :') }).click();
     await dlg.getByRole('option', { name: option, exact: true }).click();
   };
   const write = async (dlg, label, text) => {
@@ -458,6 +458,63 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await r3c.getByRole('textbox').fill(was);
     await r3c.getByRole('button', { name: 'Enregistrer' }).click();
     await r3c.getByText(/Enregistré/).waitFor({ timeout: 4000 });
+  });
+  await test('sentence editor: several triggers (one block each), else if, device connected (Zigbee and Tuya)', async p => {
+    await openFull(p);
+    await p.getByRole('button', { name: 'Règles' }).click();
+    const r3 = await rule(p, 3);
+    await r3.getByRole('button', { name: 'Phrases' }).click();
+    const text = () => p.evaluate(async t => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[2].text,
+      '0123456789abcdef0123456789abcdef');
+    const was = await text();
+    await r3.getByRole('button', { name: /Règle libre/ }).click();
+    const dlg = p.getByRole('dialog');
+    await dlg.waitFor();
+    // trigger 1: a Zigbee lamp connecting (the third device offering "connecté": Bouton, Capteur, Lampe)
+    await dlg.getByRole('button', { name: /^Quand :/ }).click();
+    await dlg.getByRole('option', { name: 'connecté', exact: true }).nth(2).click();
+    await dlg.getByRole('button', { name: /^Quand : Lampe salon · connecté/ }).waitFor();
+    if (await dlg.getByLabel('Comparaison').count()) throw new Error('a device connecting still shows its comparison');
+    // trigger 2: a minute of the clock; trigger 3: a Tuya device disconnecting (the seventh: Ventilateur)
+    await dlg.getByRole('button', { name: 'Ajouter un déclencheur (ou)' }).click();
+    await choose(dlg, 'Ou 2', 'Time#Minute');
+    await dlg.getByLabel('Comparaison 2').selectOption('=');
+    await dlg.getByLabel('Valeur 2').fill('5');
+    await dlg.getByRole('button', { name: 'Ajouter un déclencheur (ou)' }).click();
+    await dlg.getByRole('button', { name: /^Ou 3 :/ }).click();
+    await dlg.getByRole('option', { name: 'déconnecté', exact: true }).nth(6).click();
+    await dlg.getByRole('button', { name: /^Ou 3 : Ventilateur · déconnecté/ }).waitFor();
+    // a condition, an else if and an else
+    await write(dlg, 'Alors 1', 'Power1 on');
+    await dlg.getByRole('checkbox', { name: 'Si', exact: true }).check();
+    await dlg.getByLabel('Si', { exact: true }).last().fill('Var1==1');
+    await dlg.getByRole('button', { name: 'Ajouter un « sinon si »' }).click();
+    await dlg.getByLabel('Sinon si 1', { exact: true }).fill('Var1==2');
+    await write(dlg, 'Alors (Sinon si 1) 1', 'Power2 on');
+    await dlg.getByRole('checkbox', { name: 'Sinon', exact: true }).check();
+    await write(dlg, 'Sinon 1', 'Power2 off');
+    if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'elseif-triggers.png') });
+    await dlg.getByRole('button', { name: 'Terminé' }).click();
+    await dlg.waitFor({ state: 'hidden' });
+    const tile = r3.locator('.tile').filter({ hasText: 'Lampe salon · connecté' });
+    await tile.locator('.chip', { hasText: 'Time#Minute = 5' }).waitFor();
+    await tile.locator('.chip', { hasText: 'Ventilateur · déconnecté' }).waitFor();
+    await tile.locator('.chip', { hasText: 'Var1==2' }).waitFor();
+    await r3.getByRole('button', { name: 'Enregistrer' }).click();
+    await r3.getByText(/Enregistré/).waitFor({ timeout: 4000 });
+    const body = 'if (Var1==1) Power1 on elseif (Var1==2) Power2 on else Power2 off endif endon';
+    const want = 'on ZbState#ShortAddr=0x3C4D do ' + body + ' on Time#Minute=5 do ' + body + ' on TuyaDisconnected#Name=Ventilateur do ' + body;
+    if (!(await text()).endsWith(want)) throw new Error('stored: ' + (await text()));
+    // read back: one sentence with three triggers, not three tiles
+    await r3.getByRole('button', { name: 'Texte' }).click();
+    await r3.getByRole('button', { name: 'Phrases' }).click();
+    const again = r3.locator('.tile').filter({ hasText: 'Lampe salon · connecté' });
+    if ((await again.count()) !== 1 || (await again.locator('.chip').filter({ hasText: /connecté|Time#Minute|déconnecté/ }).count()) !== 3) throw new Error('not one sentence');
+    // the text is left as it was
+    await r3.getByRole('button', { name: 'Texte' }).click();
+    await r3.getByRole('textbox').fill(was);
+    await r3.getByRole('button', { name: 'Enregistrer' }).click();
+    await r3.getByText(/Enregistré/).waitFor({ timeout: 4000 });
   });
   await test('conflicts: two rule sets toggling the same light on the same event', async p => {
     await openFull(p);
