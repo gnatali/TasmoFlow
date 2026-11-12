@@ -2,9 +2,9 @@
 // Card panel of the Tuya `light2` and `light3` bindings, laid out like the Tuya app (full interface only: the light
 // one keeps its size for device control and the update). Plugged into the cards through
 // EXTRA.refine (tuya.js). `light3`: tabs White / Colour follow the device's mode DP; the white tab has the
-// brightness (and a colour temperature if the binding has `dp_ct`), the colour tab a hue wheel and two
-// sliders (brightness = value, saturation). `light2` (white only): brightness and colour temperature
-// (warm to cool), a change leaves a scene or other mode for the white one.
+// colour temperature arc (if the binding has `dp_ct`) and brightness, the colour tab a hue wheel and two
+// sliders (brightness = value, saturation). `light2` (white only): colour temperature on an open arc dial
+// (warm to cool) and brightness, a change leaves a scene or other mode for the white one.
 import { useState, useRef } from 'preact/hooks';
 import { html } from './html.js';
 import { t } from './i18n.js';
@@ -61,34 +61,65 @@ function Range({ label, raw, lo, hi, disabled, onSend, cls }) {
     <span class="q">${pct + ' %'}</span></label>`;
 }
 
-// hue wheel: hue 0 at 3 o'clock, counter-clockwise like the Tuya app. The knob follows the pointer
-// while it is down (local preview), the colour is sent on release; arrows move it by 5 degrees
-function HueWheel({ hue, rgb, disabled, onPick }) {
+// Generic dial (a hue wheel or the colour temperature arc). `at(e)` gives the value under the pointer (null:
+// ignore), `pos(v)` the knob's [x, y] in %, `nudge(v, dir)` the value after an arrow key. The knob follows the
+// pointer while it is down (local preview), the value is sent on release.
+function Dial({ value, min, max, at, pos, nudge, cls, label, centre, disabled, onPick }) {
   const [drag, setDrag] = useState(null);
-  const cur = useRef(null);                       // the latest hue of a quick tap, before the next render
-  const move = h => { cur.current = h; setDrag(h); };
-  const shown = drag == null ? hue : drag;
-  const at = e => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
-    if (Math.hypot(dx, dy) < r.width * 0.27) return null;           // the centre only shows the colour
-    return (Math.round(Math.atan2(-dy, dx) * 180 / Math.PI) + 360) % 360;
-  };
-  const a = shown * Math.PI / 180;
-  return html`<div class="wheel" role="slider" tabindex=${disabled ? -1 : 0} aria-label=${t('hue')} aria-valuemin="0" aria-valuemax="360"
+  const cur = useRef(null);                       // the latest value of a quick tap, before the next render
+  const move = v => { cur.current = v; setDrag(v); };
+  const shown = drag == null ? value : drag;
+  const [x, y] = pos(shown);
+  return html`<div class="wheel" role="slider" tabindex=${disabled ? -1 : 0} aria-label=${label} aria-valuemin=${min} aria-valuemax=${max}
     aria-valuenow=${shown} aria-disabled=${disabled}
-    onPointerDown=${e => { if (disabled) return; const h = at(e); if (h != null) { e.currentTarget.setPointerCapture(e.pointerId); move(h); } }}
-    onPointerMove=${e => { if (cur.current != null) { const h = at(e); if (h != null) move(h); } }}
-    onPointerUp=${() => { const h = cur.current; cur.current = null; setDrag(null); if (h != null) onPick(h); }}
+    onPointerDown=${e => { if (disabled) return; const v = at(e); if (v != null) { e.currentTarget.setPointerCapture(e.pointerId); move(v); } }}
+    onPointerMove=${e => { if (cur.current != null) { const v = at(e); if (v != null) move(v); } }}
+    onPointerUp=${() => { const v = cur.current; cur.current = null; setDrag(null); if (v != null) onPick(v); }}
     onPointerCancel=${() => { cur.current = null; setDrag(null); }}
     onKeyDown=${e => {
-      const d = { ArrowLeft: -5, ArrowDown: -5, ArrowRight: 5, ArrowUp: 5 }[e.key];
-      if (d && !disabled) { e.preventDefault(); onPick((shown + d + 360) % 360); }
+      const d = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[e.key];
+      if (d && !disabled) { e.preventDefault(); onPick(nudge(shown, d)); }
     }}>
-    <div class="ring"></div>
-    <div class="swatch" style=${'background:' + rgb}></div>
-    <div class="knob" style=${`left:${50 + 39.5 * Math.cos(a)}%;top:${50 - 39.5 * Math.sin(a)}%`}></div>
+    <div class=${'ring ' + cls}></div>
+    <div class="swatch" style=${'background:' + centre[0]}>${centre[1]}</div>
+    <div class="knob" style=${`left:${x}%;top:${y}%`}></div>
   </div>`;
+}
+
+// position of a pointer relative to the dial's centre, or null in the centre (it only shows the value)
+const rel = e => {
+  const r = e.currentTarget.getBoundingClientRect();
+  const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+  return Math.hypot(dx, dy) < r.width * 0.27 ? null : [dx, dy];
+};
+
+// hue wheel: hue 0 at 3 o'clock, counter-clockwise like the Tuya app; arrows move it by 5 degrees
+function HueWheel({ hue, rgb, disabled, onPick }) {
+  return html`<${Dial} value=${hue} min=${0} max=${360} cls="hue" label=${t('hue')} centre=${[rgb, '']} disabled=${disabled} onPick=${onPick}
+    at=${e => { const d = rel(e); return d && (Math.round(Math.atan2(-d[1], d[0]) * 180 / Math.PI) + 360) % 360; }}
+    pos=${h => [50 + 39.5 * Math.cos(h * Math.PI / 180), 50 - 39.5 * Math.sin(h * Math.PI / 180)]}
+    nudge=${(h, d) => (h + 5 * d + 360) % 360}/>`;
+}
+
+// colour temperature arc, open at the bottom: 0 % (warm) at the bottom left, 50 % at the top, 100 % (cool)
+// at the bottom right, 270 degrees in all (CSS angles, clockwise from 12 o'clock, start at 225)
+export function arcValue(dx, dy) {
+  let r = ((Math.atan2(dx, -dy) * 180 / Math.PI - 225) % 360 + 360) % 360;
+  if (r > 270) r = r > 315 ? 0 : 270;               // in the gap: the nearer end
+  return Math.round(r / 270 * 100);
+}
+// swatch colour of a temperature: warm, white, cool (the arc's own gradient)
+const ctColour = p => {
+  const [a, b, f] = p < 50 ? [[255, 154, 46], [241, 241, 241], p / 50] : [[241, 241, 241], [111, 176, 255], (p - 50) / 50];
+  return 'rgb(' + a.map((x, i) => Math.round(x + (b[i] - x) * f)) + ')';
+};
+function ArcDial({ raw, disabled, onPick }) {
+  const pct = raw == null ? 0 : clamp(raw / 10, 0, 100);
+  return html`<${Dial} value=${pct} min=${0} max=${100} cls="arc" label=${t('colortemp')} disabled=${disabled} onPick=${v => onPick(v * 10)}
+    centre=${[ctColour(pct), raw == null ? '?' : pct + ' %']}
+    at=${e => { const d = rel(e); return d && arcValue(d[0], d[1]); }}
+    pos=${v => { const a = (225 + 2.7 * v) * Math.PI / 180; return [50 + 39.5 * Math.sin(a), 50 - 39.5 * Math.cos(a)]; }}
+    nudge=${(v, d) => clamp(v + 5 * d, 0, 100)}/>`;
 }
 
 function LightPanel({ c, node, send }) {
@@ -112,10 +143,9 @@ function LightPanel({ c, node, send }) {
         onSend=${v => setColour({ v })}/>
       <${Range} label=${t('saturation')} raw=${node.dps[c.dp] == null ? null : colour.s} lo=${0} hi=${1000} disabled=${off}
         onSend=${s => setColour({ s })}/>` : html`
+      ${c.ctDp ? html`<${ArcDial} raw=${node.dps[c.ctDp]} disabled=${off} onPick=${v => setWhite(c.ctDp, v)}/>` : null}
       <${Range} label=${t('brightness')} raw=${node.dps[c.briDp]} lo=${c.bmin} hi=${c.bmax} disabled=${off}
-        onSend=${v => setWhite(c.briDp, v)}/>
-      ${c.ctDp ? html`<${Range} cls="ct" label=${t('colortemp')} raw=${node.dps[c.ctDp]} lo=${0} hi=${1000} disabled=${off}
-        onSend=${v => setWhite(c.ctDp, v)}/>` : null}`}
+        onSend=${v => setWhite(c.briDp, v)}/>`}
   </div>`;
 }
 

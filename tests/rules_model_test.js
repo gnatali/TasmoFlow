@@ -19,7 +19,7 @@ globalThis.document = { documentElement: {} };
 globalThis.window = {};
 const m = { exports: {} };
 new Function('module', 'exports', out)(m, m.exports);
-const { controlsFor, sendName, lightControls, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
+const { controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
 
 let n = 0;
 const ok = (name, f) => { f(); n++; };
@@ -189,6 +189,14 @@ ok('Tuya light2/light3: one panel per binding replaces the shared sliders; colou
   assert.strictEqual(lightControls(controlsFor({ dps: {} }, { matter: [{ type: 'light2' }] }), { matter: [{ type: 'light2' }] }).find(x => x.kind === 'light').ctDp, '23');
   assert.strictEqual(p.colour, true);
   assert.deepStrictEqual(lightControls([], null), []);
+  // colour temperature arc: bottom left 0 %, top 50 %, bottom right 100 %, the gap at the bottom snaps to the near end
+  assert.strictEqual(arcValue(-70.7, 70.7), 0);
+  assert.strictEqual(arcValue(0, -100), 50);
+  assert.strictEqual(arcValue(70.7, 70.7), 100);
+  assert.strictEqual(arcValue(-10, 100), 0);
+  assert.strictEqual(arcValue(10, 100), 100);
+  assert.strictEqual(arcValue(-100, 0), 17);
+  assert.strictEqual(arcValue(100, 0), 83);
   assert.deepStrictEqual(parseColour('00f003e803e8'), { h: 240, s: 1000, v: 1000 });
   assert.deepStrictEqual(parseColour('0000000003e8'), { h: 0, s: 0, v: 1000 });
   assert.strictEqual(parseColour('nope'), null);

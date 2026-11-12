@@ -449,7 +449,7 @@ Couleur** : ils suivent le mode que l'appareil signale (`dp_mode`, 21 : `white` 
 d'affichage optimiste) ; un onglet envoie le mode (`TuyaSend <appareil>,21,white|colour`) ; un autre
 mode (scène, musique) ou aucun connu ne sélectionne aucun onglet et montre le contenu blanc. **Blanc** :
 curseur de luminosité sur `dp_bri` (de `bri_min` à `bri_max`, affiché en %), plus un curseur de
-température de couleur seulement si la liaison porte elle-même `dp_ct` (une `light3` comme les lampes
+température de couleur en cadran d'arc (voir `light2`) seulement si la liaison porte elle-même `dp_ct` (une `light3` comme les lampes
 `Pergola` n'a pas de DP 23 : pas de contrôle qui ne fait rien). **Couleur** : une **roue de teinte**
 (teinte 0 à 3 heures, sens inverse des aiguilles comme dans l'application Tuya ; le repère suit le
 pointeur, la couleur part au relâchement ; les flèches le déplacent de 5 degrés) et deux curseurs,
@@ -462,8 +462,12 @@ une valeur faite uniquement de chiffres serait lue comme un nombre). Les valeurs
 Pas proposés : scènes (`scene_data_v2`, DP 25), minuteries, ne pas déranger, modes réveil et sommeil.
 
 **Panneau `light2`** (même module) : une lampe blanche seule (température de couleur, pas de couleur) a un
-seul panneau avec le curseur de luminosité (`dp_bri`) et celui de température de couleur (`dp_ct`, 23,
-0 à 1000, du chaud au froid, dessiné en dégradé), sans onglets ni roue. Un changement quand la lampe est
+seul panneau avec un **cadran en arc ouvert** pour la température de couleur (`dp_ct`, 23, 0 à 1000
+affiché en % : 270 degrés ouverts en bas, chaud en bas à gauche, froid en bas à droite, anneau dégradé,
+repère ; un clic dans l'ouverture va à l'extrémité la plus proche ; les flèches le déplacent de 5 % ;
+envoyé au relâchement comme la roue de teinte) et le curseur de luminosité (`dp_bri`) dessous, sans
+onglets ni roue de teinte. Une `light3` avec `dp_ct` montre le même cadran dans son onglet Blanc ;
+l'interface légère garde des curseurs simples. Un changement quand la lampe est
 dans un autre mode (scène, musique) envoie d'abord `white` sur `dp_mode`. Les curseurs de luminosité
 vont de 1 % à 100 % (brut `bri_min` 10 à `bri_max` 1000), comme l'application Tuya, jamais 0 % : le
 variateur de l'interface légère suit la même règle.

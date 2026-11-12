@@ -474,10 +474,23 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     }, '0123456789abcdef0123456789abcdef');
     const lampUntil = async (f, what) => { for (let i = 0; i < 40; i++) { if (f(await lampDps())) return; await p.waitForTimeout(100); } throw new Error(what + ' ' + JSON.stringify(await lampDps())); };
     await lamp.getByLabel('Luminosité').waitFor();
-    await lamp.getByLabel('Température de couleur').waitFor();
+    const dial = lamp.getByRole('slider', { name: 'Température de couleur' });
+    await dial.waitFor();
     if (await lamp.getByRole('tab').count() || await lamp.getByRole('slider', { name: 'Teinte' }).count()) throw new Error('light2 shows colour controls');
-    await lamp.getByLabel('Température de couleur').fill('80');
-    await lampUntil(d => d['23'] === 800, 'colour temperature 80 %');
+    const lb = await dial.boundingBox();
+    const arc = (deg, k = 0.4) => [lb.x + lb.width / 2 + Math.sin(deg * Math.PI / 180) * lb.width * k, lb.y + lb.height / 2 - Math.cos(deg * Math.PI / 180) * lb.height * k];
+    await p.mouse.click(...arc(0));                                          // top of the open ring: 50 %
+    await lampUntil(d => d['23'] === 500, 'colour temperature at the top of the arc');
+    await p.mouse.click(...arc(100));                                        // right side, past the middle: warm to cool
+    await lampUntil(d => d['23'] > 700, 'colour temperature on the right');
+    await p.mouse.click(...arc(160));                                        // in the gap, right of centre: the cool end
+    await lampUntil(d => d['23'] === 1000, 'gap snaps to the cool end');
+    await p.mouse.click(...arc(-160));                                       // in the gap, left of centre: the warm end
+    await lampUntil(d => d['23'] === 0, 'gap snaps to the warm end');
+    await lamp.locator('[role=slider][aria-valuenow="0"]').waitFor({ timeout: 4000 });   // the event came back: the card shows it
+    await dial.focus();
+    await p.keyboard.press('ArrowRight');                                    // +5 %
+    await lampUntil(d => d['23'] === 50, 'arrow key');
     await lamp.getByLabel('Luminosité').fill('50');
     await lampUntil(d => d['22'] === 500, 'light2 brightness');
     await p.evaluate(async t => { await fetch('http://localhost:8384/api/cmd?t=' + t + '&c=' + encodeURIComponent('TuyaSend Lampe bureau,21,"scene"')); }, '0123456789abcdef0123456789abcdef');

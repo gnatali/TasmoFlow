@@ -426,7 +426,7 @@ switch and the white brightness slider), laid out like the Tuya app. **Tabs Whit
 mode the device reports (`dp_mode`, 21: `white` or `colour`; no optimistic display); a tab sends the
 mode (`TuyaSend <device>,21,white|colour`); another mode (scene, music) or none known selects no tab and
 shows the white content. **White**: brightness slider on `dp_bri` (`bri_min` to `bri_max`, shown in %),
-plus a colour temperature slider only if the binding itself has `dp_ct` (a `light3` such as the
+plus a colour temperature arc dial (see `light2`) only if the binding itself has `dp_ct` (a `light3` such as the
 `Pergola` lamps has no DP 23: no control that does nothing). **Colour**: a **hue wheel** (hue 0 at 3
 o'clock, counter-clockwise like the Tuya app; the knob follows the pointer, the colour goes out on
 release; arrows move it by 5 degrees) and two sliders, brightness (the colour's value, 10 to 1000) and
@@ -438,8 +438,11 @@ The values shown need `"keep": [21, 22, 24]` in `tuya.json` when the binding is 
 Not offered: scenes (`scene_data_v2`, DP 25), timers, do-not-disturb, wake-up and sleep modes.
 
 **`light2` panel** (same module): a white-only lamp (colour temperature, no colour) gets one panel with
-the brightness slider (`dp_bri`) and the colour temperature slider (`dp_ct`, 23, 0 to 1000, warm to
-cool, drawn as a gradient), no tabs and no wheel. A change while the lamp is in another mode (scene,
+an **open arc dial** for the colour temperature (`dp_ct`, 23, 0 to 1000 shown in %: 270 degrees open at
+the bottom, warm at the bottom left, cool at the bottom right, gradient ring, knob; a click in the gap
+goes to the nearer end; arrows move it by 5 %; sent on release like the hue wheel) and the brightness
+slider (`dp_bri`) under it, no tabs and no hue wheel. A `light3` with `dp_ct` shows the same dial in its
+White tab; the light interface keeps plain sliders. A change while the lamp is in another mode (scene,
 music) sends `white` on `dp_mode` first. Brightness sliders go from 1 % to 100 % (raw `bri_min` 10 to
 `bri_max` 1000), like the Tuya app, never 0 %: the light interface's dimmer follows the same rule.
 
