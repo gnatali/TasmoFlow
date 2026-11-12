@@ -603,8 +603,8 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   chaque événement reçu (testé). En
   vue *Phrases*, chaque bloc est une **tuile** (lignes Quand / Si / Alors / Sinon) ; *Modifier* ouvre
   le formulaire dans une **fenêtre par-dessus la page** (`<dialog>` natif : Échap et le fond la
-  ferment, le bouton *Terminé* reste visible sur téléphone), et non sur place ; une tuile en
-  pointillés ajoute une règle.
+  ferment, le bouton *Terminé* reste visible sur téléphone), et non sur place ; deux tuiles en
+  pointillés ajoutent une règle : une règle **guidée** (ci-dessous) ou une règle **libre** (le formulaire).
 - **Éditeur en phrases** (v0.2 étape 2, écrit ; la vue **Phrases** d'un jeu de règles, interface
   complète seulement : `rules_model.js`, `rules_editor.js`, enregistré par `main.js` pour que
   l'interface légère ne le contienne pas ; rien ne change sur la passerelle). Un bloc
@@ -634,6 +634,26 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   qu'un appareil a signalés depuis l'ouverture de l'interface ou dans son dernier état : un bouton
   montre `Click` après son premier appui. Pas encore : Matter, `elseif`, plusieurs déclencheurs,
   déplacement d'un bloc, noms clairs pour les événements propres à la passerelle.
+- **Mode guidé** (v0.2, écrit le 12 novembre 2026 ; interface complète seulement : `rules_guided.js`,
+  logique dans `rules_guided_model.js`, fenêtre partagée avec le formulaire dans `rules_modal.js` ; rien ne
+  change sur la passerelle, pas de `.tapp` à réinstaller). La tuile *Règle guidée* ouvre une fenêtre en deux
+  étapes. **1. Quand** : la liste des appareils Zigbee qui peuvent déclencher une règle (la même que pour
+  les sélecteurs : un nom avec un espace est écarté), puis *Que se passe-t-il ?* en mots : pour `Power` « il
+  s'allume » (`=1`), « il s'éteint » (`=0`), « il change d'état » ; pour tout autre attribut « à chaque
+  message » et les valeurs vues pour cet appareil (messages reçus depuis l'ouverture de l'interface, et
+  dernier état ; valeurs d'un seul mot). **Apprentissage** : *Apprendre : appuyez sur le bouton* écoute le
+  flux d'événements (`S.events`, les mêmes Server-Sent Events que l'écran Événements) et, au premier message
+  de l'appareil choisi (ou de n'importe quel appareil si aucun n'est choisi, en écartant les mesures qu'un
+  appareil envoie seul comme `Temperature` ou `BatteryPercentage`), remplit l'appareil, l'attribut et la
+  valeur (`Click = single`) ; rien n'est écrit avant que l'utilisateur ait vérifié. **2. Alors** : une
+  ligne par commande, un appareil puis une action (les mêmes listes que le formulaire, sans les commandes
+  courantes ; un curseur demande sa valeur). La phrase obtenue s'affiche (`Quand Bouton salon · Click =
+  single, alors basculer Lampe salon`) et *Créer la règle* ajoute le bloc comme un autre, que *Modifier*
+  permet ensuite d'affiner (condition, autres commandes) ; *Passer en règle libre* ouvre le formulaire.
+  Pas dans le mode guidé : conditions, déclencheurs Tuya (l'événement de règle `Tuya` ne porte pas le nom de
+  l'appareil), Matter. `tests/rules_model_test.js` vérifie la logique (appareils, valeurs vues,
+  apprentissage, bloc écrit) et `tests/e2e.js` la fenêtre, l'apprentissage depuis le faux bouton et son
+  affichage sur un écran de 360 px.
 - **Règles Berry et `autoexec.be`** (v0.2 étape 4, lecture seule) : la section Berry liste les
   déclencheurs de `tasmota._rules` (motif et propriétaire : l'identifiant, ou la classe de l'objet qui
   l'a enregistré ; `nil` et `None` ne s'affichent pas) et montre `/autoexec.be`, d'où viennent
@@ -692,6 +712,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [ ] v0.2 : section Berry : la liste correspond à `Br print(tasmota._rules)` avec leur propriétaire, et `autoexec.be` s'affiche en texte (`.tapp` réinstallée, `Restart 1` ; la route est nouvelle)
 - [ ] v0.2 : conflits : deux jeux de règles actifs qui basculent la même lumière sur le même déclencheur affichent le bandeau « Règles qui peuvent se gêner » ; il disparaît quand l'un est éteint
 - [ ] v0.2 : sélecteurs d'appareils : dans une nouvelle règle, la liste des déclencheurs propose vos appareils Zigbee (attributs signalés) et les listes de commandes proposent `ZbSend` (allumer, éteindre, basculer) et vos appareils Tuya ; avec `SetOption83` actif et un appareil nommé, le déclencheur porte le nom (`ZbReceived#Lampe#Power`), sinon l'adresse ; la règle enregistrée fonctionne (appui sur le bouton, la lumière bascule) ; la phrase se lit `Lampe · Power = 1` / `basculer Lampe`
+- [ ] v0.2 : mode guidé : *Règle guidée*, choisir le vrai bouton, *Apprendre : appuyez sur le bouton*, appuyer : l'appareil, `Click` et la valeur envoyée sont remplis et la phrase se lit bien ; choisir une lampe comme action, *Créer la règle*, Enregistrer : appuyer sur le bouton bascule la lampe (sur la passerelle, interface fermée) ; l'apprentissage sans appareil choisi ignore les mesures périodiques d'un capteur et prend le premier appui sur un bouton
 - [ ] v0.2 : vue Phrases : un jeu de règles saisi en vue Texte s'affiche en phrases ; modifier la valeur d'un déclencheur, ajouter un `if` / `else` et une deuxième commande, ajouter et supprimer une règle, puis Enregistrer donne le texte attendu (`Rule<n>` dans la console) ; une règle qui n'entre dans aucune phrase reste en texte
 - [x] v0.2 (10 novembre 2026) : écran Règles : les trois jeux affichent le texte de `Rule1` à `Rule3` ; enregistrer une règle de plus de 600 caractères (corps POST) se relit à l'identique quand elle est saisie sur plusieurs lignes (stockée sur une ligne, affichée un bloc par ligne ; sinon l'ancien texte est remis et une erreur s'affiche) ; « Copie précédente » puis « Restaurer » remet l'ancien texte
 - [x] v0.2 : l'activation/désactivation, « une seule fois » et « arrêt sur erreur » agissent sur le vrai jeu de règles ; la liste des règles Berry correspond à `Br print(tasmota._rules)`

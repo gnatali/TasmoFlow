@@ -150,11 +150,11 @@ Reste pour la v0.1 (petit) :
   `tcpserver` du port 8384 fermé puis ré-écouté a été vérifié le 12 novembre), en particulier la
   mémoire utilisée par `TuyaConfig`.
 
-**Accepté le 11 novembre 2026, à faire plus tard** (pas commencé) : un **mode guidé simple** pour la fenêtre de règle (choisir un appareil, dire en mots ce qui lui arrive, choisir quoi faire), où les événements Zigbee s'apprennent en appuyant sur le bouton (l'interface écoute le flux d'événements et écrit le déclencheur d'après ce qu'elle vient de voir).
+**Mode guidé** (accepté le 11 novembre 2026, **écrit** le 12 novembre 2026) : une tuile *Règle guidée* ouvre une fenêtre en deux étapes (choisir un appareil, dire en mots ce qui lui arrive, choisir quoi faire), où un déclencheur Zigbee peut s'apprendre en appuyant sur le bouton (l'interface écoute le flux d'événements et écrit le déclencheur d'après ce qu'elle vient de voir). Interface complète seulement, pas de `.tapp` à réinstaller ; **à essayer sur la passerelle avec le vrai bouton** (plan de test). Pour plus tard : conditions dans la fenêtre guidée, déclencheurs Tuya et Matter.
 
 Ensuite, dans cet ordre (à confirmer avec Guillaume) : mesurer la mémoire de cette version (au repos, interface ouverte, après fermeture) ; ouvrir la pull request (la branche a une quarantaine de commits d'avance sur `main`) ; puis tagger `v0.2.0` (le build prend la version dans le tag, `latest.json` et le bouton de mise à jour suivent).
 
-v0.2, ce qui reste après l'étape 4 : le **mode guidé** (accepté, plus tard), Matter dans les
+v0.2, ce qui reste après l'étape 4 : le **mode guidé** (écrit, à essayer sur la passerelle), Matter dans les
 sélecteurs, `elseif` et plusieurs déclencheurs dans l'éditeur en phrases, les **actions** (une
 automatisation TasmoFlow devient une règle Tasmota ou du Berry, les déclencheurs Tuya demandent du
 Berry), la **modification** des règles Berry et d'`autoexec.be` avec copie avant écriture et contrôle de

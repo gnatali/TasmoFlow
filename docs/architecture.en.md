@@ -572,7 +572,7 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   rebuilds everything below it, the text being edited included, at every incoming event (tested). In *Sentences* view each
   block is a **tile** (When / If / Then / Else lines); *Edit* opens the form in a **dialog over the
   page** (native `<dialog>`: Escape and the backdrop close it, the *Done* button stays in view on a
-  phone), not in place; a dashed tile adds a rule.
+  phone), not in place; two dashed tiles add a rule: a **guided** one (below) or a **free-form** one (the form).
 - **Sentence editor** (v0.2 step 2, written; the **Sentences** view of a rule set, full interface
   only: `rules_model.js`, `rules_editor.js`, registered by `main.js` so the light bundle does not
   carry it; no change on the gateway). A block `on <trigger> [if (<cond>)] do <commands> [else
@@ -598,6 +598,25 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   listed are the ones a device has reported since the interface opened or in its last state:
   a button shows `Click` after its first press. Not yet: Matter, `elseif`, several triggers,
   moving a block, plain names for the gateway's own events.
+- **Guided mode** (v0.2, written on 12 November 2026; full interface only: `rules_guided.js`, logic in
+  `rules_guided_model.js`, dialog shared with the form in `rules_modal.js`; no change on the gateway, no
+  `.tapp` to install again). The *Guided rule* tile opens a dialog in two steps. **1. When**: a list
+  of the Zigbee devices that can start a rule (the same as the pickers: a name with a space is left
+  out), then *What happens?* in words: for `Power` "it turns on" (`=1`), "it turns off" (`=0`), "it
+  changes state"; for any other attribute "every message" and the values this device was seen with
+  (the messages received since the interface opened, and its last state; one-word values only).
+  **Learning**: *Learn: press the button* listens to the event stream (`S.events`, the same Server-Sent
+  Events as the Events screen) and, at the first message of the chosen device (or of any device when none
+  is chosen, readings a device sends by itself such as `Temperature` or `BatteryPercentage` left out),
+  fills the device, the attribute and the value (`Click = single`); nothing is written before the user
+  checks it. **2. Then**: one row per command, a device then an action (the same lists as the form,
+  without the common commands; a slider asks for its value). The sentence it makes is shown (`Quand
+  Bouton salon · Click = single, alors basculer Lampe salon`) and *Create the rule* adds the block like
+  any other, which *Edit* then refines (condition, other commands); *Switch to a free-form rule* leaves
+  for the form. Not in the guided mode: conditions, Tuya triggers (the `Tuya` rule event does not carry
+  the device name), Matter. `tests/rules_model_test.js` checks the logic (devices, values seen, learning,
+  the block written) and `tests/e2e.js` the dialog, learning from the simulated button, and its fit on a
+  360 px screen.
 - **Berry rules and `autoexec.be`** (v0.2 step 4, read only): the Berry section lists the triggers
   of `tasmota._rules` (pattern and owner: the id, or the class of the object that registered it;
   `nil` and `None` are not shown) and shows `/autoexec.be`, where such rules usually come from. No
@@ -654,6 +673,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [ ] v0.2: Berry section: the rules list matches `Br print(tasmota._rules)` with their owner, and `autoexec.be` shows as text (`.tapp` installed again, `Restart 1`; the route is new)
 - [ ] v0.2: conflicts: two enabled rule sets that toggle the same light on the same trigger show the banner "Rules that may clash"; it disappears when one is switched off
 - [ ] v0.2: device pickers: in a new rule, the trigger list offers your Zigbee devices (attributes they reported) and the command lists offer `ZbSend` (on, off, toggle) and your Tuya devices; with `SetOption83` on and a named device, the trigger carries the name (`ZbReceived#Lampe#Power`), off the address; the saved rule works (press the button, the light toggles); the sentence reads `Lampe · Power = 1` / `basculer Lampe`
+- [ ] v0.2: guided mode: *Guided rule*, pick the real button, *Learn: press the button*, press it: the device, `Click` and the value it sent are filled in and the sentence reads right; pick a lamp as the action, *Create the rule*, Save: pressing the button switches the lamp (on the gateway, with the interface closed); learning with no device chosen ignores the periodic readings of a sensor and takes the first button press
 - [ ] v0.2: Sentences view: a rule set typed in Text view shows as sentences; editing a trigger value, adding an `if` / `else` and a second command, adding and deleting a rule, then Save gives the expected text (`Rule<n>` in the console); a rule that fits no sentence stays text
 - [x] v0.2 (10 November 2026): Rules screen: the three rule sets show the text of `Rule1` to `Rule3`; saving a rule of more than 600 characters (POST body) reads back identical when typed on several lines (stored on one line, shown one block per line; otherwise the old text is put back and an error is shown); "Previous copy" then "Restore" brings the old text back
 - [x] v0.2: enabling/disabling, "once only" and "stop on error" act on the real rule set; the Berry rules list matches `Br print(tasmota._rules)`

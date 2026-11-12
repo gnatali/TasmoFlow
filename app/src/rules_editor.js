@@ -7,6 +7,8 @@ import { html } from './html.js';
 import { t } from './i18n.js';
 import { S } from './state.js';
 import { zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand } from './rules_devices.js';
+import { Modal } from './rules_modal.js';
+import { Guided } from './rules_guided.js';
 import { parseRuleSet, serializeRuleSet, serializeBlock, newBlock, edited, parseCommands, writeCommands, OPERATORS } from './rules_model.js';
 
 // suggestions only: every field stays free text
@@ -131,19 +133,6 @@ function Tile({ b, s, onEdit, onDelete }) {
   </div>`;
 }
 
-// A dialog over the page (native <dialog>: Escape and the backdrop close it)
-function Modal({ title, onClose, children }) {
-  const ref = useRef();
-  useEffect(() => { if (ref.current && !ref.current.open) ref.current.showModal(); }, []);
-  const close = () => ref.current && ref.current.close();
-  return html`<dialog ref=${ref} class="modal" aria-label=${title} onClose=${onClose}
-      onClick=${e => { if (e.target === ref.current) close(); }}>
-    <div class="mhead"><h3>${title}</h3><button class="b" aria-label=${t('rule_closeBlock')} onClick=${close}>×</button></div>
-    ${children}
-    <div class="row tight mfoot"><button class="b primary" onClick=${close}>${t('rule_finish')}</button></div>
-  </dialog>`;
-}
-
 function BlockForm({ b, change, s }) {
   const hasCond = b.cond != null;
   const trig = triggerGroups(s);
@@ -176,6 +165,7 @@ export function SentenceEditor({ text, setText }) {
   const s = S.get();                                 // devices, Tuya, SetOption83
   const [blocks, setBlocks] = useState(() => parseRuleSet(text));
   const [open, setOpen] = useState(-1);
+  const [guided, setGuided] = useState(false);
   if (!blocks) return html`<p class="q">${t('rule_noSentence')}</p>`;
   const commit = list => { setBlocks(list); setText(serializeRuleSet(list)); };
   const change = (i, patch) => commit(blocks.map((b, k) => k === i ? edited(b, patch) : b));
@@ -183,7 +173,11 @@ export function SentenceEditor({ text, setText }) {
   const off = Object.keys(s.drivers).some(k => k !== 'tuyaWhy' && s.drivers[k] && s.drivers[k] !== 'running' && s.drivers[k] !== 'absent');
   return html`${off ? html`<p class="q" role="status">${t('rule_driverNote')}</p>` : null}<div class="tiles">
     ${blocks.map((b, i) => html`<${Tile} key=${i} b=${b} s=${s} onEdit=${() => setOpen(i)} onDelete=${() => { commit(blocks.filter((_, k) => k !== i)); setOpen(-1); }}/>`)}
+    <button class="tile add" onClick=${() => setGuided(true)}>＋ ${t('g_add')}</button>
     <button class="tile add" onClick=${() => { commit([...blocks, newBlock()]); setOpen(blocks.length); }}>＋ ${t('rule_addBlock')}</button>
+    ${guided ? html`<${Guided} s=${s} groups=${actionGroups(s).slice(1)} verbs=${verbs()} onClose=${() => setGuided(false)}
+      onCreate=${b => { commit([...blocks, b]); setGuided(false); }}
+      onFree=${() => { commit([...blocks, newBlock()]); setGuided(false); setOpen(blocks.length); }}/>` : null}
     ${cur && cur.kind === 'sentence' ? html`<${Modal} title=${t('rule_editTitle')} onClose=${() => setOpen(-1)}>
       <${BlockForm} b=${cur} s=${s} change=${p => change(open, p)}/></${Modal}>` : null}
   </div>`;
