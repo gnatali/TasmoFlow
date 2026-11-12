@@ -91,3 +91,6 @@ pre.code{margin:0 0 .5rem;max-height:20rem;overflow:auto}
 
 .opt{display:flex;gap:.4rem;align-items:center;padding:.2rem 0;cursor:pointer}
 .sentence{margin:.25rem 0;padding:.5rem;border-left:4px solid var(--good);background:var(--bg);border-radius:.3rem}
+.tile .or{margin:0 .35rem .2rem 0;font-size:.8rem;color:var(--quiet)}
+.trig{display:flex;flex-direction:column;gap:.35rem;padding-bottom:.35rem}
+.trig + .trig{border-top:1px dashed var(--line);padding-top:.5rem}
