@@ -54,7 +54,8 @@ Le firmware n'est pas modifié. Fonctionnement : [docs/architecture.fr.md](docs/
    `npm run build` assemble l'interface (`app/src/`) en `dist/app.js` (complète, pour GitHub
    Pages) et `dist/lite.js` (légère, gardée dans la `.tapp`). `pack_tapp.py` produit
    `dist/TasmoFlow.tapp`, avec les fichiers Berry d'`extension/` minifiés (sans commentaires), et
-   affiche les tailles et leurs budgets.
+   affiche les tailles et leurs budgets. Un build de test (`--dev`, plus bas) garde les fichiers
+   Berry tels quels, commentaires compris, pour les lire sur la passerelle.
 
 2. Dans Tasmota : **Outils → Gestion du système de fichiers**, envoyer `dist/TasmoFlow.tapp`
    (à la racine, ou dans `/.extensions/`).

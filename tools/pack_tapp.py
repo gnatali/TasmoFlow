@@ -12,15 +12,18 @@ Writes into dist/:
 
 The .tapp holds lite.js.gz, the light interface served by the gateway when GitHub cannot be
 reached or an update is offered: device control and the update only (the full one only lives on
-GitHub Pages, to spare the 320 KB file system). Its Berry files are minified (no comments, no
-indentation, see minify_berry()): the commented sources stay in extension/. The SRI hash of
+GitHub Pages, to spare the 320 KB file system). In a release build its Berry files are minified
+(no comments, no indentation, see minify_berry()): the commented sources stay in extension/. The
+SRI hash of
 app.js is written into tasmoflow.be: the /tf page refuses a GitHub copy that differs from the
 installed version's.
 
 Test build (`--dev`): the .tapp loads https://<cdn>/dev/app.js with no SRI pin and a cache-busting
 query, so one published dev/app.js can be replaced at every run without a release or a new
 .tapp. Writes dist/dev/TasmoFlow.tapp and dist/pages/dev/{app.js,TasmoFlow.tapp,latest.json}. The .tapp
-only has to be installed again when extension/ or the light interface changed.
+only has to be installed again when extension/ or the light interface changed. Its Berry files are
+the sources as they are (comments, layout), to read and debug on the gateway: it is bigger and the
+.tapp size budget does not apply to it (the release build of the same commit is checked by CI).
 
 Usage: python3 tools/pack_tapp.py [--cdn URL] [--dev [--build-id ID]]
 """
@@ -203,6 +206,8 @@ def main():
 
     def berry(name):
         src = substitute((EXT / name).read_text(), values, name)
+        if args.dev:                            # test build: readable, as in the repository
+            return src.encode()
         return minify_berry(src, name, notices.get(name)).encode()
 
     ext_manifest = json.loads(substitute((EXT / "manifest.json").read_text(), values, "manifest.json"))
@@ -249,7 +254,10 @@ def main():
     for name, data in files.items():
         print(f"  {name:<14} {len(data):>7} B")
     print(f"  app.js (GitHub Pages only) {len(app):>7} B (uncompressed), {len(app_gz)} B gzipped / budget {MAX_APP_GZ} B")
-    print(f"  {tapp.relative_to(ROOT)}: {tapp_size} B / budget {MAX_TAPP} B")
+    if args.dev:
+        print(f"  {tapp.relative_to(ROOT)}: {tapp_size} B (test build: Berry not minified, no budget)")
+    else:
+        print(f"  {tapp.relative_to(ROOT)}: {tapp_size} B / budget {MAX_TAPP} B")
     print(f"  lite.js.gz: {len(lite_gz)} B / budget {MAX_LITE_GZ} B")
     print(f"  SRI: {sri or '(none, test build)'}")
 
@@ -258,7 +266,7 @@ def main():
         errors.append(f"lite.js.gz exceeds its budget ({len(lite_gz)} > {MAX_LITE_GZ} B)")
     if len(app_gz) > MAX_APP_GZ:
         errors.append(f"app.js.gz exceeds its budget ({len(app_gz)} > {MAX_APP_GZ} B)")
-    if tapp_size > MAX_TAPP:
+    if tapp_size > MAX_TAPP and not args.dev:
         errors.append(f"TasmoFlow.tapp exceeds its budget ({tapp_size} > {MAX_TAPP} B)")
     if errors:
         sys.exit("\n".join(errors))
