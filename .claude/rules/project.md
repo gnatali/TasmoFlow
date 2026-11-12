@@ -42,13 +42,14 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
 
 - `main` is protected: **changes go through a pull request**. Work on a branch, push it, open a
   PR when Guillaume asks.
-- **Before a tag**: the pull request that sets `VERSION` to `X.Y.Z` must be merged first; the `release` job
-  fails on a tag that differs from `VERSION` (the first `v0.2.0` tag did). A tag created too early is moved
-  with `git tag -f vX.Y.Z origin/main && git push -f origin vX.Y.Z` (the release already made on github.com
-  stays, and the re-run attaches the `.tapp` to it).
-- This environment cannot push tags (HTTP 403): Guillaume creates release tags `vX.Y.Z` (equal to
-  `VERSION`) on `main`, with git or by publishing a release with a new tag on github.com; the
-  workflow then creates (or completes) the release and publishes GitHub Pages.
+- **The git tag is the only source of the version** (no `VERSION` file since 12 November 2026):
+  `tools/version.py` resolves it (`TF_VERSION`, else the `vX.Y.Z` tag being built, else the latest tag,
+  else `0.0.0`). Nothing to bump before tagging; the workflow checks out with `fetch-depth: 0` for the
+  tags. A tag created too early is moved with `git tag -f vX.Y.Z origin/main && git push -f origin vX.Y.Z`
+  (the run rebuilds from the tag; the release already made on github.com stays and gets the `.tapp`).
+- This environment cannot push tags (HTTP 403): Guillaume creates release tags `vX.Y.Z` on `main`, with
+  git or by publishing a release with a new tag on github.com; the workflow then creates (or completes)
+  the release and publishes GitHub Pages.
 - Tests without a release: Guillaume (or I, with the GitHub `actions_run_trigger` tool) runs the
   `Build` workflow by hand on the branch (`workflow_dispatch`, job `preview`): it publishes the
   full interface at `.../TasmoFlow/dev/app.js` and a test `.tapp` (`dev/TasmoFlow.tapp`, no SRI).
@@ -63,7 +64,8 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
 - Before pushing: `npm run build` (interface, `app/src/` to `dist/app.js`), `node --check` on `dist/app.js` and `dist/lite.js`,
   `python3 tools/pack_tapp.py` (size budgets), `node tests/rules_model_test.js` (rule model),
   `node tests/e2e.js` (Playwright, simulated
-  gateway; it builds first). CI also checks the Berry syntax and runs `tests/tf_http_test.be`
+  gateway; it builds first, with a fixed version 9.9.9, so run `npm run build` and `pack_tapp.py` again
+  before using `dist/`). CI also checks the Berry syntax and runs `tests/tf_http_test.be`
   (request parser on standard Berry), on the sources and on the `.tapp`'s minified copies: this
   environment cannot compile Berry (building Berry here is refused), so re-read Berry
   diffs carefully.

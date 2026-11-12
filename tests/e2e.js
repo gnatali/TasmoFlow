@@ -7,19 +7,22 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
+// fixed version: the tests must not depend on the tags of the clone (the update tests install older ones)
+process.env.TF_VERSION = process.env.TF_VERSION || '9.9.9';
 execFileSync('node', [path.join(ROOT, 'tools', 'build_app.js')], { stdio: 'inherit' });
 const APP = fs.readFileSync(path.join(ROOT, 'dist', 'app.js'));
-const VERSION = fs.readFileSync(path.join(ROOT, 'VERSION'), 'utf8').trim();
+const VERSION = process.env.TF_VERSION;
 const CDN = `https://gnatali.github.io/TasmoFlow/v${VERSION}/app.js`;
 const SHOTS = process.argv[2];
 const PAGES = 'https://gnatali.github.io/TasmoFlow/';
 const UPD = PAGES + 'latest.json';
 const DEVUPD = PAGES + 'dev/latest.json';
 const TAPP_URL = PAGES + `v${VERSION}/TasmoFlow.tapp`;
-const TAPP = fs.readFileSync(path.join(ROOT, 'dist', 'TasmoFlow.tapp'));
-const TAPP_SHA = require('crypto').createHash('sha256').update(TAPP).digest('hex');
+// pack first: the .tapp read below must be the one built with this run's version
 const SRI = execFileSync('python3', [path.join(ROOT, 'tools', 'pack_tapp.py')], { encoding: 'utf8' })
   .match(/SRI: (\S+)/)[1];
+const TAPP = fs.readFileSync(path.join(ROOT, 'dist', 'TasmoFlow.tapp'));
+const TAPP_SHA = require('crypto').createHash('sha256').update(TAPP).digest('hex');
 
 function mock(args) {
   const p = spawn('python3', [path.join(ROOT, 'tools', 'mock_gateway.py'), ...args], { stdio: 'ignore' });

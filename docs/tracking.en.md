@@ -65,6 +65,7 @@ Specification (French, outside the repository):
 | 12 Nov | Test builds (`--dev`): Berry minified as in a release, but no size budget (the release build of each commit is still checked by CI). Tried for one build: test `.tapp` with the sources as they are (77 KB), dropped at Guillaume's request |
 | 12 Nov | v0.1 leftovers written: colour of the `light3` bindings (colour picker, full interface only, `tuya_colour.js` plugged in through `EXTRA.more`) and Tuya devices whose name has a comma (addressed by their `id`, `sendName`). Simulated gateway: a `light3`, two devices with a comma. 24 end-to-end tests, 24 unit checks. The `.tapp` must be installed again; two new items in the test plan |
 | 12 Nov | **Checked on the gateway** (Guillaume): update room check, drivers at opening, long URLs, port 8384 closed and listened to again. The 6 KB of heap not given back after the first opening: dropped, no more investigation |
+| 12 Nov | **`VERSION` file removed, the git tag is the only source of the version** (the `release` job kept failing on a tag that differed from the file). `tools/version.py` resolves it (`TF_VERSION`, release tag, latest tag, `0.0.0`); the workflow fetches the tags and rebuilds `dist/` after the tests, which use a fixed version; no `.tapp` to install again (`extension/` unchanged) |
 | 12 Nov | Halved `.tapp` checked on the gateway (Guillaume). The room check of the update did not follow the real sizes (two new copies plus 20 KB): now `/api/update_check?size=` (size from `latest.json`) before the download, and on the first piece, counts the free space, the `.bak` and a leftover `.new` against the new size plus 20 KB; the `.bak` is deleted only when needed. `.tapp` 40,920 B. 21 end-to-end tests |
 | 11 Nov | **`.tapp` halved** (83,069 to 39,807 B): light interface reduced to device control and the update (its rules, console and diagnostics left: full interface only); its texts, styles and screens split from the full interface's (`i18n_full.js`, `style_full.css`, `views_full.js`), no `preact/hooks` (stores render again from the root); Berry minified by `pack_tapp.py` (token check), compiled and tested in CI; budgets 41,534 B (`.tapp`) and 14 KB (`lite.js.gz`) |
 | 11 Nov | Update button (decision: the browser relays the `.tapp` from GitHub Pages): manifests `latest.json` / `dev/latest.json`, the light interface offers the update when the channel has a newer version (test builds: a different commit), the gateway checks size and SHA-256 and replaces itself (`tf_update.be`, `.bak` kept), the page waits for the restart (120 s at most). Simulated gateway: 414 above 512 characters instead of cutting the connection |
@@ -133,15 +134,14 @@ Left for v0.1 (small):
 
 - **Colour of `light3`** bindings (`colour_data_v2`): **written** (12 November 2026), full interface only (`tuya_colour.js`), to try on the gateway.
 - **Tuya names with a comma**: **written** (12 November 2026): such a device goes by its `id` (Wi-Fi devices and Tuya gateways); a sub-device of a gateway has none and shows its readings only. To try on the gateway. The `.tapp` must be installed again (`tuya.js` and `tuya_model.js` are in the light interface).
-- **`VERSION` is `0.2.0`** (11 November 2026). Bump it in a pull request **before** tagging a release: the
-  `release` job refuses a tag that differs from `VERSION` (the first `v0.2.0` tag failed that way).
+- **The version is the git tag** (12 November 2026, no more `VERSION` file): nothing to bump before tagging.
 - **Checks on the gateway**: the `[ ]` items marked v0.1 in the test plan (the port 8384
   `tcpserver` closing and listening again was checked on 12 November), in particular `TuyaConfig`
   memory use.
 
 **Agreed on 11 November 2026, to do later** (not started): a **simple guided mode** for the rule dialog (pick a device, say what happens to it in words, pick what to do), where Zigbee events are learned by pressing the button (the interface listens to the event stream and writes the trigger from what it just saw).
 
-Next, in this order (to confirm with Guillaume): measure the memory of this version (at rest, interface open, after closing); open the pull request (the branch is about 40 commits ahead of `main`); bump `VERSION` to `0.2.0` before the tag, otherwise `latest.json` and the update button do nothing for gateways on a release.
+Next, in this order (to confirm with Guillaume): measure the memory of this version (at rest, interface open, after closing); open the pull request (the branch is about 40 commits ahead of `main`); then tag `v0.2.0` (the build takes the version from the tag, `latest.json` and the update button follow).
 
 v0.2, what is left after step 4: the **guided mode** (agreed, later), Matter in the pickers,
 `elseif` and several triggers in the sentence editor, **automations** (a TasmoFlow automation becomes a
