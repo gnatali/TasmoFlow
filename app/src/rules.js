@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Rules of the gateway: the three Tasmota rule sets (Rule1 to Rule3) and the Berry rules.
 // Every write goes through the gateway, which keeps a copy of the previous text first (see
-// extension/tf_rules.be). The light interface only enables/disables and restores.
+// extension/tf_rules.be). Full interface only: the light one (main_lite.js) has no Rules screen.
 import { useState, useEffect } from 'preact/hooks';
 import { html } from './html.js';
 import { t } from './i18n.js';
-import { S, cmd, get, post, loadRules } from './state.js';
-import cfg from './config.js';
+import { S, cmd, get, post, current, fail } from './state.js';
 import { lintRule, flatRule, showRule } from './rules_lint.js';
 
 // the sentence editor, registered by the full interface only (not part of the light bundle)
@@ -14,6 +13,15 @@ let Editor = null;
 let Banner = null;                                  // the list of rules that clash, same story
 let clashes = () => [];                             // findConflicts(), for the warning sign on a section
 export const registerEditor = (c, banner, find) => { Editor = c; Banner = banner || null; clashes = find || (() => []); };
+
+// the rule sets and the Berry rules of the gateway shown (registered by main.js with onTab())
+export function loadRules() {
+  const gw = S.get().gw;
+  cmd('SetOption83').then(r => { if (current(gw)) S.set({ zbNames: /^(ON|1)$/i.test(String((r || {}).SetOption83)) }); })
+    .catch(() => {});
+  return get('/api/rules').then(rules => { if (current(gw)) S.set({ rules, error: null }); })
+    .catch(e => fail(gw, e));
+}
 
 const SOFT_LIMIT = 512;      // beyond it Tasmota compresses the text (up to about 2 KB)
 const HARD_LIMIT = 2000;
@@ -63,28 +71,25 @@ function RuleCard({ r, note, setNote, mode, setMode }) {
   return html`<article class="card">
     <div class="row tight">
       <button class="b" aria-pressed=${r.on} disabled=${busy} onClick=${() => flag(!r.on, ['0', '1'])}>${r.on ? t('on') : t('off')}</button>
-      ${cfg.lite ? null : html`
-        <label><input type="checkbox" checked=${r.once} disabled=${busy} onChange=${e => flag(e.target.checked, ['4', '5'])}/> ${t('rule_once')}</label>
-        <label><input type="checkbox" checked=${r.stop} disabled=${busy} onChange=${e => flag(e.target.checked, ['8', '9'])}/> ${t('rule_stop')}</label>`}
+      <label><input type="checkbox" checked=${r.once} disabled=${busy} onChange=${e => flag(e.target.checked, ['4', '5'])}/> ${t('rule_once')}</label>
+      <label><input type="checkbox" checked=${r.stop} disabled=${busy} onChange=${e => flag(e.target.checked, ['8', '9'])}/> ${t('rule_stop')}</label>
       <span class="q">${r.len + ' ' + t('rule_chars') + ' · ' + t('rule_free') + ' ' + r.free}</span>
     </div>
-    ${cfg.lite
-      ? html`<pre>${showRule(r.text) || t('rule_empty')}</pre>`
-      : html`${Editor ? html`<div class="row tight" role="group" aria-label=${t('rule_view')}>
-          <button class="b" aria-pressed=${mode === 'sentences'} onClick=${() => { setMode('sentences'); setV(v + 1); }}>${t('rule_sentences')}</button>
-          <button class="b" aria-pressed=${mode === 'text'} onClick=${() => setMode('text')}>${t('rule_text')}</button>
-        </div>` : null}
-        ${mode === 'sentences' && Editor
-          ? html`<${Editor} key=${v} text=${text} setText=${setText}/>`
-          : html`<textarea class="mono" rows=${Math.min(14, Math.max(4, text.split('\n').length + 1))} spellcheck=${false}
-          aria-label=${'Rule' + r.n} value=${text} onInput=${e => setText(e.target.value)}></textarea>`}
-        ${lint ? html`<div class="msg bad" role="alert">${t('rule_' + lint)}</div>` : null}
-        ${tooLong ? html`<div class="msg bad" role="alert">${t('rule_tooLong')}</div>` : null}
-        ${!lint && !tooLong && flat.length > SOFT_LIMIT ? html`<div class="q">${t('rule_compressed')}</div>` : null}
-        <div class="row tight">
-          <button class="b" disabled=${busy || !dirty || !!lint || tooLong} onClick=${save}>${t('rule_save')}</button>
-          <button class="b" disabled=${busy || !dirty} onClick=${() => { setText(showRule(r.text)); setV(v + 1); }}>${t('rule_cancel')}</button>
-        </div>`}
+    ${Editor ? html`<div class="row tight" role="group" aria-label=${t('rule_view')}>
+      <button class="b" aria-pressed=${mode === 'sentences'} onClick=${() => { setMode('sentences'); setV(v + 1); }}>${t('rule_sentences')}</button>
+      <button class="b" aria-pressed=${mode === 'text'} onClick=${() => setMode('text')}>${t('rule_text')}</button>
+    </div>` : null}
+    ${mode === 'sentences' && Editor
+      ? html`<${Editor} key=${v} text=${text} setText=${setText}/>`
+      : html`<textarea class="mono" rows=${Math.min(14, Math.max(4, text.split('\n').length + 1))} spellcheck=${false}
+      aria-label=${'Rule' + r.n} value=${text} onInput=${e => setText(e.target.value)}></textarea>`}
+    ${lint ? html`<div class="msg bad" role="alert">${t('rule_' + lint)}</div>` : null}
+    ${tooLong ? html`<div class="msg bad" role="alert">${t('rule_tooLong')}</div>` : null}
+    ${!lint && !tooLong && flat.length > SOFT_LIMIT ? html`<div class="q">${t('rule_compressed')}</div>` : null}
+    <div class="row tight">
+      <button class="b" disabled=${busy || !dirty || !!lint || tooLong} onClick=${save}>${t('rule_save')}</button>
+      <button class="b" disabled=${busy || !dirty} onClick=${() => { setText(showRule(r.text)); setV(v + 1); }}>${t('rule_cancel')}</button>
+    </div>
     ${r.bak == null ? null : html`<details>
       <summary>${t('rule_previous')}</summary>
       <pre>${showRule(r.bak) || t('rule_empty')}</pre>
@@ -124,7 +129,7 @@ function Section({ title, dot, warn, open, toggle, children }) {
 }
 
 export function RulesView() {
-  const { rules } = S.use();
+  const { rules } = S.get();
   const [note, setNote] = useState(null);
   const [modes, setModes] = useState({});               // view of each rule set: 'text' (default) | 'sentences'; kept when a card is rebuilt
   const [open, setOpen] = useState({ 1: true });        // accordion: each section opens and closes on its own

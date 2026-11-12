@@ -84,35 +84,40 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     if (got !== s) throw new Error(`source ${got}, expected ${s}`);
   }
 
-  await test('no GitHub: light local copy (devices, toggle, console, diagnostics; no Gateways tab)', async p => {
+  await test('no GitHub: light local copy (device control only: Zigbee and Tuya, no other screen)', async p => {
     await p.route(CDN, r => r.abort());
     await p.goto('http://localhost:8080/tf');
     await expectSource(p, 'local');
     await p.getByRole('status').filter({ hasText: 'Version légère' }).waitFor({ timeout: 2000 });
     await p.getByRole('button', { name: 'Réessayer' }).waitFor();
-    for (const n of ['Passerelles', 'Événements']) {
-      if (await p.getByRole('button', { name: n }).count()) throw new Error(`${n} tab in the light interface`);
+    // a single screen: no tab bar, and none of the full interface's screens
+    if (await p.locator('nav').count()) throw new Error('tab bar in the light interface');
+    for (const n of ['Règles', 'Événements', 'Console', 'Passerelles', 'Diagnostic']) {
+      if (await p.getByRole('button', { name: n, exact: true }).count()) throw new Error(`${n} tab in the light interface`);
     }
-    // rules: read, enable/disable, restore, but no editor
-    await p.getByRole('button', { name: 'Règles' }).click();
-    const r3 = await rule(p, 3);
-    await r3.getByRole('button', { name: 'éteint' }).click();
-    await r3.getByRole('button', { name: 'allumé' }).waitFor({ timeout: 4000 });
-    await (await rule(p, 1)).getByText('Button1#State=3').waitFor();
-    if (await p.locator('textarea').count()) throw new Error('rule editor in the light interface');
-    if (await p.getByRole('button', { name: 'Phrases' }).count()) throw new Error('sentence editor in the light interface');
-    await p.getByRole('button', { name: 'Appareils' }).click();
-    const lamp = p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe salon' }) });
-    await lamp.getByRole('button', { name: 'Basculer' }).click();
-    await p.locator('article.card', { has: p.getByRole('heading', { name: 'Ventilateur', exact: true }) })
-      .getByRole('button', { name: /Lumière ventilateur/ }).waitFor({ timeout: 6000 });
-    await p.getByRole('button', { name: 'Console' }).click();
-    await p.locator('input').fill('ZbInfo');
-    await p.keyboard.press('Enter');
-    await p.waitForFunction(() => /Simulated/.test(document.querySelector('pre').textContent), null, { timeout: 3000 });
-    await p.getByRole('button', { name: 'Diagnostic' }).click();
-    await p.waitForSelector('dl');
+    await p.getByRole('button', { name: /^Appairer/ }).waitFor();
+    // Zigbee: the toggle's new state comes back through the event stream
+    const lamp = () => p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe salon' }) });
+    const before = /Power 1/.test((await lamp().innerText()).replace(/\n/g, ' '));
+    await lamp().getByRole('button', { name: 'Basculer' }).click();
+    await p.waitForFunction(on => {
+      const c = [...document.querySelectorAll('article.card')].find(a => a.textContent.includes('Lampe salon'));
+      return /Power 1/.test(c.innerText.replace(/\n/g, ' ')) === on;
+    }, !before, { timeout: 4000 });
+    // Tuya: switch and slider
+    const fan = p.locator('article.card', { has: p.getByRole('heading', { name: 'Ventilateur', exact: true }) });
+    await fan.getByRole('button', { name: 'Lumière ventilateur · éteint' }).click({ timeout: 6000 });
+    await fan.getByRole('button', { name: 'Lumière ventilateur · allumé' }).waitFor({ timeout: 4000 });
+    await fan.getByLabel('Vitesse').fill('4');
+    await p.waitForFunction(async t => {
+      const r = await (await fetch('http://localhost:8384/api/cmd?t=' + t + '&c=TuyaStatus%20Ventilateur')).json();
+      return r.TuyaStatus.Ventilateur.Dps['62'] === 4;
+    }, '0123456789abcdef0123456789abcdef', { timeout: 4000 });
+    await fan.getByRole('button', { name: 'Lumière ventilateur · allumé' }).click();             // back as it was
+    await fan.getByRole('button', { name: 'Lumière ventilateur · éteint' }).waitFor({ timeout: 4000 });
     await p.getByText(`v${VERSION} · local · lite`).waitFor();
+    await p.getByRole('button', { name: 'English' }).click();
+    await p.getByRole('button', { name: 'Toggle' }).first().waitFor({ timeout: 2000 });
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'lite.png') });
   });
   await test('valid GitHub copy', async p => {
@@ -313,6 +318,8 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
   await test('conflicts: two rule sets toggling the same light on the same event', async p => {
     await openFull(p);
     await p.getByRole('button', { name: 'Règles' }).click();
+    const off3 = (await rule(p, 3)).getByRole('button', { name: 'éteint' });         // Rule3 starts switched off
+    if (await off3.count()) { await off3.click(); await (await rule(p, 3)).getByRole('button', { name: 'allumé' }).waitFor({ timeout: 4000 }); }
     const same = 'on Button1#State=3 do Power2 toggle endon';
     for (const n of [1, 3]) {
       const r = await rule(p, n);
@@ -389,6 +396,34 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.getByRole('alert').filter({ hasText: /contrôle d'intégrité/ }).waitFor({ timeout: 10000 });
     const st = await (await fetch('http://localhost:8386/api/status?t=0123456789abcdef0123456789abcdef')).json();
     if (st.tasmoflow !== '0.0.9') throw new Error('version changed: ' + st.tasmoflow);
+  });
+  await test('update: not enough room is said before the download, with the sizes', async p => {
+    await reset(8386, '0.0.9', '&free=' + 30 * 1024);                     // 30 KB free, no .bak
+    await manifest(p, UPD, latest());
+    let fetched = false;
+    await p.route(TAPP_URL, r => { fetched = true; r.abort(); });
+    await p.goto('http://localhost:8082/tf');
+    await expectSource(p, 'local');
+    p.once('dialog', d => d.accept());
+    await p.getByRole('button', { name: 'Mettre à jour' }).click();
+    const need = Math.ceil((TAPP.length + 20 * 1024) / 1024);
+    await p.getByRole('alert').filter({ hasText: `Il faut ${need} Ko` }).filter({ hasText: '30 Ko sont disponibles' }).waitFor({ timeout: 10000 });
+    if (fetched) throw new Error('the .tapp was downloaded although it cannot fit');
+    await reset(8386, '0.0.9');
+  });
+  await test('update: the old .bak makes room when free space alone is short, and the update goes through', async p => {
+    await reset(8386, '0.0.9', '&restart=1&free=' + 30 * 1024 + '&bak=83069');   // 30 KB free + an 81 KB .bak
+    await p.route(CDN, r => r.fulfill(jsBody(APP)));
+    await manifest(p, UPD, latest());
+    await tappRoute(p);
+    await p.goto('http://localhost:8082/tf');
+    await expectSource(p, 'local');
+    p.once('dialog', d => d.accept());
+    await p.getByRole('button', { name: 'Mettre à jour' }).click();
+    await p.waitForFunction(v => window.TASMOFLOW && window.TASMOFLOW.source === 'github' && window.TASMOFLOW.version === v, VERSION, { timeout: 30000 });
+    const r = await (await fetch('http://localhost:8386/api/update_check?t=0123456789abcdef0123456789abcdef&size=1000')).json();
+    if (r.bak !== 83069 || r.tapp !== TAPP.length) throw new Error('after the update: ' + JSON.stringify(r));
+    await reset(8386, '0.0.9');
   });
   await test('update, test channel: another commit is offered, the same one is not', async p => {
     await p.route(CDN, r => r.fulfill(jsBody(APP)));

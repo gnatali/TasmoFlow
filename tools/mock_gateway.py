@@ -182,6 +182,17 @@ def rule_apply(n, text):
 # period during which every connection is cut; the new version comes out of the installed .tapp.
 STATE = {"version": (ROOT / "VERSION").read_text().strip(), "down_until": 0.0, "next_version": None,
          "restart_s": 2.0, "never": False, "new": b"", "total": 0}
+# its file system, for the room check of an update (bytes): free space, the installed .tapp, its .bak
+FS_DEFAULT = {"free": 180 * 1024, "tapp": 83069, "bak": 0}
+FS = dict(FS_DEFAULT)
+MARGIN = 20 * 1024
+
+
+def room(total):
+    """tf_update.be's room(): the new file needs `total` + 20 KB; a .bak can be deleted for it."""
+    stale = len(STATE["new"])
+    return {"free": FS["free"], "tapp": FS["tapp"], "bak": FS["bak"], "stale": stale, "need": total + MARGIN,
+            "room": FS["free"] + stale + FS["bak"] >= total + MARGIN}
 
 
 def version():
@@ -197,6 +208,11 @@ def is_down():
 
 def update_route(path, q, body):
     """/api/update*: the checks of tf_update.be. Returns (status, json)."""
+    if path == "/api/update_check":
+        total = int(q.get("size", "0") or 0)
+        if total <= 0 or total > 153600:
+            return 400, {"error": "size"}
+        return 200, {"ok": True, **room(total)}
     if path == "/api/update":
         if body is None:
             return 400, {"error": "method"}
@@ -204,6 +220,13 @@ def update_route(path, q, body):
         if off == 0:
             if total <= 0 or total > 153600:
                 return 400, {"error": "size"}
+            r = room(total)
+            if not r["room"]:
+                return 400, {"error": "space"}
+            FS["free"] += r["stale"]
+            if FS["free"] < r["need"]:          # the previous copy goes only when its room is needed
+                FS["free"] += FS["bak"]
+                FS["bak"] = 0
             STATE["new"], STATE["total"] = b"", total
         elif off != len(STATE["new"]):
             return 400, {"error": "offset"}
@@ -211,8 +234,10 @@ def update_route(path, q, body):
         if not data:
             return 400, {"error": "empty"}
         STATE["new"] += data
+        FS["free"] -= len(data)
         return 200, {"ok": True, "written": len(STATE["new"])}
     if path == "/api/update_abort":
+        FS["free"] += len(STATE["new"])
         STATE["new"], STATE["total"] = b"", 0
         return 200, {"ok": True}
     # /api/update_apply
@@ -223,8 +248,11 @@ def update_route(path, q, body):
         return 400, {"error": "format"}
     if hashlib.sha256(new).hexdigest() != q.get("sha256", "").lower():
         return 400, {"error": "hash"}
-    ver = re.search(rb'static var VERSION = "([^"]+)"', zipfile.ZipFile(io.BytesIO(new)).read("tasmoflow.be"))
+    ver = re.search(rb'static var VERSION\s*=\s*"([^"]+)"', zipfile.ZipFile(io.BytesIO(new)).read("tasmoflow.be"))
     STATE["next_version"] = ver.group(1).decode() if ver else STATE["version"]
+    FS["free"] += FS["bak"]                     # the old .bak goes, the installed .tapp becomes the .bak
+    FS["bak"], FS["tapp"] = FS["tapp"], len(new)
+    STATE["new"] = b""
     STATE["down_until"] = float("inf") if STATE["never"] else time.monotonic() + 1.5 + STATE["restart_s"]
     return 200, {"ok": True, "restart": True}
 
@@ -318,11 +346,12 @@ class Api(BaseHTTPRequestHandler):
             self.close_connection = True
             self.connection.close()
             return
-        if self.path.startswith("/__test/reset"):     # test hook: ?version=&restart=&never=1
+        if self.path.startswith("/__test/reset"):     # test hook: ?version=&restart=&never=1&free=&tapp=&bak=
             q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))
             STATE.update(version=q.get("version", (ROOT / "VERSION").read_text().strip()), next_version=None,
                          down_until=0.0, restart_s=float(q.get("restart", "2")), never=q.get("never") == "1",
                          new=b"", total=0)
+            FS.update({k: int(q.get(k, v)) for k, v in FS_DEFAULT.items()})
             self.json(200, {"ok": True})
             return
         if len(self.path) + 13 > 512:
@@ -358,7 +387,7 @@ class Api(BaseHTTPRequestHandler):
         if u.path == "/api/status":
             self.json(200, {"tasmoflow": version(), "device_name": self.server.name,
                             "firmware": {"Version": "16.0.0.2(zbgw03-matter)"}, "memory": {"heap_free": 62},
-                            "ufs_size_kb": 320, "ufs_free_kb": 180, "uptime_s": int(time.monotonic()),
+                            "ufs_size_kb": 320, "ufs_free_kb": FS["free"] // 1024, "uptime_s": int(time.monotonic()),
                             "zigbee": True, "zigbee_devices": len(DEVICES), "events_seq": seq, "feeds": 1,
                             "wd": "/.extensions/TasmoFlow.tapp#"})
         elif u.path == "/api/devices":

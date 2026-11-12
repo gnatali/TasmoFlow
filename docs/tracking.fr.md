@@ -9,6 +9,18 @@ Cahier des charges (en français, hors du dépôt) :
 
 ## État (9 novembre 2026)
 
+- **`.tapp` divisée par deux** (11 novembre 2026, branche `claude/tasmoflow-tapp-reduction-t5ofde`,
+  demande de Guillaume) : 83 069 octets en v0.2.0, **40 920 octets** maintenant (-51 % ; budget de
+  `pack_tapp.py` 41 534 octets, la moitié de la v0.2.0). L'interface légère ne garde que le
+  pilotage des appareils et la mise à jour (règles, console et diagnostic en sont sortis :
+  interface complète seulement), sans `preact/hooks` ; les fichiers Berry sont minifiés à
+  l'assemblage (la CI les compile et passe le test du parseur sur le `tf_http.be` minifié). **Fonctionne sur
+  la passerelle** (12 novembre, Guillaume). Ensuite le contrôle de place de la mise à jour, qui
+  demandait encore deux nouvelles copies plus 20 Ko, a été refait d'après les tailles réelles
+  (`/api/update_check`, taille de `latest.json`) : 21 tests de bout en bout passent, **à essayer sur
+  la passerelle** (point « v0.2, place pour la mise à jour » du plan de test ; la `.tapp` est à
+  installer une fois à la main, le code de mise à jour a changé). Détails :
+  [architecture](architecture.fr.md#interface-complète).
 - **v0.1 publiée** : tag `v0.1.0`, `.tapp` jointe à la release, interface publiée sur GitHub
   Pages (PR n° 1 à 3 fusionnées). Installée sur la passerelle : démarrage/arrêt du serveur,
   mémoire et interface légère après redémarrage vérifiés ; les autres points `[ ]` du plan de
@@ -53,6 +65,9 @@ Cahier des charges (en français, hors du dépôt) :
 | 9 nov. | Tous les points de la v0.0 validés, mémoire mesurée après `tasmota.gc()` ; tag v0.0.1 créé par Guillaume, GitHub Pages activé |
 | 9 nov. | v0.1 : **Preact + htm retenu** (même écran : 6,6 Ko gzip contre 6,3 Ko pour Lit, 5,4 Ko pour le prototype sans dépendance) ; interface assemblée avec esbuild (12,9 Ko gzip, puis 14,6 Ko avec Tuya) |
 | 9 nov. | v0.1 : **option B décidée** : interface complète sur GitHub Pages seulement (figée, SRI), interface légère (13,7 Ko gzip, appareils + console + diagnostic) dans la `.tapp` ; second point d'entrée esbuild des mêmes sources. Raison : `UfsFree` 148 Ko sur 320 Ko et une interface complète qui va grossir |
+| 12 nov. | Builds de test (`--dev`) : Berry minifié comme une release, mais sans budget de taille (la release de chaque commit reste contrôlée par la CI). Essayé sur un build : `.tapp` de test avec les sources telles quelles (77 Ko), abandonné à la demande de Guillaume |
+| 12 nov. | `.tapp` réduite vérifiée sur la passerelle (Guillaume). Le contrôle de place de la mise à jour ne suivait pas les tailles réelles (deux nouvelles copies plus 20 Ko) : maintenant `/api/update_check?size=` (taille de `latest.json`), avant le téléchargement puis au premier morceau, compare l'espace libre, la `.bak` et un `.new` resté à la nouvelle taille plus 20 Ko ; la `.bak` n'est supprimée qu'en cas de besoin. `.tapp` 40 920 octets. 21 tests de bout en bout |
+| 11 nov. | **`.tapp` divisée par deux** (83 069 à 39 807 octets) : interface légère réduite au pilotage des appareils et à la mise à jour (ses règles, sa console et son diagnostic sont partis : interface complète seulement) ; ses textes, styles et écrans séparés de ceux de la complète (`i18n_full.js`, `style_full.css`, `views_full.js`), plus de `preact/hooks` (les magasins d'état redessinent depuis la racine) ; Berry minifié par `pack_tapp.py` (contrôle des jetons), compilé et testé en CI ; budgets 41 534 octets (`.tapp`) et 14 Ko (`lite.js.gz`) |
 | 11 nov. | Bouton de mise à jour (décision : le navigateur relaie la `.tapp` depuis GitHub Pages) : manifestes `latest.json` / `dev/latest.json`, l'interface légère propose la mise à jour quand le canal a une version plus récente (builds de test : un commit différent), la passerelle contrôle taille et SHA-256 et se remplace (`tf_update.be`, `.bak` gardé), la page attend le redémarrage (120 s au plus). Passerelle simulée : 414 au-delà de 512 caractères au lieu de couper la connexion |
 | 11 nov. | v0.2 fusionnée (PR n° 5). Le tag `v0.2.0` créé sur github.com a fait échouer le job `release` (« Tag matches the VERSION file » : `VERSION` valait encore `0.1.0`) ; `VERSION` passée à `0.2.0`, il faut ensuite déplacer le tag sur le nouveau `main` |
 | 11 nov. | **Bouton de mise à jour validé sur la passerelle** (deux mises à jour de suite, l'ancien `.bak` remplacé la seconde fois, rien ne reste). Restent à essayer : la mémoire avant et après, la coupure de courant pendant l'envoi et un `sha256` faux |
@@ -89,8 +104,8 @@ Après `tasmota.gc()`, passerelle avec le pilote Tuya (9 novembre 2026) :
 
 Le budget de 15 Ko est tenu avec l'API des règles : **8 à 9 Ko au repos, 14 Ko cinq minutes après la fermeture de l'interface** (15 Ko en v0.1). Interface ouverte, le coût est de 32 Ko (25 Ko en v0.1) : `tf_rules.be` et le corps POST ajoutent 7 Ko tant que le serveur tourne. Le pilote Tuya demande 45 Ko libres pour démarrer : 52 Ko laissent 7 Ko de marge. `HeapUsed` de Berry revient à 39 Ko après la fermeture, comme en v0.1. Environ 6 Ko de mémoire libre ne sont toujours pas rendus après la première ouverture (75 à 70 Ko, comme en v0.1 : 75 à 69 Ko), cause inconnue (voir le point ouvert du plan de test).
 
-Cible : 15 Ko. Tailles : `TasmoFlow.tapp` 45 Ko (budget 150 Ko), `app.js.gz` 5,4 Ko (budget
-120 Ko).
+Cible : 15 Ko. Tailles (12 novembre 2026) : `TasmoFlow.tapp` 40,9 Ko (budget 41,5 Ko, la moitié
+des 83 Ko de la v0.2.0), `lite.js.gz` 13,6 Ko (budget 14 Ko), `app.js.gz` 26,4 Ko (budget 120 Ko).
 
 ## Décisions encore ouvertes
 

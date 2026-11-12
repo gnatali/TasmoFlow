@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { html } from './html.js';
 import { t, L, toggleLang } from './i18n.js';
-import { S, setTab, selectGateway } from './state.js';
+import { S, setTab } from './state.js';
 import cfg from './config.js';
 
-function Header() {
-  const s = S.use();
+// Picker: the gateway picker, in the full interface only (gateways.js)
+function Header({ Picker }) {
+  const s = S.get();
   const { lang } = L.get();
   const name = s.status && s.status.device_name;
   return html`<header>
     <h1>TasmoFlow</h1>
-    ${s.gws.length ? html`<select aria-label=${t('gateway')} value=${s.gw.id} onChange=${e => selectGateway(e.target.value)}>
-      <option value="local">${t('thisGateway')}</option>
-      ${s.gws.map(g => html`<option value=${g.id}>${g.name}</option>`)}
-    </select>` : null}
+    ${Picker ? html`<${Picker}/>` : null}
     ${name ? html`<span class="gw">${name}</span>` : null}
     <span class="sp"></span>
     <span class=${'badge ' + (s.live ? 'ok' : 'bad')}>${s.live ? t('live') : t('reconnecting')}</span>
@@ -22,21 +20,18 @@ function Header() {
   </header>`;
 }
 
-// tabs: { id: component }, in display order
-// an extra banner, put in by the interface that wants one (the light one: update of the .tapp)
-let Extra = null;
-export const registerBanner = c => { Extra = c; };
-
-export function createApp(tabs) {
+// tabs: { id: component }, in display order (no tab bar for a single one: the light interface)
+// Banner: an extra banner (the light interface: update of the .tapp); Picker: see Header
+export function createApp(tabs, { Banner, Picker } = {}) {
+  const ids = Object.keys(tabs);
   return function App() {
-    const { tab, error } = S.use();
-    L.use();
-    const View = tabs[tab];
+    const { tab, error } = S.get();
+    const View = tabs[tab] || tabs[ids[0]];
     return html`
-      <${Header}/>
-      <nav aria-label="TasmoFlow">${Object.keys(tabs).map(k => html`<button key=${k} aria-current=${tab === k ? 'page' : null} onClick=${() => setTab(k)}>${t(k)}</button>`)}</nav>
+      <${Header} Picker=${Picker}/>
+      ${ids.length > 1 ? html`<nav aria-label="TasmoFlow">${ids.map(k => html`<button key=${k} aria-current=${tab === k ? 'page' : null} onClick=${() => setTab(k)}>${t(k)}</button>`)}</nav>` : null}
       <main aria-live="polite">
-        ${Extra ? html`<${Extra}/>` : null}
+        ${Banner ? html`<${Banner}/>` : null}
         ${cfg.lite && !(cfg.update) ? html`<p class="lite" role="status">${t('liteBanner')} <button class="b" onClick=${() => location.reload()}>${t('retry')}</button></p>` : null}
         ${error ? html`<p class="badge bad">${t('error') + ' : ' + error}</p>` : null}
         <${View}/>

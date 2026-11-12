@@ -19,9 +19,11 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
 ## Decisions (do not reopen without Guillaume)
 
 - Interface served **by the gateway** (`/tf` page): the **full** interface is loaded from GitHub
-  Pages (pinned version + SRI), a **light** one (devices, console, diagnostics; same sources,
-  `app/src/main_lite.js`) is kept gzipped in the `.tapp` and served when GitHub is unreachable
-  (decision of 9 November 2026, see `docs/architecture.en.md`). **Firmware untouched**:
+  Pages (pinned version + SRI), a **light** one (device control and the update only, since
+  11 November 2026; same sources, `app/src/main_lite.js`) is kept gzipped in the `.tapp` and served
+  when GitHub is unreachable (decision of 9 November 2026, see `docs/architecture.en.md`). The
+  `.tapp` stays under half of v0.2.0's size (`pack_tapp.py` budget, 41,534 B): anything else goes
+  in the full interface only. **Firmware untouched**:
   TasmoFlow is a Berry extension (`.tapp`), no `USE_CORS`, no rebuild.
 - Second server on **port 8384** (`extension/tf_http.be`, copy of Tasmota's
   `webserver_async.be`) for the JSON API, CORS, gzip and Server-Sent Events.
@@ -51,8 +53,10 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
   `Build` workflow by hand on the branch (`workflow_dispatch`, job `preview`): it publishes the
   full interface at `.../TasmoFlow/dev/app.js` and a test `.tapp` (`dev/TasmoFlow.tapp`, no SRI).
   **Tell Guillaume when the `.tapp` must be installed again**: any change in `extension/`, in
-  `main_lite.js` or in what the light interface imports (`views.js` parts it uses, `state.js`,
-  `rules.js`...), or in the loader. An interface-only change needs no reinstall.
+  `main_lite.js` or in what the light interface imports (`views.js`, `tuya.js`, `tuya_model.js`,
+  `update.js`, `state.js`, `app.js`, `boot.js`, `i18n.js`, `store.js`, `style.css`...), or in the
+  loader. A change to the full interface's own modules (`*_full.*`, `rules*.js`, `gateways.js`)
+  needs no reinstall.
 - The update button installs a `.tapp` with the code **already installed**: a change to the update
   code (`tf_update.be`, the loader, `update.js`) needs the new `.tapp` installed by hand once before it
   can be tested by updating (a bug of the zip header check, `tohex()` in upper case, showed this).
@@ -60,7 +64,8 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
   `python3 tools/pack_tapp.py` (size budgets), `node tests/rules_model_test.js` (rule model),
   `node tests/e2e.js` (Playwright, simulated
   gateway; it builds first). CI also checks the Berry syntax and runs `tests/tf_http_test.be`
-  (request parser on standard Berry): this environment cannot compile Berry, so re-read Berry
+  (request parser on standard Berry), on the sources and on the `.tapp`'s minified copies: this
+  environment cannot compile Berry (building Berry here is refused), so re-read Berry
   diffs carefully.
 - Check Tasmota internals in its source (firmware commit `TASMOTA_REF` of the firmware
   repository's workflow) before relying on them; cite the file in `docs/architecture.en.md`.

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Application state: current gateway, devices, event stream.
+// Application state: current gateway, devices, event stream. Shared by both interfaces: what only
+// the full one shows (rules, other gateways, diagnostics) is loaded by its own modules, so the
+// light bundle (main_lite.js) does not carry it.
 import { createStore } from './store.js';
 import { client } from './api.js';
 import cfg from './config.js';
-import { loadRemotes, saveRemotes } from './remotes.js';
 import { indexConfig, MIN_HEAP_KB } from './tuya_model.js';
 
 const T0 = performance.now();
@@ -11,7 +12,7 @@ export const LOCAL = { id: 'local', name: '', api: cfg.api, token: cfg.token };
 
 export const S = createStore({
   tab: 'devices',
-  gws: loadRemotes(),       // other gateways: [{ id, name, api, token }]
+  gws: [],                  // other gateways: [{ id, name, api, token }] (full interface, gateways.js)
   gw: LOCAL,                // gateway shown
   status: null,
   devices: null,            // { "0x1234": { addr, name, model, ..., attrs: {} } }
@@ -34,7 +35,13 @@ export const cmd = c => api.cmd(c);
 export const get = (path, params) => api.get(path, params);
 export const post = (path, params, body) => api.post(path, params, body);
 export const current = gw => S.get().gw === gw;
-const fail = (gw, e) => { if (current(gw)) S.set({ error: e.message }); };
+export const fail = (gw, e) => { if (current(gw)) S.set({ error: e.message }); };
+
+// what a screen loads when it is shown, { tab: function }: registered by the full interface
+// (diagnostics, rules), so the light one does not carry it
+const loaders = {};
+export const onTab = l => Object.assign(loaders, l);
+const load = tab => { if (loaders[tab]) loaders[tab](); };
 
 export function loadStatus() {
   const gw = S.get().gw;
@@ -49,14 +56,6 @@ export function loadDevices() {
     list.forEach(d => { d.attrs = d.info || {}; devices[d.addr] = d; });
     if (current(gw)) S.set({ devices });
   }).catch(e => fail(gw, e));
-}
-
-export function loadRules() {
-  const gw = S.get().gw;
-  api.cmd('SetOption83').then(r => { if (current(gw)) S.set({ zbNames: /^(ON|1)$/i.test(String((r || {}).SetOption83)) }); })
-    .catch(() => {});
-  return api.get('/api/rules').then(rules => { if (current(gw)) S.set({ rules, error: null }); })
-    .catch(e => fail(gw, e));
 }
 
 // Local Tuya devices: state of the firmware's driver, devices, then (memory permitting) their
@@ -156,7 +155,7 @@ function start() {
     if (!current(gw)) return;
     S.set({ startMs: performance.now() - T0 });
     connectEvents();
-    if (S.get().tab === 'rules') loadRules();
+    if (S.get().tab !== 'diag') load(S.get().tab);   // diagnostics: the status was just read
     return loadTuya();
   }).catch(e => fail(gw, e));
 }
@@ -173,21 +172,7 @@ export function selectGateway(id) {
 
 export function setTab(tab) {
   S.set({ tab });
-  if (tab === 'diag') loadStatus();
-  if (tab === 'rules') loadRules();
-}
-
-export function addRemote(gw) {
-  const gws = [...S.get().gws, gw];
-  saveRemotes(gws);
-  S.set({ gws });
-}
-
-export function removeRemote(id) {
-  const gws = S.get().gws.filter(g => g.id !== id);
-  saveRemotes(gws);
-  if (S.get().gw.id === id) selectGateway('local');
-  S.set({ gws });
+  load(tab);
 }
 
 export const init = start;

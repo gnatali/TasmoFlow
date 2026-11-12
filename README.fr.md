@@ -27,9 +27,10 @@ eWeLink ZB-GW03 avec le firmware
 ## Ce qu'ajoute la v0.1 (en cours)
 
 - Interface reconstruite sur Preact + htm, compilée avec esbuild en deux paquets issus des mêmes
-  sources : la **complète** (14,9 Ko gzip, GitHub Pages) et une **légère** (13,7 Ko, dans la
-  `.tapp` : appareils, console, diagnostic) que la passerelle sert quand GitHub est
-  inaccessible.
+  sources : la **complète** (26,4 Ko gzip, GitHub Pages) et une **légère** (13,4 Ko, dans la
+  `.tapp` : pilotage des appareils et mise à jour seulement) que la passerelle sert quand GitHub
+  est inaccessible. Tout le reste (règles, console, diagnostic, passerelles) n'est que dans la
+  complète : la `.tapp` fait environ 40 Ko (83 Ko en v0.2.0).
 - Le serveur d'API du port 8384 ne tourne que pendant qu'une interface est ouverte (la RAM est
   la ressource critique).
 - Écran **Passerelles** : utiliser plusieurs passerelles depuis une seule interface (copier le
@@ -52,7 +53,9 @@ Le firmware n'est pas modifié. Fonctionnement : [docs/architecture.fr.md](docs/
 
    `npm run build` assemble l'interface (`app/src/`) en `dist/app.js` (complète, pour GitHub
    Pages) et `dist/lite.js` (légère, gardée dans la `.tapp`). `pack_tapp.py` produit
-   `dist/TasmoFlow.tapp` et affiche les tailles et leurs budgets.
+   `dist/TasmoFlow.tapp`, avec les fichiers Berry d'`extension/` minifiés (sans commentaires), et
+   affiche les tailles et leurs budgets (un build de test, `--dev` plus bas, est minifié lui aussi
+   mais sans budget de taille).
 
 2. Dans Tasmota : **Outils → Gestion du système de fichiers**, envoyer `dist/TasmoFlow.tapp`
    (à la racine, ou dans `/.extensions/`).

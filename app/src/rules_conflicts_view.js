@@ -10,7 +10,7 @@ const KIND = { cancel: 'rule_cCancel', contradict: 'rule_cContradict', duplicate
 
 // the list above the rule sets of the full interface
 export function ConflictBanner({ rules }) {
-  const s = S.use();
+  const s = S.get();
   const list = findConflicts(rules);
   if (!list.length) return null;
   return html`<div class="conflicts" role="status"><b>${t('rule_conflicts') + ' (' + list.length + ')'}</b>

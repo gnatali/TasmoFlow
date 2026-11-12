@@ -1,5 +1,7 @@
 # Request parser test of extension/tf_http.be, on standard Berry (no gateway needed)
-# Usage: berry -s tests/tf_http_test.be     (-s: strict mode, as Tasmota compiles)
+# Usage: berry -s tests/tf_http_test.be [file]     (-s: strict mode, as Tasmota compiles)
+#   file: the server to test, extension/tf_http.be by default; CI also tests the minified copy
+#   that tools/pack_tapp.py puts in the .tapp
 #
 # Feeds requests to a connection of the real server class through a fake TCP client, in
 # one piece and byte by byte, and checks the answer and what the handler received. A long
@@ -54,7 +56,8 @@ class fake_client
   end
 end
 
-var f = open("extension/tf_http.be")
+var args = global.contains('_argv') ? global._argv : nil    # a plain name is checked at compile time
+var f = open(args != nil && size(args) > 1 ? args[1] : "extension/tf_http.be")
 var tf_http = compile(f.read())()
 f.close()
 var srv = tf_http(8384)
