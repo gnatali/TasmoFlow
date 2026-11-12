@@ -1,6 +1,6 @@
 {
-  "version": "0.2.1",
-  "size": 41352,
-  "sha256": "a07a02ef1b595d86b1fbaaa1bd80ef78c84992da0ddcffee44dff3409be80b33",
-  "tapp": "v0.2.1/TasmoFlow.tapp"
+  "version": "0.2.0",
+  "size": 41500,
+  "sha256": "ca60e5442f76bafcea4782bb479f73b8ff7bfeb113638068ef8e0b7b23a13ded",
+  "tapp": "v0.2.0/TasmoFlow.tapp"
 }
