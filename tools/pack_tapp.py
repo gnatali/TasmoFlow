@@ -37,6 +37,8 @@ import re
 import sys
 import zipfile
 
+import version as tf_version
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXT = ROOT / "extension"
 APP = ROOT / "dist" / "app.js"      # built by `npm run build` from app/src/
@@ -179,7 +181,7 @@ def main():
     if args.cdn and not args.cdn.endswith("/"):
         args.cdn += "/"
 
-    version = (ROOT / "VERSION").read_text().strip()
+    version = tf_version.resolve()      # the git tag (tools/version.py)
     for f in (APP, LITE):
         if not f.exists():
             sys.exit(f"{f.relative_to(ROOT)} missing: run `npm ci && npm run build` first")

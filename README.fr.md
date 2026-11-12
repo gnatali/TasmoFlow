@@ -133,9 +133,14 @@ TasmoFlow gère trois familles d'appareils : Zigbee, Tuya Zigbee appairé à la 
 
 ## Publication
 
-À chaque tag `vX.Y.Z` (égal au contenu de `VERSION`), le workflow publie `TasmoFlow.tapp`
+À chaque tag `vX.Y.Z`, le workflow publie `TasmoFlow.tapp`
 dans une release et l'interface sous `https://gnatali.github.io/TasmoFlow/vX.Y.Z/`. Les
 versions précédentes restent en ligne.
+
+Le tag **est** la version : il n'y a pas de fichier de version à modifier. Le build la lit dans le tag
+(`tools/version.py`), donc la `.tapp`, l'interface et `latest.json` portent toujours la version du tag.
+Les builds qui ne sont pas un tag (pull request, `main`, local) portent la version du dernier tag, ou `0.0.0`
+si le clone n'a aucun tag (`TF_VERSION=X.Y.Z` en impose une).
 
 Créer le tag soit avec git (`git tag vX.Y.Z origin/main && git push origin vX.Y.Z` : le
 workflow crée la release), soit sur github.com par **Releases → Draft a new release → Choose a

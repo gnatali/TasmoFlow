@@ -6,9 +6,11 @@
 const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const VERSION = fs.readFileSync(path.join(ROOT, 'VERSION'), 'utf8').trim();
+// the version is the git tag, resolved in one place (tools/version.py)
+const VERSION = execFileSync('python3', [path.join(__dirname, 'version.py')], { encoding: 'utf8' }).trim();
 
 // `import css from './x.css'` gives the minified CSS as a string
 const cssText = {

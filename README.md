@@ -132,9 +132,14 @@ and local Tuya (Wi-Fi and Tuya gateway), the latter through the firmware's Tuya 
 
 ## Publishing
 
-Each `vX.Y.Z` tag (equal to the content of `VERSION`) publishes `TasmoFlow.tapp` in a release
+Each `vX.Y.Z` tag publishes `TasmoFlow.tapp` in a release
 and the interface under `https://gnatali.github.io/TasmoFlow/vX.Y.Z/`. Older versions stay
 online.
+
+The tag **is** the version: there is no version file to bump. The build reads it from the tag
+(`tools/version.py`), so the `.tapp`, the interface and `latest.json` always carry the tag's version.
+Builds that are not a tag (pull request, `main`, local) carry the latest tag's version, or `0.0.0`
+when the clone has no tag (`TF_VERSION=X.Y.Z` forces one).
 
 Create the tag either with git (`git tag vX.Y.Z origin/main && git push origin vX.Y.Z`: the
 workflow creates the release), or on github.com with **Releases → Draft a new release → Choose
