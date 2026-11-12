@@ -122,6 +122,13 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     }, '0123456789abcdef0123456789abcdef', { timeout: 4000 });
     await fan.getByRole('button', { name: 'Lumière ventilateur · allumé' }).click();             // back as it was
     await fan.getByRole('button', { name: 'Lumière ventilateur · éteint' }).waitFor({ timeout: 4000 });
+    // a name with a comma goes by its id; no colour picker in the light interface
+    const tv = p.locator('article.card', { has: p.getByRole('heading', { name: 'Salon, TV', exact: true }) });
+    await tv.getByRole('button', { name: 'TV · éteint' }).click();
+    await tv.getByRole('button', { name: 'TV · allumé' }).waitFor({ timeout: 4000 });
+    await tv.getByRole('button', { name: 'TV · allumé' }).click();
+    await tv.getByRole('button', { name: 'TV · éteint' }).waitFor({ timeout: 4000 });
+    if (await p.locator('input[type=color]').count()) throw new Error('colour picker in the light interface');
     await p.getByText(`v${VERSION} · local · lite`).waitFor();
     await p.getByRole('button', { name: 'English' }).click();
     await p.getByRole('button', { name: 'Toggle' }).first().waitFor({ timeout: 2000 });
@@ -459,8 +466,94 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     const door = p.locator('article.card', { has: p.getByRole('heading', { name: 'Entrée-Porche' }) });
     await door.getByText('déconnecté').waitFor({ timeout: 2000 });
     const lamp = p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe bureau' }) });
-    await lamp.getByLabel('Intensité').waitFor();
-    await lamp.getByLabel('Température de couleur').waitFor();
+    // light2, white only: brightness and colour temperature in one panel (no tabs, no wheel); a change
+    // while the lamp is in a scene sends the white mode first
+    const lampDps = () => p.evaluate(async t => {
+      const r = await (await fetch('http://localhost:8384/api/cmd?t=' + t + '&c=TuyaStatus%20Lampe%20bureau')).json();
+      return r.TuyaStatus['Lampe bureau'].Dps;
+    }, '0123456789abcdef0123456789abcdef');
+    const lampUntil = async (f, what) => { for (let i = 0; i < 40; i++) { if (f(await lampDps())) return; await p.waitForTimeout(100); } throw new Error(what + ' ' + JSON.stringify(await lampDps())); };
+    await lamp.getByLabel('Luminosité').waitFor();
+    const dial = lamp.getByRole('slider', { name: 'Température de couleur' });
+    await dial.waitFor();
+    if (await lamp.getByRole('tab').count() || await lamp.getByRole('slider', { name: 'Teinte' }).count()) throw new Error('light2 shows colour controls');
+    const lb = await dial.boundingBox();
+    const arc = (deg, k = 0.4) => [lb.x + lb.width / 2 + Math.sin(deg * Math.PI / 180) * lb.width * k, lb.y + lb.height / 2 - Math.cos(deg * Math.PI / 180) * lb.height * k];
+    await p.mouse.click(...arc(0));                                          // top of the open ring: 50 %
+    await lampUntil(d => d['23'] === 500, 'colour temperature at the top of the arc');
+    await p.mouse.click(...arc(100));                                        // right side, past the middle: warm to cool
+    await lampUntil(d => d['23'] > 700, 'colour temperature on the right');
+    await p.mouse.click(...arc(160));                                        // in the gap, right of centre: the cool end
+    await lampUntil(d => d['23'] === 1000, 'gap snaps to the cool end');
+    await p.mouse.click(...arc(-160));                                       // in the gap, left of centre: the warm end
+    await lampUntil(d => d['23'] === 0, 'gap snaps to the warm end');
+    await lamp.locator('[role=slider][aria-valuenow="0"]').waitFor({ timeout: 4000 });   // the event came back: the card shows it
+    await dial.focus();
+    await p.keyboard.press('ArrowRight');                                    // +5 %
+    await lampUntil(d => d['23'] === 50, 'arrow key');
+    await lamp.getByLabel('Luminosité').fill('50');
+    await lampUntil(d => d['22'] === 500, 'light2 brightness');
+    await p.evaluate(async t => { await fetch('http://localhost:8384/api/cmd?t=' + t + '&c=' + encodeURIComponent('TuyaSend Lampe bureau,21,"scene"')); }, '0123456789abcdef0123456789abcdef');
+    await lampUntil(d => d['21'] === 'scene', 'scene mode set');
+    await p.waitForTimeout(800);                                             // the card learns the new mode from the event stream
+    await lamp.getByLabel('Luminosité').fill('20');                          // leaves the scene for white (20 % of 1-100 = raw 200)
+    await lampUntil(d => d['21'] === 'white' && d['22'] === 200, 'white mode then brightness');
+    // light3, like the Tuya app: tabs White / Colour follow the device's mode; in colour, a hue wheel and
+    // two sliders (colour_data_v2 = hhhhssssvvvv); in white, the brightness
+    const garland = p.locator('article.card', { has: p.getByRole('heading', { name: 'Guirlande', exact: true }) });
+    const dps = () => p.evaluate(async t => {
+      const r = await (await fetch('http://localhost:8384/api/cmd?t=' + t + '&c=TuyaStatus%20Guirlande')).json();
+      return r.TuyaStatus.Guirlande.Dps;
+    }, '0123456789abcdef0123456789abcdef');
+    const until = async (f, what) => { for (let i = 0; i < 40; i++) { if (f(await dps())) return; await p.waitForTimeout(100); } throw new Error(what + ' ' + JSON.stringify(await dps())); };
+    const tab = n => garland.getByRole('tab', { name: n });
+    if ((await tab('Couleur').getAttribute('aria-selected')) !== 'true') throw new Error('colour tab not selected in colour mode');
+    const wheel = garland.getByRole('slider', { name: 'Teinte' });
+    const box = await wheel.boundingBox();
+    const ring = (deg) => [box.x + box.width / 2 + Math.cos(deg * Math.PI / 180) * box.width * 0.4, box.y + box.height / 2 - Math.sin(deg * Math.PI / 180) * box.height * 0.4];
+    await p.mouse.click(...ring(0));                                         // right: hue 0, saturation and value kept
+    await until(d => d['24'] === '000003e803e8' && d['21'] === 'colour', 'hue 0');
+    await garland.locator('[role=slider][aria-valuenow="0"]').waitFor({ timeout: 4000 });
+    // no flicker: the device's event comes 0.4 s after the command (simulator), the card keeps the new hue meanwhile
+    await p.evaluate(() => { window.__hues = []; const w = document.querySelector('[aria-label=Teinte]');
+      new MutationObserver(() => window.__hues.push(w.getAttribute('aria-valuenow') + '@' + Math.round(performance.now() % 100000))).observe(w, { attributes: true, attributeFilter: ['aria-valuenow'] }); });
+    await p.mouse.click(...ring(90));                                        // top: hue 90
+    await until(d => d['24'] === '005a03e803e8', 'hue 90');
+    await garland.locator('[role=slider][aria-valuenow="90"]').waitFor({ timeout: 4000 });   // the event came back: the card shows it
+    await p.waitForTimeout(1200);
+    const hues = await p.evaluate(() => window.__hues);
+    if (!hues.length || hues.some(h => !h.startsWith('90@'))) throw new Error('hue flickers: ' + hues);
+    await garland.getByLabel('Saturation').fill('50');
+    await until(d => d['24'] === '005a01f403e8', 'saturation 50 %');
+    await garland.getByText('50 %').first().waitFor({ timeout: 4000 });
+    await garland.getByLabel('Luminosité').fill('50');
+    await until(d => d['24'] === '005a01f4' + (500).toString(16).padStart(4, '0'), 'value 50 %');
+    await tab('Blanc').click();                                              // white: the tab follows the mode the device reports
+    await until(d => d['21'] === 'white', 'white mode');
+    await tab('Blanc').and(p.locator('[aria-selected=true]')).waitFor({ timeout: 4000 });
+    await garland.getByLabel('Luminosité').fill('50');                       // white brightness, DP 22 (10..1000)
+    await until(d => d['22'] === 500, 'white brightness');
+    if (await garland.getByRole('slider', { name: 'Teinte' }).count()) throw new Error('hue wheel in the white tab');
+    await tab('Couleur').click();
+    await until(d => d['21'] === 'colour', 'back to colour mode');
+    // lamp off: the options are hidden, the power button stays; on again: they are back
+    await garland.getByRole('button', { name: 'Guirlande · allumé' }).click();
+    await garland.getByRole('button', { name: 'Guirlande · éteint' }).waitFor({ timeout: 4000 });
+    if (await garland.getByRole('tab').count() || await garland.getByRole('slider').count()) throw new Error('options shown while the lamp is off');
+    await garland.getByRole('button', { name: 'Guirlande · éteint' }).click();
+    await garland.getByRole('tab', { name: 'Couleur' }).waitFor({ timeout: 4000 });
+    await lamp.getByRole('button', { name: 'Lampe bureau · allumé' }).click();
+    await lamp.getByRole('button', { name: 'Lampe bureau · éteint' }).waitFor({ timeout: 4000 });
+    if (await lamp.getByRole('slider').count()) throw new Error('light2 options shown while the lamp is off');
+    await lamp.getByRole('button', { name: 'Lampe bureau · éteint' }).click();
+    await lamp.getByRole('slider', { name: 'Température de couleur' }).waitFor({ timeout: 4000 });
+    // a name with a comma: controlled by its id; without a known id: readings only, no control
+    const tv = p.locator('article.card', { has: p.getByRole('heading', { name: 'Salon, TV', exact: true }) });
+    await tv.getByRole('button', { name: 'TV · éteint' }).click();
+    await tv.getByRole('button', { name: 'TV · allumé' }).waitFor({ timeout: 4000 });
+    const kitchen = p.locator('article.card', { has: p.getByRole('heading', { name: 'Cuisine, bas', exact: true }) });
+    await kitchen.waitFor();
+    if (await kitchen.getByRole('button').count()) throw new Error('a device that cannot be addressed offers a control');
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'tuya.png'), fullPage: true });
   });
   await test('drivers starting (full): notes, functions off, looks again by itself, then on', async p => {

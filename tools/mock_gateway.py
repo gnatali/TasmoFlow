@@ -59,6 +59,9 @@ TUYA = {
     "Lampe bureau": {"Connected": True, "Ip": "192.168.1.40", "Version": "3.3", "Dps": {"20": True, "21": "white", "22": 500, "23": 300}},
     "Pince": {"Connected": True, "Ip": "192.168.1.80", "Version": "3.5", "Dps": {"133": 592, "131": 1234}},
     "Entrée-Porche": {"Connected": False, "Ip": "192.168.1.174", "Version": "3.3", "Dps": {}},
+    "Guirlande": {"Connected": True, "Ip": "192.168.1.50", "Version": "3.4", "Dps": {"20": True, "21": "colour", "22": 800, "24": "00f003e803e8"}},
+    "Salon, TV": {"Connected": True, "Ip": "192.168.1.60", "Version": "3.3", "Dps": {"1": False}},
+    "Cuisine, bas": {"Connected": True, "Ip": "192.168.1.61", "Version": "3.3", "Dps": {"1": False}},
 }
 TUYA_CONF = {"devices": [
     {"name": "Ventilateur", "id": "00000000000000fan001", "key": "***", "ip": "192.168.1.20", "version": "3.5",
@@ -69,6 +72,12 @@ TUYA_CONF = {"devices": [
     {"name": "Pince", "id": "00000000000000pinc01", "key": "***", "ip": "192.168.1.80", "version": "3.5",
      "sensors": {"Total puissance": [133, 1, "W"], "Total energie": [131, 100, "kWh"]}},
     {"name": "Entrée-Porche", "id": "00000000000000port01", "key": "***", "ip": "192.168.1.174", "version": "3.3"},
+    {"name": "Guirlande", "id": "00000000000000gui001", "key": "***", "ip": "192.168.1.50", "version": "3.4",
+     "matter": [{"ep": "Guirlande", "type": "light3", "dp": 20, "dp_mode": 21, "dp_bri": 22, "dp_colour": 24}]},
+    {"name": "Salon, TV", "id": "00000000000000stv001", "key": "***", "ip": "192.168.1.60", "version": "3.3",
+     "matter": [{"ep": "TV", "type": "relay", "dp": 1}]},
+    {"name": "Cuisine, bas", "key": "***", "ip": "192.168.1.61", "version": "3.3",   # no id: cannot be addressed
+     "matter": [{"ep": "Bas", "type": "relay", "dp": 1}]},
 ]}
 
 events = []
@@ -119,7 +128,13 @@ def tuya_command(c):
     if word == "TuyaSend":
         name, _, rest = arg.partition(",")
         dp, _, value = rest.partition(",")
-        d = TUYA.get(name)
+        # like the driver's find_node: the name (any case) or the device id; the argument is cut at
+        # the first two commas, so a name with a comma never matches
+        key = name.strip().lower()
+        real = next((n for n in TUYA if n.lower() == key), None)
+        if real is None:
+            real = next((c["name"] for c in TUYA_CONF["devices"] if c.get("id") == key), None)
+        d = TUYA.get(real)
         if d is None:
             return {"TuyaSend": "Unknown device"}
         if not d["Connected"]:
@@ -129,9 +144,13 @@ def tuya_command(c):
                 return {"TuyaSend": "toggle: DP not boolean"}
             new = not d["Dps"][dp]
         else:
-            new = json.loads(value)
+            try:
+                new = json.loads(value)
+            except ValueError:      # not JSON: the driver takes the text as it is (`colour`)
+                new = value
         d["Dps"][dp] = new
-        push_tuya(name, {dp: new})
+        # a real driver reports the new value a moment after the command (network round trip)
+        threading.Timer(0.4, push_tuya, (real, {dp: new})).start()
         return {"TuyaSend": "Done"}
     return None
 

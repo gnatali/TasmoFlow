@@ -16,8 +16,7 @@ Specification (French, outside the repository):
   at packing (CI compiles them and runs the parser test on the minified `tf_http.be`). **Works on the
   gateway** (12 November, Guillaume). Then the update's room check, which still asked for two new
   copies plus 20 KB, was redone from the real sizes (`/api/update_check`, size from `latest.json`):
-  21 end-to-end tests pass, **to try on the gateway** (test plan item "v0.2, update room"; the
-  `.tapp` must be installed by hand once, the update code changed). Details: [architecture](architecture.en.md#full-interface-on-github-light-interface-on-the-gateway).
+  21 end-to-end tests pass, **checked on the gateway** (12 November, Guillaume). Details: [architecture](architecture.en.md#full-interface-on-github-light-interface-on-the-gateway).
 - **v0.1 released**: tag `v0.1.0`, `.tapp` attached to the release, interface published on GitHub
   Pages (PRs #1 to #3 merged). Installed on the gateway: server start/stop, memory and the
   light interface after a restart checked; the other `[ ]` items of the test plan are left.
@@ -35,10 +34,13 @@ Specification (French, outside the repository):
 - [PR #1](https://github.com/gnatali/TasmoFlow/pull/1) merged (tracking files, `.claude/rules/`).
 - **v0.1 (control)**: Preact + htm interface, API server on demand, Gateways screen, Tuya
   devices in the dashboard (details below).
-- **Long URL crash fixed in the code** (10 November, branch `ccr-77cdec39-duy9lp`): cause found in
+- **Long URL crash fixed** (10 November, branch `ccr-77cdec39-duy9lp`): cause found in
   Tasmota's source (the `re` matcher recurses once per URI character and overflows the 8 KB loop
-  stack); `tf_http.be` now parses requests with `string.find()`. To check on the gateway with a
-  test build (`.tapp` to install again): see the long URL item of the test plan.
+  stack); `tf_http.be` now parses requests with `string.find()`. **Checked on the gateway**
+  (12 November, Guillaume).
+- **Checked on the gateway on 12 November** (Guillaume): update room check, drivers detected at
+  opening, long URLs, port 8384 closed and listened to again. The 6 KB of free heap not given back
+  after the first opening are **not pursued** (Guillaume's decision).
 - **Next**: work through the `[ ]` items of the
   [test plan](architecture.en.md#test-plan-on-the-gateway) on the ZB-GW03 (v0.1 and the new v0.2
   ones). Memory with the rule API measured on 11 November (below).
@@ -61,6 +63,12 @@ Specification (French, outside the repository):
 | 9 Nov | v0.1: **option B decided**: full interface on GitHub Pages only (pinned, SRI), light interface (13.7 KB gzipped, devices + console + diagnostics) in the `.tapp`; second esbuild entry point of the same sources. Reason: `UfsFree` 148 KB of 320 KB and a full interface that will grow |
 | 12 Nov | **Drivers detected at opening** (asked by Guillaume): `S.drivers` (`zigbee`, `tuya`: running, starting, disabled, absent), `zigbee_state` added to `/api/status`; a driver that is not running has its functions off with a note. Full interface: looks again every 5 s while a driver starts (2 minutes at most) and turns it on by itself; light interface: off in every case, asks to reload the page, no loop. `.tapp` 41,352 B (budget 41,534). 24 end-to-end tests. **The `.tapp` must be installed again** (`extension/` and light interface changed); to try on the gateway (test plan item "drivers at opening") |
 | 12 Nov | Test builds (`--dev`): Berry minified as in a release, but no size budget (the release build of each commit is still checked by CI). Tried for one build: test `.tapp` with the sources as they are (77 KB), dropped at Guillaume's request |
+| 12 Nov | **Verified on the gateway** (Guillaume, test build 78): `light3` tabs, wheel and sliders, `light2` arc dial, brightness 1-100 %, held value without flicker, options hidden while the lamp is off or disconnected, names with a comma, light-interface dimmer. Left for v0.1: power cut during the update, wrong `sha256`, `TuyaConfig` memory (32 KB) |
+| 12 Nov | `light2` / `light3` panel: a value just set stays on screen until the device reports it (3 s at most), no more flicker new / old / new; options hidden while the lamp is off or disconnected; the simulator now answers 0.4 s late. Full interface only |
+| 12 Nov | Colour temperature (DP 23) as an open arc dial (270 degrees, warm to cool) in the `light2` panel and in the White tab of a `light3` with `dp_ct`; full interface only, no `.tapp` to install again for it |
+| 12 Nov | `light2` panel like `light3` (brightness + warm-to-cool colour temperature, white mode sent first out of a scene) and brightness sliders from 1 % to 100 % (never 0, like the Tuya app), also in the light interface: the `.tapp` must be installed again (41,457 B, 77 B left) |
+| 12 Nov | v0.1 leftovers written: colour of the `light3` bindings (full interface only, `tuya_colour.js` plugged in through `EXTRA.refine`; redone in the Tuya app's layout: tabs White / Colour following the device's mode, hue wheel, saturation and brightness sliders, brightness in White, no colour temperature without `dp_ct`) and Tuya devices whose name has a comma (addressed by their `id`, `sendName`). Simulated gateway: a `light3`, two devices with a comma. 24 end-to-end tests, 24 unit checks. The `.tapp` must be installed again; two new items in the test plan |
+| 12 Nov | **Checked on the gateway** (Guillaume): update room check, drivers at opening, long URLs, port 8384 closed and listened to again. The 6 KB of heap not given back after the first opening: dropped, no more investigation |
 | 12 Nov | **`VERSION` file removed, the git tag is the only source of the version** (the `release` job kept failing on a tag that differed from the file). `tools/version.py` resolves it (`TF_VERSION`, release tag, latest tag, `0.0.0`); the workflow fetches the tags and rebuilds `dist/` after the tests, which use a fixed version; no `.tapp` to install again (`extension/` unchanged) |
 | 12 Nov | Halved `.tapp` checked on the gateway (Guillaume). The room check of the update did not follow the real sizes (two new copies plus 20 KB): now `/api/update_check?size=` (size from `latest.json`) before the download, and on the first piece, counts the free space, the `.bak` and a leftover `.new` against the new size plus 20 KB; the `.bak` is deleted only when needed. `.tapp` 40,920 B. 21 end-to-end tests |
 | 11 Nov | **`.tapp` halved** (83,069 to 39,807 B): light interface reduced to device control and the update (its rules, console and diagnostics left: full interface only); its texts, styles and screens split from the full interface's (`i18n_full.js`, `style_full.css`, `views_full.js`), no `preact/hooks` (stores render again from the root); Berry minified by `pack_tapp.py` (token check), compiled and tested in CI; budgets 41,534 B (`.tapp`) and 14 KB (`lite.js.gz`) |
@@ -98,10 +106,10 @@ After `tasmota.gc()`, gateway running the Tuya driver (9 November 2026):
 | **v0.2** step 1, interface open (10 November) | 52 KB | 55 KB | 32 KB |
 | **v0.2** step 1, 5 minutes after closing it (11 November, two runs) | 70 KB, 70 KB | 39 KB, 39 KB | **14 KB** |
 
-The budget of 15 KB holds with the rule API: **8 to 9 KB at rest, 14 KB five minutes after the interface was closed** (15 KB in v0.1). With an interface open the cost is 32 KB (25 KB in v0.1): `tf_rules.be` and the POST body add 7 KB while the server runs. The Tuya driver needs 45 KB free to start: 52 KB leaves 7 KB. Berry `HeapUsed` is back at 39 KB after closing, as in v0.1. About 6 KB of free heap are still not given back after the first opening (75 to 70 KB, same as v0.1: 75 to 69 KB), cause unknown (see the open point in the test plan).
+The budget of 15 KB holds with the rule API: **8 to 9 KB at rest, 14 KB five minutes after the interface was closed** (15 KB in v0.1). With an interface open the cost is 32 KB (25 KB in v0.1): `tf_rules.be` and the POST body add 7 KB while the server runs. The Tuya driver needs 45 KB free to start: 52 KB leaves 7 KB. Berry `HeapUsed` is back at 39 KB after closing, as in v0.1. About 6 KB of free heap are still not given back after the first opening (75 to 70 KB, same as v0.1: 75 to 69 KB), cause unknown and **not pursued** (decision of 12 November 2026).
 
-Target: 15 KB. Sizes (12 November 2026): `TasmoFlow.tapp` 40.9 KB (budget 41.5 KB, half of
-v0.2.0's 83 KB), `lite.js.gz` 13.6 KB (budget 14 KB), `app.js.gz` 26.4 KB (budget 120 KB).
+Target: 15 KB. Sizes (12 November 2026): `TasmoFlow.tapp` 41.4 KB (41,457 B, budget 41.5 KB, half of
+v0.2.0's 83 KB: **77 B left**), `lite.js.gz` 14.1 KB (budget 14 KB), `app.js.gz` 28.6 KB (budget 120 KB).
 
 ## Decisions still open
 
@@ -121,18 +129,19 @@ Done in the code and the simulated gateway (see the [architecture](architecture.
    separate with the Berry console: the Tuya driver keeping data after `TuyaConfig` /
    `TuyaStatus` (run them by hand, then `Br tasmota.gc()`), modules loaded at first use
    (`re`, no longer used by `tf_http.be` since 10 November; `introspect`, `sys`), or a reference
-   still holding the `tf_http` class.
+   still holding the `tf_http` class. **Dropped on 12 November 2026**, no more investigation.
 3. **Tuya devices in the dashboard** (F7.1 to F7.3): switches, dimmers, colour temperature, fan
    speed, readings, live updates, hidden without the driver.
 4. **Several gateways** (F1): Gateways screen, link to copy, wake of a stopped server.
 
 Left for v0.1 (small):
 
-- **Colour of `light3`** bindings (`colour_data_v2`, `hhhhssssvvvv`): not offered yet.
-- **Tuya sub-device names** with a comma, which `TuyaSend` cannot address.
+- **`light3` panel** (`colour_data_v2`): **written** (12 November 2026) like the Tuya app (tabs White / Colour, hue wheel, saturation and brightness), full interface only (`tuya_colour.js`), **verified on the gateway** (12 November 2026), with the `light2` arc dial, the held value and the options hidden while the lamp is off.
+- **Tuya names with a comma**: **written** (12 November 2026): such a device goes by its `id` (Wi-Fi devices and Tuya gateways); a sub-device of a gateway has none and shows its readings only. **Verified on the gateway** (12 November 2026). The `.tapp` had to be installed again (`tuya.js` and `tuya_model.js` are in the light interface).
 - **The version is the git tag** (12 November 2026, no more `VERSION` file): nothing to bump before tagging.
-- **Checks on the gateway**: the `[ ]` items marked v0.1 in the test plan, in particular that
-  the port 8384 `tcpserver` can be closed and listened to again, and `TuyaConfig` memory use.
+- **Checks on the gateway**: the `[ ]` items marked v0.1 in the test plan (the port 8384
+  `tcpserver` closing and listening again was checked on 12 November), in particular `TuyaConfig`
+  memory use.
 
 **Agreed on 11 November 2026, to do later** (not started): a **simple guided mode** for the rule dialog (pick a device, say what happens to it in words, pick what to do), where Zigbee events are learned by pressing the button (the interface listens to the event stream and writes the trigger from what it just saw).
 
@@ -147,10 +156,10 @@ conflicts) are written and tried on the gateway in part, see the test plan.
 ## Points to check
 
 - **Long URL restarts the gateway** (port 8384, request line of 152 characters or more): cause
-  found and fixed in the code (10 November, see
+  found and fixed (10 November), **checked on the gateway on 12 November** (see
   [Request parsing without regular expressions](architecture.en.md#request-parsing-without-regular-expressions)
-  and [investigations/long-url-crash.md](investigations/long-url-crash.md)). Left: the check on
-  the gateway (test plan), the simulated gateway now answers 414 above 512 characters like the real one.
+  and [investigations/long-url-crash.md](investigations/long-url-crash.md)). Nothing left; the
+  simulated gateway answers 414 above 512 characters like the real one.
 
 - Writing a DP of a Tuya Zigbee device (TS0601, `EF00` cluster) with `ZbSend`: to try on a real
   device (needed for v0.3).

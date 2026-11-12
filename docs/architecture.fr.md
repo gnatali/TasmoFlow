@@ -188,7 +188,7 @@ Comment le paquet léger reste petit, avec les mêmes sources :
 
 - `main_lite.js` n'importe que `views.js` (appareils), `tuya.js` et `update.js` ; les écrans de
   l'interface complète sont dans leurs propres modules (`rules*.js`, `gateways.js`,
-  `views_full.js`), avec leurs textes (`i18n_full.js`, ajoutés par `addTexts()`) et leurs styles
+  `tuya_colour.js`, `views_full.js`), avec leurs textes (`i18n_full.js`, ajoutés par `addTexts()`) et leurs styles
   (`style_full.css`). Ce qu'un écran charge à son ouverture est enregistré par `main.js`
   (`onTab()`), de même que le choix de la passerelle dans l'en-tête.
 - Pas de `preact/hooks` dans le paquet léger : les magasins d'état (`store.js`) n'ont plus de
@@ -433,16 +433,62 @@ Les contrôles viennent des liaisons Matter de `tuya.json` (`controlsFor` dans
 | `type` de la liaison | Contrôles |
 | --- | --- |
 | `relay`, `relay_power` | interrupteur sur `dp` (1 par défaut) ; `relay_power` : mesures de puissance, tension, courant (`dp_power`, `div_power`...) |
-| `light0` à `light3` | interrupteur sur `dp` (20 par défaut) ; `light1`+ : variateur sur `dp_bri` (22, de `bri_min` 10 à `bri_max` 1000, affiché 0-100 %) ; `light2` : température de couleur sur `dp_ct` (23, 0-1000) |
+| `light0` à `light3` | interrupteur sur `dp` (20 par défaut) ; `light1`+ : variateur sur `dp_bri` (22, de `bri_min` 10 à `bri_max` 1000, affiché 1-100 % comme l'application Tuya, brut 10 = 1 %, jamais 0) ; `light2` : température de couleur sur `dp_ct` (23, 0-1000) |
 | `fan` | interrupteur sur `dp` (60) et vitesse sur `dp_speed` (62, de `speed_min` 1 à `speed_max` 6) |
 | `temp`, `humidity` | mesure sur `dp`, divisée par `div` (10) |
 | `sensors` (appareil) | une mesure par libellé : `[dp, diviseur, unité]` |
 | aucune | `toggle` sur chaque DP booléen |
 
 `TuyaSend <appareil>,<dp>,toggle` inverse un interrupteur ; les curseurs envoient la valeur
-brute. L'état affiché est celui que l'appareil renvoie (pas d'affichage optimiste). La couleur
-des `light3` n'est pas encore proposée. Un nom d'appareil qui contient une virgule ne peut pas
-être adressé par `TuyaSend`.
+brute. L'état affiché est celui que l'appareil renvoie (pas d'affichage optimiste).
+
+**Panneau `light3`** (interface complète seulement, `app/src/tuya_colour.js`, branché sur les cartes par
+`EXTRA.refine` de `tuya.js` ; l'interface légère ne l'embarque pas, pour garder sa taille, et garde
+l'interrupteur et le curseur de luminosité blanche), présenté comme l'application Tuya. **Onglets Blanc /
+Couleur** : ils suivent le mode que l'appareil signale (`dp_mode`, 21 : `white` ou `colour` ; pas
+d'affichage optimiste) ; un onglet envoie le mode (`TuyaSend <appareil>,21,white|colour`) ; un autre
+mode (scène, musique) ou aucun connu ne sélectionne aucun onglet et montre le contenu blanc. **Blanc** :
+curseur de luminosité sur `dp_bri` (de `bri_min` à `bri_max`, affiché en %), plus un curseur de
+température de couleur en cadran d'arc (voir `light2`) seulement si la liaison porte elle-même `dp_ct` (une `light3` comme les lampes
+`Pergola` n'a pas de DP 23 : pas de contrôle qui ne fait rien). **Couleur** : une **roue de teinte**
+(teinte 0 à 3 heures, sens inverse des aiguilles comme dans l'application Tuya ; le repère suit le
+pointeur, la couleur part au relâchement ; les flèches le déplacent de 5 degrés) et deux curseurs,
+luminosité (la valeur de la couleur, 10 à 1000) et saturation (0 à 1000). La couleur est `dp_colour` (24),
+`colour_data_v2` = `hhhhssssvvvv` en hexadécimal (teinte 0 à 360, saturation et valeur 0 à 1000) ;
+chaque changement envoie d'abord le mode (quand l'appareil en signale un et n'est pas en mode couleur)
+puis la couleur entière en chaîne JSON (`TuyaSend <appareil>,24,"hhhhssssvvvv"`, entre guillemets car
+une valeur faite uniquement de chiffres serait lue comme un nombre). Les valeurs affichées demandent
+`"keep": [21, 22, 24]` dans `tuya.json` quand la liaison est désactivée (voir plus bas).
+Pas proposés : scènes (`scene_data_v2`, DP 25), minuteries, ne pas déranger, modes réveil et sommeil.
+
+**Valeur tenue et options masquées** (panneaux `light2` et `light3`) : une valeur qu'on vient de régler
+(teinte, saturation, luminosité, température) reste affichée jusqu'à ce que l'appareil la signale, 3 s au
+plus, pour que l'ancienne valeur ne revienne pas entre la commande et l'événement de l'appareil (un par
+DP, un instant plus tard) ; un événement plus ancien d'une autre valeur ne casse pas la tenue. Après 3 s,
+l'état réel s'affiche de nouveau. Les onglets de mode et les curseurs de l'interface légère montrent
+toujours l'état de l'appareil seul. Tant que la lampe est éteinte (DP d'interrupteur, 20, à faux) ou
+l'appareil déconnecté, le panneau (onglets, roue, arc, curseurs) est masqué et seul le bouton
+d'alimentation de la carte reste ; un état d'interrupteur inconnu laisse le panneau visible.
+
+**Panneau `light2`** (même module) : une lampe blanche seule (température de couleur, pas de couleur) a un
+seul panneau avec un **cadran en arc ouvert** pour la température de couleur (`dp_ct`, 23, 0 à 1000
+affiché en % : 270 degrés ouverts en bas, chaud en bas à gauche, froid en bas à droite, anneau dégradé,
+repère ; un clic dans l'ouverture va à l'extrémité la plus proche ; les flèches le déplacent de 5 % ;
+envoyé au relâchement comme la roue de teinte) et le curseur de luminosité (`dp_bri`) dessous, sans
+onglets ni roue de teinte. Une `light3` avec `dp_ct` montre le même cadran dans son onglet Blanc ;
+l'interface légère garde des curseurs simples. Un changement quand la lampe est
+dans un autre mode (scène, musique) envoie d'abord `white` sur `dp_mode`. Les curseurs de luminosité
+vont de 1 % à 100 % (brut `bri_min` 10 à `bri_max` 1000), comme l'application Tuya, jamais 0 % : le
+variateur de l'interface légère suit la même règle.
+
+**Noms avec une virgule** : `TuyaSend` coupe son argument aux deux premières virgules
+(`string.split(payload, ",", 2)` dans le pilote), un tel nom ne peut donc pas être donné. Le pilote
+accepte aussi un **identifiant d'appareil** (`find_node`), que `TuyaConfig` renvoie pour les
+appareils Wi-Fi et les passerelles Tuya : TasmoFlow l'utilise à la place du nom (`sendName` dans
+`tuya_model.js`) et affiche le nom dans les phrases. Un sous-appareil d'une passerelle Tuya n'a pas
+d'`id` (seulement un `cid`, que `find_node` ne compare pas), et une passerelle dont `TuyaConfig` n'a
+pas été lue non plus : un tel appareil montre ses mesures mais n'offre aucun contrôle.
+L'identifiant n'est pas un secret (la clé locale en est un, et n'arrive jamais dans l'interface).
 
 **`"enabled": false`** sur une liaison Matter retire seulement le point de terminaison de Matter (et
 de `TuyaActive`) : TasmoFlow se sert quand même de la liaison pour savoir ce que veulent dire les DP
@@ -582,7 +628,7 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   `ZbSend {"device":"0x1234","send":{"Power":"On"}}` (allumer, éteindre, basculer ; par adresse, qui
   ne change jamais) pour les appareils qui ont un attribut `Power`. *Actions Tuya* :
   `TuyaSend <nom>,<dp>,true|false|toggle` par interrupteur, `TuyaSend <nom>,<dp>,` à compléter pour
-  un curseur (noms avec virgule écartés). Pas de *déclencheurs Tuya* : la règle `Tuya#Dps#<dp>` ne
+  un curseur (un nom avec virgule passe par son identifiant, ou est écarté sans lui). Pas de *déclencheurs Tuya* : la règle `Tuya#Dps#<dp>` ne
   voit pas le nom de l'appareil (les règles Berry le feront). Les phrases se lisent en langage clair
   quand le motif est connu (`Lampe · Power = 1`, `basculer Lampe`). Les attributs listés sont ceux
   qu'un appareil a signalés depuis l'ouverture de l'interface ou dans son dernier état : un bouton
@@ -623,7 +669,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] `open(tasmota.wd + "app.js.gz", "rb")` lit bien le fichier dans la `.tapp`, et le navigateur décompresse la copie locale (`lite.js.gz` depuis la v0.1)
 - [ ] v0.1 : navigateur hors ligne (ou `gnatali.github.io` bloqué), `/tf` affiche l'interface légère : les appareils avec leurs bascules, la console et le diagnostic fonctionnent, les onglets Passerelles et Événements sont absents, « Réessayer » charge l'interface complète dès que GitHub répond (la console et le diagnostic ont quitté l'interface légère le 11 novembre 2026 : voir le point suivant)
 - [ ] v0.2, `.tapp` réduite (11 novembre 2026, build de test, `.tapp` réinstallée, `Restart 1`) : la `.tapp` fait environ 40 Ko ; le journal de démarrage affiche `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` (le Berry minifié se charge) ; GitHub bloqué, `/tf` n'affiche que les appareils, sans barre d'onglets : une bascule Zigbee, « Appairer », un interrupteur et un curseur Tuya fonctionnent et leur état revient, le bouton de langue fonctionne, « Réessayer » charge l'interface complète dès que GitHub répond ; GitHub joignable, l'interface complète marche comme avant (Règles : enregistrer et restaurer, règles Berry, `autoexec.be` ; console ; diagnostic ; passerelles) ; une mise à jour depuis l'interface légère fonctionne toujours ; mémoire au repos et interface ouverte inchangée ou plus basse (12 novembre 2026 : fonctionne sur la passerelle, Guillaume)
-- [ ] v0.2, place pour la mise à jour (12 novembre 2026, la `.tapp` avec `/api/update_check` installée une fois à la main) : avec assez d'espace libre la mise à jour passe et l'ancienne `TasmoFlow.tapp.bak` reste jusqu'au contrôle du nouveau fichier ; avec peu d'espace libre mais une `.bak`, la `.bak` est supprimée et la mise à jour passe ; avec trop peu de place même sans la `.bak`, le bandeau le dit avec les tailles (nécessaire, disponible) avant tout téléchargement, et rien ne change
+- [x] v0.2, place pour la mise à jour (12 novembre 2026, vérifié sur la passerelle par Guillaume, la `.tapp` avec `/api/update_check` installée une fois à la main) : avec assez d'espace libre la mise à jour passe et l'ancienne `TasmoFlow.tapp.bak` reste jusqu'au contrôle du nouveau fichier ; avec peu d'espace libre mais une `.bak`, la `.bak` est supprimée et la mise à jour passe ; avec trop peu de place même sans la `.bak`, le bandeau le dit avec les tailles (nécessaire, disponible) avant tout téléchargement, et rien ne change
 - [x] La liste des appareils correspond à `ZbStatus1`
 - [x] Un appui sur un bouton Zigbee apparaît dans l'onglet Événements en moins de 2 s
 - [x] « Basculer » allume et éteint une lampe ; « Appairer » ouvre l'appairage 60 s
@@ -638,7 +684,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [ ] v0.1 : `curl "http://<passerelle>/tf?w=1"` répond `ok` sans mot de passe et démarre le serveur
 - [ ] v0.1 : les cartes Tuya correspondent à `TuyaStatus` ; un interrupteur, un variateur et une vitesse de ventilateur agissent sur les vrais appareils ; un changement fait sur un appareil (bouton, Smart Life) arrive dans l'interface en moins de 2 s
 - [ ] v0.1 : avec le pilote Tuya absent, la section Tuya est masquée ; désactivé (`TuyaEnable 0`), elle affiche « Tuya est désactivé » (changé le 12 novembre 2026, voir l'élément suivant)
-- [ ] v0.2, pilotes à l'ouverture (12 novembre 2026, version de test, `.tapp` réinstallé, `Restart 1`) : ouvrir `/tf` juste après un redémarrage : l'interface complète dit « Zigbee démarre » avec l'appairage désactivé, puis « Tuya démarre (waiting for Zigbee) », et active chacun toute seule dans les 5 secondes qui suivent son démarrage, sans recharger ; l'interface légère (GitHub bloqué) dit « Zigbee n'est pas prêt » / « Tuya n'est pas prêt », garde l'appairage et les cartes Tuya désactivés et ne fait rien avant « Recharger » ; `TuyaEnable 0` : l'interface complète dit que Tuya est désactivé, la légère qu'il n'est pas prêt, aucune n'affiche de carte
+- [x] v0.2, pilotes à l'ouverture (12 novembre 2026, vérifié sur la passerelle par Guillaume, version de test, `.tapp` réinstallé, `Restart 1`) : ouvrir `/tf` juste après un redémarrage : l'interface complète dit « Zigbee démarre » avec l'appairage désactivé, puis « Tuya démarre (waiting for Zigbee) », et active chacun toute seule dans les 5 secondes qui suivent son démarrage, sans recharger ; l'interface légère (GitHub bloqué) dit « Zigbee n'est pas prêt » / « Tuya n'est pas prêt », garde l'appairage et les cartes Tuya désactivés et ne fait rien avant « Recharger » ; `TuyaEnable 0` : l'interface complète dit que Tuya est désactivé, la légère qu'il n'est pas prêt, aucune n'affiche de carte
 - [x] v0.1 : mémoire au repos après `tasmota.gc()` : 75 Ko libres, Berry 35 Ko, soit 9 Ko (cible : 15 Ko) ; interface ouverte 63 Ko / 48 Ko (`import` en cache, voir [Mémoire](#mémoire))
 - [x] v0.1 : avec le chargement sans cache, la mémoire revient en partie 5 minutes après la fermeture du dernier onglet : 59 Ko libres / Berry 48 Ko interface ouverte, 69 Ko / 39 Ko après (75 Ko / 35 Ko avant la première ouverture)
 - [x] v0.2 (11 novembre 2026, deux mises à jour de suite, `dev.1688247` puis `dev.e00d0d6` puis `dev.f34f8c7`) : mise à jour (`.tapp` du build de test précédent installée, puis relancer `Build`) : `/tf` affiche l'interface légère avec le bandeau et **Mettre à jour** ; le bouton envoie le fichier, la page attend puis se recharge sur le nouveau build (`dev.<commit>` dans l'en-tête), `TasmoFlow.tapp.bak` existe à côté de `TasmoFlow.tapp`, aucun `.new` ne reste, aucune `.tapp` dans `/` et `/.extensions/` à la fois ; **Plus tard** ouvre l'interface habituelle ; mémoire au repos et interface ouverte inchangées (`tf_update.be` n'est compilé que lorsqu'on s'en sert)
@@ -652,4 +698,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] v0.2 : l'interface légère (GitHub bloqué) montre l'onglet Règles avec activation/désactivation et restauration, sans l'éditeur (retiré le 11 novembre 2026 : les règles ne sont plus que dans l'interface complète)
 - [x] v0.2 (11 novembre 2026) : mémoire avec l'API des règles chargée (`tf_rules.be` est compilé avec le serveur d'API), après `tasmota.gc()` : au repos 75-76 Ko libres / Berry 39 Ko (8 à 9 Ko), interface ouverte 52 Ko / 55 Ko (32 Ko), 5 minutes après la fermeture 70 Ko / 39 Ko (14 Ko, budget 15 Ko)
 - [x] v0.2 : URL longues (version de test avec l'analyseur à base de chaînes, `.tapp` réinstallé, `Restart 1`) : `http://<passerelle>:8384/api/status?t=<jeton>&p=<a répété 130 fois>`, puis 90 et 50, renvoient l'état ; des lignes de requête de 190 et 512 caractères répondent aussi ; une de 900 caractères renvoie `{"error":"uri_too_long"}` ; la passerelle ne redémarre jamais (`Status 1` : `RestartReason` inchangée, la durée de fonctionnement continue d'augmenter) ; l'interface marche toujours (appareils, console, écran Règles : enregistrer et restaurer)
-- [ ] v0.1 : trouver ce qui reste alloué après la première ouverture (6 Ko de mémoire libre, 4 Ko de Berry), et vérifier que `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)
+- [x] v0.1 (12 novembre 2026, `.tapp` réinstallée, interface légère modifiée) : un appareil Tuya dont le nom contient une virgule (Wi-Fi ou passerelle, listé par `TuyaConfig` avec son `id`) se commande depuis sa carte dans les deux interfaces (`TuyaSend <id>,<dp>,toggle` dans le journal) et apparaît dans les sélecteurs de règles sous son nom ; un sous-appareil de passerelle dont le nom contient une virgule montre ses mesures sans contrôle (vérifié par Guillaume sur la passerelle, le 12 novembre 2026)
+- [x] v0.1 (12 novembre 2026, version de test) : la carte d'une `light3` de l'interface complète (version de test, pas de `.tapp` à réinstaller pour cela, sauf pour la luminosité 1-100 % de l'interface légère) montre les onglets Blanc / Couleur (pas l'interface légère) ; l'onglet sélectionné suit le mode réglé depuis l'application Tuya ; la roue de teinte et les curseurs de saturation et de luminosité changent la lampe et la carte suit l'état renvoyé ; en Blanc, le curseur de luminosité correspond à celui de l'application Tuya ; une lampe sans `dp_ct` n'affiche pas de température de couleur; la même carte pour une `light2` (`Entrée-Porche`) : cadran en arc ouvert pour la température de couleur et luminosité de 1 % à 100 % ; une valeur qu'on vient de régler reste affichée jusqu'à ce que l'appareil la signale (plus de clignotement nouvelle / ancienne / nouvelle) ; les options sont masquées tant que la lampe est éteinte ou déconnectée et reviennent à l'allumage (vérifié par Guillaume sur la passerelle, le 12 novembre 2026)
+- [ ] v0.1 : vérifier que `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)
+- [x] v0.1 : ce qui reste alloué après la première ouverture (6 Ko de mémoire libre, 4 Ko de Berry) : pas poursuivi, abandonné à la demande de Guillaume (12 novembre 2026)

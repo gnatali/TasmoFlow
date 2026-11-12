@@ -178,7 +178,7 @@ gateway and Tasmota's own pages stay available (console, `Rule<n>`).
 How the light bundle stays small, with the same sources:
 
 - `main_lite.js` imports only `views.js` (devices), `tuya.js` and `update.js`; the full interface's
-  screens are in their own modules (`rules*.js`, `gateways.js`, `views_full.js`), with their texts
+  screens are in their own modules (`rules*.js`, `gateways.js`, `tuya_colour.js`, `views_full.js`), with their texts
   (`i18n_full.js`, added by `addTexts()`) and styles (`style_full.css`). What a screen loads when
   it opens is registered by `main.js` (`onTab()`), the gateway picker of the header too.
 - No `preact/hooks` in the light bundle: the stores (`store.js`) have no `use()`; after any `set()`
@@ -411,15 +411,56 @@ Controls come from the Matter bindings of `tuya.json` (`controlsFor` in `app/src
 | Binding `type` | Controls |
 | --- | --- |
 | `relay`, `relay_power` | switch on `dp` (default 1); `relay_power`: power, voltage, current readings (`dp_power`, `div_power`...) |
-| `light0` to `light3` | switch on `dp` (default 20); `light1`+: dimmer on `dp_bri` (22, `bri_min` 10 to `bri_max` 1000, shown 0-100 %); `light2`: colour temperature on `dp_ct` (23, 0-1000) |
+| `light0` to `light3` | switch on `dp` (default 20); `light1`+: dimmer on `dp_bri` (22, `bri_min` 10 to `bri_max` 1000, shown 1-100 % like the Tuya app, raw 10 = 1 %, never 0); `light2`: colour temperature on `dp_ct` (23, 0-1000) |
 | `fan` | switch on `dp` (60) and speed on `dp_speed` (62, `speed_min` 1 to `speed_max` 6) |
 | `temp`, `humidity` | reading on `dp`, divided by `div` (10) |
 | `sensors` (device) | one reading per label: `[dp, divisor, unit]` |
 | none | `toggle` on each boolean DP |
 
 `TuyaSend <device>,<dp>,toggle` flips a switch; sliders send the raw value. The state shown is
-the one reported back by the device (no optimistic display). The colour of `light3` is not
-offered yet. Device names containing a comma cannot be addressed by `TuyaSend`.
+the one reported back by the device (no optimistic display).
+
+**`light3` panel** (full interface only, `app/src/tuya_colour.js`, plugged into the cards through
+`EXTRA.refine` of `tuya.js`; the light interface does not carry it, to keep its size, and keeps the
+switch and the white brightness slider), laid out like the Tuya app. **Tabs White / Colour** follow the
+mode the device reports (`dp_mode`, 21: `white` or `colour`; no optimistic display); a tab sends the
+mode (`TuyaSend <device>,21,white|colour`); another mode (scene, music) or none known selects no tab and
+shows the white content. **White**: brightness slider on `dp_bri` (`bri_min` to `bri_max`, shown in %),
+plus a colour temperature arc dial (see `light2`) only if the binding itself has `dp_ct` (a `light3` such as the
+`Pergola` lamps has no DP 23: no control that does nothing). **Colour**: a **hue wheel** (hue 0 at 3
+o'clock, counter-clockwise like the Tuya app; the knob follows the pointer, the colour goes out on
+release; arrows move it by 5 degrees) and two sliders, brightness (the colour's value, 10 to 1000) and
+saturation (0 to 1000). The colour is `dp_colour` (24), `colour_data_v2` = `hhhhssssvvvv` in hexadecimal
+(hue 0 to 360, saturation and value 0 to 1000); each change sends the mode first (when the device
+reports one and is not in colour mode) then the whole colour as a JSON string
+(`TuyaSend <device>,24,"hhhhssssvvvv"`, quoted because a value of digits only would be read as a number).
+The values shown need `"keep": [21, 22, 24]` in `tuya.json` when the binding is disabled (see below).
+Not offered: scenes (`scene_data_v2`, DP 25), timers, do-not-disturb, wake-up and sleep modes.
+
+**Held value and hidden options** (`light2` and `light3` panels): a value just set (hue, saturation,
+brightness, temperature) stays on screen until the device reports it, 3 s at most, so the old value does
+not come back between the command and the device's event (one per DP, a moment later); an earlier event
+of another value does not break the hold. Past 3 s the real state shows again. The mode tabs and the
+light interface's sliders keep showing the device's state only. While the lamp is off (switch DP, 20,
+false) or the device is disconnected, the panel (tabs, wheel, arc, sliders) is hidden and only the card's
+power button stays; an unknown switch state keeps the panel visible.
+
+**`light2` panel** (same module): a white-only lamp (colour temperature, no colour) gets one panel with
+an **open arc dial** for the colour temperature (`dp_ct`, 23, 0 to 1000 shown in %: 270 degrees open at
+the bottom, warm at the bottom left, cool at the bottom right, gradient ring, knob; a click in the gap
+goes to the nearer end; arrows move it by 5 %; sent on release like the hue wheel) and the brightness
+slider (`dp_bri`) under it, no tabs and no hue wheel. A `light3` with `dp_ct` shows the same dial in its
+White tab; the light interface keeps plain sliders. A change while the lamp is in another mode (scene,
+music) sends `white` on `dp_mode` first. Brightness sliders go from 1 % to 100 % (raw `bri_min` 10 to
+`bri_max` 1000), like the Tuya app, never 0 %: the light interface's dimmer follows the same rule.
+
+**Names with a comma**: `TuyaSend` cuts its argument at the first two commas (`string.split(payload,
+",", 2)` in the driver), so such a name cannot be given. The driver also takes a **device id**
+(`find_node`), which `TuyaConfig` returns for Wi-Fi devices and Tuya gateways: TasmoFlow uses it in
+place of the name (`sendName` in `tuya_model.js`) and shows the name in sentences. A sub-device of a
+Tuya gateway has no `id` (only a `cid`, which `find_node` does not match) and a gateway whose
+`TuyaConfig` was not read has none either: such a device shows its readings but offers no control.
+The id is not a secret (the local key is, and never reaches the interface).
 
 **`"enabled": false`** on a Matter binding only takes the endpoint out of Matter (and out of
 `TuyaActive`): TasmoFlow still uses the binding to know what the DPs mean (found on the gateway on
@@ -551,7 +592,7 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   left out with a hint. *Zigbee actions*: `ZbSend {"device":"0x1234","send":{"Power":"On"}}`
   (on, off, toggle; by address, which never changes) for devices with a `Power` attribute.
   *Tuya actions*: `TuyaSend <name>,<dp>,true|false|toggle` per switch, `TuyaSend <name>,<dp>,` to
-  complete for a slider (names with a comma left out). *Tuya triggers* are not offered: the
+  complete for a slider (a name with a comma goes by its id, or is left out without one). *Tuya triggers* are not offered: the
   `Tuya#Dps#<dp>` rule does not see the device name (Berry rules will). Sentences read in plain
   language where the pattern is known (`Lampe · Power = 1`, `basculer Lampe`). The attributes
   listed are the ones a device has reported since the interface opened or in its last state:
@@ -590,7 +631,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] `open(tasmota.wd + "app.js.gz", "rb")` reads the file inside the `.tapp`, and the browser decompresses the local copy (`lite.js.gz` since v0.1)
 - [ ] v0.1: with the browser offline (or `gnatali.github.io` blocked), `/tf` shows the light interface: devices with toggles, console and diagnostics work, the Gateways and Events tabs are absent, "Retry" loads the full interface once GitHub answers (console and diagnostics left the light interface on 11 November 2026: see the item below)
 - [ ] v0.2, reduced `.tapp` (11 November 2026, test build, `.tapp` installed again, `Restart 1`): the `.tapp` is about 40 KB; the boot log shows `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` (the minified Berry loads); with GitHub blocked, `/tf` shows the devices only, without a tab bar: a Zigbee toggle, "Pair", a Tuya switch and slider work and their state comes back, the language button works, "Retry" loads the full interface once GitHub answers; with GitHub reachable, the full interface works as before (Rules: save and restore, Berry rules, `autoexec.be`; console; diagnostics; gateways); an update from the light interface still works; memory at rest and with an interface open unchanged or lower (12 November 2026: works on the gateway, Guillaume)
-- [ ] v0.2, update room (12 November 2026, the `.tapp` with `/api/update_check` installed by hand once): with enough free space the update goes through and the previous `TasmoFlow.tapp.bak` stays until the new file is checked; with free space short but a `.bak`, the `.bak` is deleted and the update goes through; with too little room even without the `.bak`, the banner says so with the sizes (needed, available) before any download, and nothing changes
+- [x] v0.2, update room (12 November 2026, checked on the gateway, Guillaume, the `.tapp` with `/api/update_check` installed by hand once): with enough free space the update goes through and the previous `TasmoFlow.tapp.bak` stays until the new file is checked; with free space short but a `.bak`, the `.bak` is deleted and the update goes through; with too little room even without the `.bak`, the banner says so with the sizes (needed, available) before any download, and nothing changes
 - [x] The device list matches `ZbStatus1`
 - [x] A Zigbee button press shows up in the Events tab within 2 s
 - [x] "Toggle" switches a light on and off; "Pair" opens pairing for 60 s
@@ -605,7 +646,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [ ] v0.1: `curl "http://<gateway>/tf?w=1"` answers `ok` without a password and starts the server
 - [ ] v0.1: the Tuya cards match `TuyaStatus`; a switch, a dimmer and a fan speed act on the real devices; a change made on a device (button, Smart Life) reaches the interface within 2 s
 - [ ] v0.1: with the Tuya driver absent, the Tuya section is hidden; disabled (`TuyaEnable 0`), it shows "Tuya is disabled" (changed on 12 November 2026, see the next item)
-- [ ] v0.2, drivers at opening (12 November 2026, test build, `.tapp` installed again, `Restart 1`): open `/tf` right after a restart: the full interface says "Zigbee is starting" with pairing off, then "Tuya is starting (waiting for Zigbee)", and turns each on by itself within 5 seconds of it coming up, without a reload; the light interface (GitHub blocked) says "Zigbee is not ready" / "Tuya is not ready", keeps pairing and the Tuya cards off and does nothing until "Reload"; `TuyaEnable 0`: the full interface says Tuya is disabled, the light one that it is not ready, neither shows a card
+- [x] v0.2, drivers at opening (12 November 2026, checked on the gateway, Guillaume, test build, `.tapp` installed again, `Restart 1`): open `/tf` right after a restart: the full interface says "Zigbee is starting" with pairing off, then "Tuya is starting (waiting for Zigbee)", and turns each on by itself within 5 seconds of it coming up, without a reload; the light interface (GitHub blocked) says "Zigbee is not ready" / "Tuya is not ready", keeps pairing and the Tuya cards off and does nothing until "Reload"; `TuyaEnable 0`: the full interface says Tuya is disabled, the light one that it is not ready, neither shows a card
 - [x] v0.1: memory at rest after `tasmota.gc()`: 75 KB free, Berry 35 KB, i.e. 9 KB (target 15 KB); with an interface open 63 KB / 48 KB (cached `import`, see [Memory](#memory))
 - [x] v0.1: with the uncached loading, the memory partly returns 5 minutes after the last tab is closed: 59 KB free / Berry 48 KB with the interface open, 69 KB / 39 KB after (75 KB / 35 KB before the first opening)
 - [x] v0.2 (11 November 2026, two updates in a row, `dev.1688247` to `dev.e00d0d6` to `dev.f34f8c7`): update (`.tapp` of the previous test build installed, then run `Build` again): `/tf` shows the light interface with the banner and **Update**; the button sends the file, the page waits then reloads on the new build (`dev.<commit>` in the header), `TasmoFlow.tapp.bak` exists next to `TasmoFlow.tapp`, no `.new` is left, no `.tapp` in both `/` and `/.extensions/`; **Later** opens the usual interface; memory at rest and with an interface open unchanged (`tf_update.be` is compiled only when used)
@@ -619,4 +660,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] v0.2: the light interface (GitHub blocked) shows the Rules tab with enable/disable and restore, without the editor (removed on 11 November 2026: rules are in the full interface only)
 - [x] v0.2 (11 November 2026): memory with the rule API loaded (`tf_rules.be` is compiled with the API server), after `tasmota.gc()`: at rest 75-76 KB free / Berry 39 KB (8 to 9 KB), interface open 52 KB / 55 KB (32 KB), 5 minutes after closing 70 KB / 39 KB (14 KB, budget 15 KB)
 - [x] v0.2: long URLs (test build with the string parser, `.tapp` installed again, `Restart 1`): `http://<gateway>:8384/api/status?t=<token>&p=<a repeated 130 times>`, then 90 and 50, answer the status; request lines of 190 and 512 characters answer too; one of 900 characters answers `{"error":"uri_too_long"}`; the gateway never restarts (`Status 1`: `RestartReason` unchanged, uptime keeps growing); the interface still works (devices, console, Rules screen: save and restore)
-- [ ] v0.1: find what stays allocated after the first opening (6 KB free heap, 4 KB Berry), and check that `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)
+- [x] v0.1 (12 November 2026, `.tapp` installed again, light interface changed): a Tuya device whose name has a comma (Wi-Fi or gateway, listed by `TuyaConfig` with its `id`) switches from its card in both interfaces (`TuyaSend <id>,<dp>,toggle` in the log) and appears in the rule pickers under its name; a sub-device of a gateway with a comma shows its readings without a control (verified by Guillaume on the gateway, 12 November 2026)
+- [x] v0.1 (12 November 2026, test build): a `light3` card of the full interface (test build, no `.tapp` to install again for this, except for the 1-100 % brightness of the light interface) shows the tabs White / Colour (not the light interface); the selected tab follows the mode set from the Tuya app; the hue wheel, saturation and brightness sliders change the lamp and the card follows the state sent back; in White the brightness slider matches the Tuya app's; a lamp without `dp_ct` shows no colour temperature; the same card for a `light2` (`Entrée-Porche`): open arc dial for the colour temperature and brightness, 1 % to 100 %; a value just set stays on screen until the device reports it (no new / old / new flicker); the options are hidden while the lamp is off or disconnected and come back when it is on (verified by Guillaume on the gateway, 12 November 2026)
+- [ ] v0.1: check that `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)
+- [x] v0.1: what stays allocated after the first opening (6 KB free heap, 4 KB Berry): not pursued, dropped at Guillaume's request (12 November 2026)

@@ -101,7 +101,7 @@ function Commands({ label, list, set, groups, bare, s }) {
   return html`<${Box} class=${bare ? '' : 'cmds'}>${bare ? null : html`<legend>${label}</legend>`}
     ${rows.map((c, i) => html`<div class="row tight cmdrow">
       <${Choice} label=${label + ' ' + (i + 1)} value=${c} groups=${groups} placeholder=${t('rule_pickAction')}
-        friendly=${c ? (describeCommand(c, s.devices, verbs()) || c) : ''} onChange=${v => put(i, v)}/>
+        friendly=${c ? (describeCommand(c, s.devices, verbs(), s.tuya) || c) : ''} onChange=${v => put(i, v)}/>
       ${rows.length > 1 ? html`<button class="b" aria-label=${t('rule_removeCmd')} onClick=${() => set(rows.filter((_, k) => k !== i))}>×</button>` : null}
     </div>`)}
     <button class="b" onClick=${() => set([...rows, ''])}>${t('rule_addCmd')}</button>
@@ -116,7 +116,7 @@ function Tile({ b, s, onEdit, onDelete }) {
   }
   const named = describeSubject(b.subject, s.devices, s.zbNames);
   const when = (named || b.subject || '…') + (b.op ? ' ' + b.op + ' ' + b.value : '');
-  const list = l => l.filter(Boolean).map(c => describeCommand(c, s.devices, verbs()) || c);
+  const list = l => l.filter(Boolean).map(c => describeCommand(c, s.devices, verbs(), s.tuya) || c);
   const Line = ({ k, cls, items }) => html`<div class=${'line ' + cls}><b class="kw">${k}</b>
     <span>${items.length ? items.map(x => html`<span class="chip" title=${x}>${x}</span>`) : '…'}</span></div>`;
   return html`<div class="tile">

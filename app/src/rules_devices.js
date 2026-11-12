@@ -7,7 +7,7 @@
 // a rule trigger reads ZbReceived#<key>#<attribute>. The key is the friendly name only when
 // SetOption83 is on (flag4.zigbee_use_names) and the device has one, else the short address
 // "0x%04X". ZbSend takes the device as a name or an address: the address never changes.
-import { controlsFor } from './tuya_model.js';
+import { controlsFor, sendName } from './tuya_model.js';
 
 // attributes that are not something a rule waits for
 const NOT_ATTRS = new Set(['Device', 'Endpoint', 'Endpoints', 'LinkQuality', 'Name', 'Quality', 'Zone', 'ZoneStatus',
@@ -54,20 +54,22 @@ export function zbActions(devices, labels) {
 }
 
 // Tuya devices, through TuyaSend: a switch gives on, off and toggle, a slider a command to
-// complete with the value. Names with a comma cannot be addressed (docs/tuya-local.en.md).
+// complete with the value. A name with a comma goes by its id (sendName), or is left out.
 export function tuyaActions(tuya, labels) {
   const groups = [];
   if (!tuya || tuya.state !== 'running') return groups;
   for (const name of Object.keys(tuya.nodes).sort((a, b) => a.localeCompare(b))) {
-    if (name.includes(',')) continue;
+    const entry = tuya.conf && tuya.conf[name];
+    const addr = sendName(name, entry);
+    if (!addr) continue;
     const items = [];
-    for (const c of controlsFor(tuya.nodes[name], tuya.conf && tuya.conf[name])) {
+    for (const c of controlsFor(tuya.nodes[name], entry)) {
       if (c.kind === 'switch') {
         for (const [v, k] of [['true', 'On'], ['false', 'Off'], ['toggle', 'Toggle']]) {
-          items.push({ label: c.label + ' · ' + labels[k], value: 'TuyaSend ' + name + ',' + c.dp + ',' + v });
+          items.push({ label: c.label + ' · ' + labels[k], value: 'TuyaSend ' + addr + ',' + c.dp + ',' + v });
         }
       } else if (c.kind === 'range') {
-        items.push({ label: c.label + ' …', value: 'TuyaSend ' + name + ',' + c.dp + ',' });
+        items.push({ label: c.label + ' …', value: 'TuyaSend ' + addr + ',' + c.dp + ',' });
       }
     }
     if (items.length) groups.push({ group: 'Tuya · ' + name, items });
@@ -83,14 +85,21 @@ export function describeSubject(subject, devices, useNames) {
   return d ? shown(d) + ' · ' + m[2] : null;
 }
 
+// the name of the Tuya device a `TuyaSend` argument stands for (its id when the name has a comma)
+function tuyaShown(arg, tuya) {
+  const conf = (tuya && tuya.conf) || {};
+  for (const name in conf) if (sendName(name, conf[name]) === arg && name !== arg) return name;
+  return arg;
+}
+
 // plain-language form of a command, or null; `labels` = { On, Off, Toggle } as verbs
-export function describeCommand(cmd, devices, labels) {
+export function describeCommand(cmd, devices, labels, tuya) {
   let m = /^ZbSend\s*\{"device":"([^"]+)","send":\{"Power":"(On|Off|Toggle)"\}\}$/.exec(cmd);
   if (m) {
     const d = Object.values(devices || {}).find(x => x.addr.toLowerCase() === m[1].toLowerCase() || x.name === m[1]);
     return labels[m[2]] + ' ' + (d ? shown(d) : m[1]);
   }
   m = /^TuyaSend\s+([^,]+),(\d+),(true|false|toggle)$/i.exec(cmd);
-  if (m) return labels[{ true: 'On', false: 'Off', toggle: 'Toggle' }[m[3].toLowerCase()]] + ' ' + m[1] + ' (DP ' + m[2] + ')';
+  if (m) return labels[{ true: 'On', false: 'Off', toggle: 'Toggle' }[m[3].toLowerCase()]] + ' ' + tuyaShown(m[1], tuya) + ' (DP ' + m[2] + ')';
   return null;
 }

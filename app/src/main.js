@@ -14,6 +14,7 @@ import { SentenceEditor } from './rules_editor.js';
 import { ConflictBanner } from './rules_conflicts_view.js';
 import { findConflicts } from './rules_conflicts.js';
 import { watchDrivers } from './drivers_full.js';
+import './tuya_colour.js';
 import { GatewaysView, GatewayPicker, initGateways } from './gateways.js';
 
 addTexts(FULL_TEXTS);

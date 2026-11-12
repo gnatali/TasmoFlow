@@ -5,12 +5,16 @@ import { html } from './html.js';
 import { t } from './i18n.js';
 import { cmd } from './state.js';
 import { createStore } from './store.js';
-import { controlsFor } from './tuya_model.js';
+import { controlsFor, sendName } from './tuya_model.js';
 
 // the driver's answer to the last command of each device, when it was not "Done": { name: text }
 const M = createStore({});
 
+// the full interface may reshape the controls (tuya_colour.js sets `refine`); one with `render` is a component
+export const EXTRA = {};
+
 function Control({ c, node, send }) {
+  if (c.render) return html`<${c.render} c=${c} node=${node} send=${send}/>`;
   const v = node.dps[c.dp];
   if (c.kind === 'read') {
     return html`<span>${c.label} <b>${v == null ? '?' : +(v / c.div).toFixed(2) + (c.unit ? ' ' + c.unit : '')}</b></span>`;
@@ -21,21 +25,24 @@ function Control({ c, node, send }) {
       ${c.label + ' · ' + (on ? t('on') : t('off'))}</button>`;
   }
   const unknown = v == null ? ' ?' : '';      // the driver only keeps the DPs it uses (docs: `keep`)
-  const pct = c.percent ? Math.round(((v == null ? c.min : v) - c.min) / (c.max - c.min) * 100) : (v == null ? c.min : v);
+  const low = c.percent ? (c.min ? 1 : 0) : c.min;     // a dimmer shows 1-100 % like the Tuya app (raw 10 = 1 %), never 0
+  const pct = c.percent ? Math.round(low + ((v == null ? c.min : v) - c.min) / (c.max - c.min) * (100 - low)) : (v == null ? c.min : v);
   const top = c.percent ? 100 : c.max;
-  const low = c.percent ? 0 : c.min;
   return html`<label class="rng">${c.label + unknown + ' '}<input type="range" min=${low} max=${top} value=${pct} disabled=${!node.connected}
-    aria-label=${c.label} onChange=${e => send(c.dp, c.percent ? Math.round(c.min + (+e.target.value / 100) * (c.max - c.min)) : +e.target.value)}/></label>`;
+    aria-label=${c.label} onChange=${e => send(c.dp, c.percent ? Math.round(c.min + (+e.target.value - low) / (100 - low) * (c.max - c.min)) : +e.target.value)}/></label>`;
 }
 
 export function TuyaCard({ name, node, entry }) {
   const msg = M.get()[name];
   const setMsg = text => M.set({ [name]: text });
-  const send = (dp, value) => cmd('TuyaSend ' + name + ',' + dp + ',' + value).then(r => {
+  const addr = sendName(name, entry);
+  const send = (dp, value) => cmd('TuyaSend ' + addr + ',' + dp + ',' + value).then(r => {
     const x = r.TuyaSend;
     setMsg(x === 'Done' ? null : typeof x === 'string' ? x : JSON.stringify(x));
   }).catch(e => setMsg(e.message));
-  const cs = controlsFor(node, entry);
+  // a name with a comma and no known id (sub-device, or TuyaConfig not read): read only
+  const base = controlsFor(node, entry);
+  const cs = (EXTRA.refine ? EXTRA.refine(base, entry) : base).filter(c => addr || c.kind === 'read');
   const reads = cs.filter(c => c.kind === 'read');
   const acts = cs.filter(c => c.kind !== 'read');
   return html`<article class="card">

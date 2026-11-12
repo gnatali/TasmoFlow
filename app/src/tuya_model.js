@@ -17,6 +17,17 @@ export function indexConfig(conf) {
   return map;
 }
 
+// What `TuyaSend` takes as device: it cuts its argument at the first two commas, so a name with
+// a comma cannot be given. The driver also accepts a device id (`find_node`), which TuyaConfig
+// gives for Wi-Fi devices and Tuya gateways (not for their sub-devices, only known by `cid`):
+// used instead of the name then. null = cannot be addressed (no id, or TuyaConfig not read).
+// The id is not a secret (the local key is, and never reaches the interface).
+export function sendName(name, entry) {
+  if (!name.includes(',')) return name;
+  const id = entry && entry.id;
+  return typeof id === 'string' && id && !id.includes(',') ? id : null;
+}
+
 const num = (v, d) => (v == null ? d : +v);
 const dpOf = (b, key, d) => String(b[key] != null ? b[key] : d);
 
