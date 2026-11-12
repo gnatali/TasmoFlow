@@ -25,11 +25,11 @@ function Control({ c, node, send }) {
       ${c.label + ' · ' + (on ? t('on') : t('off'))}</button>`;
   }
   const unknown = v == null ? ' ?' : '';      // the driver only keeps the DPs it uses (docs: `keep`)
-  const pct = c.percent ? Math.round(((v == null ? c.min : v) - c.min) / (c.max - c.min) * 100) : (v == null ? c.min : v);
+  const low = c.percent ? (c.min ? 1 : 0) : c.min;     // a dimmer shows 1-100 % like the Tuya app (raw 10 = 1 %), never 0
+  const pct = c.percent ? Math.round(low + ((v == null ? c.min : v) - c.min) / (c.max - c.min) * (100 - low)) : (v == null ? c.min : v);
   const top = c.percent ? 100 : c.max;
-  const low = c.percent ? 0 : c.min;
   return html`<label class="rng">${c.label + unknown + ' '}<input type="range" min=${low} max=${top} value=${pct} disabled=${!node.connected}
-    aria-label=${c.label} onChange=${e => send(c.dp, c.percent ? Math.round(c.min + (+e.target.value / 100) * (c.max - c.min)) : +e.target.value)}/></label>`;
+    aria-label=${c.label} onChange=${e => send(c.dp, c.percent ? Math.round(c.min + (+e.target.value - low) / (100 - low) * (c.max - c.min)) : +e.target.value)}/></label>`;
 }
 
 export function TuyaCard({ name, node, entry }) {

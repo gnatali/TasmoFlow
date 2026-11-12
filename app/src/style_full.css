@@ -85,4 +85,7 @@ pre.code{margin:0 0 .5rem;max-height:20rem;overflow:auto}
 .wheel .knob{position:absolute;width:1.4rem;height:1.4rem;margin:-.7rem 0 0 -.7rem;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px #0008;pointer-events:none}
 .l3 .rng{flex-wrap:nowrap}
 .l3 .rng input{flex:1;min-width:4rem}
+.l3 .rng input.ct{-webkit-appearance:none;appearance:none;height:.7rem;border-radius:.4rem;background:linear-gradient(90deg,#ffb04a,#fff,#9cc8ff);border:1px solid var(--line)}
+.l3 .rng input.ct::-webkit-slider-thumb{-webkit-appearance:none;width:1.2rem;height:1.2rem;border-radius:50%;background:#fff;border:2px solid #888}
+.l3 .rng input.ct::-moz-range-thumb{width:1.2rem;height:1.2rem;border-radius:50%;background:#fff;border:2px solid #888}
 .grid{align-items:start}

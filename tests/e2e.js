@@ -466,8 +466,25 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     const door = p.locator('article.card', { has: p.getByRole('heading', { name: 'Entrée-Porche' }) });
     await door.getByText('déconnecté').waitFor({ timeout: 2000 });
     const lamp = p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe bureau' }) });
-    await lamp.getByLabel('Intensité').waitFor();
+    // light2, white only: brightness and colour temperature in one panel (no tabs, no wheel); a change
+    // while the lamp is in a scene sends the white mode first
+    const lampDps = () => p.evaluate(async t => {
+      const r = await (await fetch('http://localhost:8384/api/cmd?t=' + t + '&c=TuyaStatus%20Lampe%20bureau')).json();
+      return r.TuyaStatus['Lampe bureau'].Dps;
+    }, '0123456789abcdef0123456789abcdef');
+    const lampUntil = async (f, what) => { for (let i = 0; i < 40; i++) { if (f(await lampDps())) return; await p.waitForTimeout(100); } throw new Error(what + ' ' + JSON.stringify(await lampDps())); };
+    await lamp.getByLabel('Luminosité').waitFor();
     await lamp.getByLabel('Température de couleur').waitFor();
+    if (await lamp.getByRole('tab').count() || await lamp.getByRole('slider', { name: 'Teinte' }).count()) throw new Error('light2 shows colour controls');
+    await lamp.getByLabel('Température de couleur').fill('80');
+    await lampUntil(d => d['23'] === 800, 'colour temperature 80 %');
+    await lamp.getByLabel('Luminosité').fill('50');
+    await lampUntil(d => d['22'] === 500, 'light2 brightness');
+    await p.evaluate(async t => { await fetch('http://localhost:8384/api/cmd?t=' + t + '&c=' + encodeURIComponent('TuyaSend Lampe bureau,21,"scene"')); }, '0123456789abcdef0123456789abcdef');
+    await lampUntil(d => d['21'] === 'scene', 'scene mode set');
+    await p.waitForTimeout(800);                                             // the card learns the new mode from the event stream
+    await lamp.getByLabel('Luminosité').fill('20');                          // leaves the scene for white (20 % of 1-100 = raw 200)
+    await lampUntil(d => d['21'] === 'white' && d['22'] === 200, 'white mode then brightness');
     // light3, like the Tuya app: tabs White / Colour follow the device's mode; in colour, a hue wheel and
     // two sliders (colour_data_v2 = hhhhssssvvvv); in white, the brightness
     const garland = p.locator('article.card', { has: p.getByRole('heading', { name: 'Guirlande', exact: true }) });
@@ -490,12 +507,12 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await until(d => d['24'] === '005a01f403e8', 'saturation 50 %');
     await garland.getByText('50 %').first().waitFor({ timeout: 4000 });
     await garland.getByLabel('Luminosité').fill('50');
-    await until(d => d['24'] === '005a01f4' + (505).toString(16).padStart(4, '0'), 'value 50 %');
+    await until(d => d['24'] === '005a01f4' + (500).toString(16).padStart(4, '0'), 'value 50 %');
     await tab('Blanc').click();                                              // white: the tab follows the mode the device reports
     await until(d => d['21'] === 'white', 'white mode');
     await tab('Blanc').and(p.locator('[aria-selected=true]')).waitFor({ timeout: 4000 });
     await garland.getByLabel('Luminosité').fill('50');                       // white brightness, DP 22 (10..1000)
-    await until(d => d['22'] === 505, 'white brightness');
+    await until(d => d['22'] === 500, 'white brightness');
     if (await garland.getByRole('slider', { name: 'Teinte' }).count()) throw new Error('hue wheel in the white tab');
     await tab('Couleur').click();
     await until(d => d['21'] === 'colour', 'back to colour mode');

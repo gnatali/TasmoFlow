@@ -19,7 +19,7 @@ globalThis.document = { documentElement: {} };
 globalThis.window = {};
 const m = { exports: {} };
 new Function('module', 'exports', out)(m, m.exports);
-const { controlsFor, sendName, light3Controls, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
+const { controlsFor, sendName, lightControls, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
 
 let n = 0;
 const ok = (name, f) => { f(); n++; };
@@ -168,20 +168,27 @@ ok('Tuya actions: a name with a comma goes by its id, none without one', () => {
   assert.strictEqual(describeCommand('TuyaSend abc123,20,true', devs, lab, tuya), 'allumer Salon, TV (DP 20)');
   assert.strictEqual(describeCommand('TuyaSend abc123,20,true', devs, lab), 'allumer abc123 (DP 20)');
 });
-ok('Tuya light3: one panel per binding replaces the shared dimmer; colour_data_v2 helpers', () => {
+ok('Tuya light2/light3: one panel per binding replaces the shared sliders; colour_data_v2 helpers', () => {
   const entry = { matter: [{ ep: 'Guirlande', type: 'light3', dp: 20, dp_mode: 21, dp_bri: 22, dp_colour: 24, bri_min: 10, bri_max: 1000 }] };
   const base = controlsFor({ dps: {} }, entry);
   assert.ok(base.some(x => x.kind === 'range' && x.dp === '22'));                  // the shared (light) dimmer
-  const cs = light3Controls(base, entry);
+  const cs = lightControls(base, entry);
   assert.ok(!cs.some(x => x.kind === 'range'));
-  const p = cs.find(x => x.kind === 'light3');
+  const p = cs.find(x => x.kind === 'light');
   assert.deepStrictEqual([p.dp, p.modeDp, p.briDp, p.bmin, p.bmax, p.ctDp], ['24', '21', '22', 10, 1000, null]);
   assert.strictEqual(typeof p.render, 'function');
-  assert.strictEqual(light3Controls(controlsFor({ dps: {} }, { matter: [{ type: 'light3' }] }), { matter: [{ type: 'light3' }] }).find(x => x.kind === 'light3').dp, '24');
-  assert.strictEqual(light3Controls(controlsFor({ dps: {} }, { matter: [{ type: 'light3', dp_ct: 23 }] }), { matter: [{ type: 'light3', dp_ct: 23 }] }).find(x => x.kind === 'light3').ctDp, '23');
-  const l2 = { matter: [{ type: 'light2' }] };
-  assert.deepStrictEqual(light3Controls(controlsFor({ dps: {} }, l2), l2), controlsFor({ dps: {} }, l2));   // light2: untouched
-  assert.deepStrictEqual(light3Controls([], null), []);
+  assert.strictEqual(lightControls(controlsFor({ dps: {} }, { matter: [{ type: 'light3' }] }), { matter: [{ type: 'light3' }] }).find(x => x.kind === 'light').dp, '24');
+  assert.strictEqual(lightControls(controlsFor({ dps: {} }, { matter: [{ type: 'light3', dp_ct: 23 }] }), { matter: [{ type: 'light3', dp_ct: 23 }] }).find(x => x.kind === 'light').ctDp, '23');
+  const l2 = { matter: [{ type: 'light2', dp_ct: 23 }] };
+  const base2 = controlsFor({ dps: {} }, l2);
+  assert.strictEqual(base2.filter(x => x.kind === 'range').length, 2);                // shared dimmer + colour temperature
+  const cs2 = lightControls(base2, l2);
+  assert.ok(!cs2.some(x => x.kind === 'range'));
+  const p2 = cs2.find(x => x.kind === 'light');
+  assert.deepStrictEqual([p2.colour, p2.briDp, p2.ctDp, p2.modeDp], [false, '22', '23', '21']);
+  assert.strictEqual(lightControls(controlsFor({ dps: {} }, { matter: [{ type: 'light2' }] }), { matter: [{ type: 'light2' }] }).find(x => x.kind === 'light').ctDp, '23');
+  assert.strictEqual(p.colour, true);
+  assert.deepStrictEqual(lightControls([], null), []);
   assert.deepStrictEqual(parseColour('00f003e803e8'), { h: 240, s: 1000, v: 1000 });
   assert.deepStrictEqual(parseColour('0000000003e8'), { h: 0, s: 0, v: 1000 });
   assert.strictEqual(parseColour('nope'), null);
