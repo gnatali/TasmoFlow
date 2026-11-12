@@ -8,16 +8,18 @@ const esbuild = require('esbuild');
 const SRC = path.join(__dirname, '..', 'app', 'src');
 // the modules are plain ES modules: bundle them to CommonJS for Node
 const out = esbuild.buildSync({
-  stdin: { contents: "export * from './rules_model.js'; export * from './rules_lint.js'; export * from './rules_devices.js'; export * from './rules_conflicts.js';", resolveDir: SRC },
+  stdin: { contents: "export * from './rules_model.js'; export * from './rules_lint.js'; export * from './rules_devices.js'; export * from './rules_conflicts.js'; export * from './tuya_model.js'; export * from './tuya_colour.js';", resolveDir: SRC },
   loader: { '.css': 'text' }, define: { __BUILD__: '""' },
   bundle: true, format: 'cjs', write: false, logLevel: 'silent'
 }).outputFiles[0].text;
 // i18n.js (used by tuya_model.js) reads the browser's storage when it loads
 globalThis.localStorage = { getItem: () => null, setItem() {} };
 globalThis.document = { documentElement: {} };
+// tuya_colour.js reaches tuya.js and state.js, which read the page's config when they load
+globalThis.window = {};
 const m = { exports: {} };
 new Function('module', 'exports', out)(m, m.exports);
-const { findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
+const { controlsFor, sendName, colourControls, colourToRgb, rgbToColour, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
 
 let n = 0;
 const ok = (name, f) => { f(); n++; };
@@ -152,6 +154,44 @@ ok('Tuya actions: switches, sliders, no comma in a name', () => {
   const v = g[0].items.map(i => i.value);
   assert.ok(v.includes('TuyaSend Fan,20,toggle') && v.includes('TuyaSend Fan,22,'));
   assert.deepStrictEqual(tuyaActions({ state: 'disabled' }, lab), []);
+});
+ok('Tuya actions: a name with a comma goes by its id, none without one', () => {
+  const tuya = { state: 'running', nodes: { 'Salon, TV': { dps: { 20: false } }, 'Cuisine, bas': { dps: { 20: false } }, 'Sub,1': { dps: {} } },
+    conf: { 'Salon, TV': { id: 'abc123', matter: [{ ep: 'TV', type: 'light0', dp: 20 }] }, 'Cuisine, bas': { matter: [{ ep: 'x', type: 'light0' }] } } };
+  const g = tuyaActions(tuya, lab);
+  assert.strictEqual(g.length, 1);
+  assert.strictEqual(g[0].group, 'Tuya · Salon, TV');
+  assert.ok(g[0].items.map(i => i.value).includes('TuyaSend abc123,20,toggle'));
+  assert.strictEqual(sendName('Fan', null), 'Fan');
+  assert.strictEqual(sendName('A,B', null), null);
+  assert.strictEqual(sendName('A,B', { id: 'x1' }), 'x1');
+  assert.strictEqual(describeCommand('TuyaSend abc123,20,true', devs, lab, tuya), 'allumer Salon, TV (DP 20)');
+  assert.strictEqual(describeCommand('TuyaSend abc123,20,true', devs, lab), 'allumer abc123 (DP 20)');
+});
+ok('Tuya colour: light3 control and colour_data_v2 conversion', () => {
+  const col = colourControls({ matter: [{ ep: 'Guirlande', type: 'light3', dp: 20, dp_mode: 21, dp_bri: 22, dp_colour: 24 }] })[0];
+  assert.deepStrictEqual([col.kind, col.dp, col.modeDp], ['colour', '24', '21']);
+  assert.strictEqual(colourControls({ matter: [{ type: 'light3' }] })[0].dp, '24');
+  assert.deepStrictEqual(colourControls({ matter: [{ type: 'light2' }] }), []);
+  assert.deepStrictEqual(colourControls(null), []);
+  assert.ok(!controlsFor({ dps: {} }, { matter: [{ type: 'light3' }] }).some(x => x.kind === 'colour'));   // not in the shared model
+  assert.strictEqual(colourToRgb('000003e803e8'), '#ff0000');
+  assert.strictEqual(colourToRgb('007803e803e8'), '#00ff00');
+  assert.strictEqual(colourToRgb('00f003e803e8'), '#0000ff');
+  assert.strictEqual(colourToRgb('000000000000'), '#000000');
+  assert.strictEqual(colourToRgb('0000000003e8'), '#ffffff');
+  assert.strictEqual(colourToRgb('nope'), null);
+  assert.strictEqual(colourToRgb(60), null);
+  assert.strictEqual(rgbToColour('#ff0000'), '000003e803e8');
+  assert.strictEqual(rgbToColour('#00ff00'), '007803e803e8');
+  assert.strictEqual(rgbToColour('#0000ff'), '00f003e803e8');
+  assert.strictEqual(rgbToColour('#ffffff'), '0000000003e8');
+  assert.strictEqual(rgbToColour('#000000'), '000000000000');
+  for (const rgb of ['#3a7bd5', '#ff8800', '#12ab34']) {    // back and forth stays within rounding
+    const back = colourToRgb(rgbToColour(rgb));
+    for (let i = 1; i < 7; i += 2) assert.ok(Math.abs(parseInt(rgb.slice(i, i + 2), 16) - parseInt(back.slice(i, i + 2), 16)) <= 2, rgb + ' ' + back);
+  }
+  assert.ok(/^[0-9a-f]{12}$/.test(rgbToColour('#fef001')));
 });
 ok('plain-language names', () => {
   assert.strictEqual(describeSubject('ZbReceived#0x1A2B#Click', devs, false), 'Bouton · Click');

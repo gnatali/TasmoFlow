@@ -16,7 +16,7 @@ export function ConflictBanner({ rules }) {
   return html`<div class="conflicts" role="status"><b>${t('rule_conflicts') + ' (' + list.length + ')'}</b>
     <ul>${list.map(c => {
       const trig = (describeSubject(c.subject, s.devices, s.zbNames) || c.subject) + (c.op ? ' ' + c.op + ' ' + c.value : '');
-      const act = describeCommand(c.cmd, s.devices, { On: t('rule_vOn'), Off: t('rule_vOff'), Toggle: t('rule_vToggle') }) || c.cmd;
+      const act = describeCommand(c.cmd, s.devices, { On: t('rule_vOn'), Off: t('rule_vOff'), Toggle: t('rule_vToggle') }, s.tuya) || c.cmd;
       return html`<li><code>${trig}</code> → <code>${act.replace(/^\S+ /, '')}</code> : ${t(KIND[c.kind])}
         <span class="q">(${c.where.map(w => 'Rule' + w.n + ' · ' + t('rule_tile') + ' ' + (w.i + 1)).join(', ')})</span></li>`;
     })}</ul></div>`;

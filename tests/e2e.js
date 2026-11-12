@@ -119,6 +119,13 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     }, '0123456789abcdef0123456789abcdef', { timeout: 4000 });
     await fan.getByRole('button', { name: 'Lumière ventilateur · allumé' }).click();             // back as it was
     await fan.getByRole('button', { name: 'Lumière ventilateur · éteint' }).waitFor({ timeout: 4000 });
+    // a name with a comma goes by its id; no colour picker in the light interface
+    const tv = p.locator('article.card', { has: p.getByRole('heading', { name: 'Salon, TV', exact: true }) });
+    await tv.getByRole('button', { name: 'TV · éteint' }).click();
+    await tv.getByRole('button', { name: 'TV · allumé' }).waitFor({ timeout: 4000 });
+    await tv.getByRole('button', { name: 'TV · allumé' }).click();
+    await tv.getByRole('button', { name: 'TV · éteint' }).waitFor({ timeout: 4000 });
+    if (await p.locator('input[type=color]').count()) throw new Error('colour picker in the light interface');
     await p.getByText(`v${VERSION} · local · lite`).waitFor();
     await p.getByRole('button', { name: 'English' }).click();
     await p.getByRole('button', { name: 'Toggle' }).first().waitFor({ timeout: 2000 });
@@ -458,6 +465,21 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     const lamp = p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe bureau' }) });
     await lamp.getByLabel('Intensité').waitFor();
     await lamp.getByLabel('Température de couleur').waitFor();
+    // light3: the colour picker sets the colour mode, then the colour (hhhhssssvvvv)
+    const garland = p.locator('article.card', { has: p.getByRole('heading', { name: 'Guirlande', exact: true }) });
+    await garland.getByLabel('Couleur').fill('#ff0000');
+    await p.waitForFunction(async t => {
+      const r = await (await fetch('http://localhost:8384/api/cmd?t=' + t + '&c=TuyaStatus%20Guirlande')).json();
+      const d = r.TuyaStatus.Guirlande.Dps;
+      return d['24'] === '000003e803e8' && d['21'] === 'colour';
+    }, '0123456789abcdef0123456789abcdef', { timeout: 4000 });
+    // a name with a comma: controlled by its id; without a known id: readings only, no control
+    const tv = p.locator('article.card', { has: p.getByRole('heading', { name: 'Salon, TV', exact: true }) });
+    await tv.getByRole('button', { name: 'TV · éteint' }).click();
+    await tv.getByRole('button', { name: 'TV · allumé' }).waitFor({ timeout: 4000 });
+    const kitchen = p.locator('article.card', { has: p.getByRole('heading', { name: 'Cuisine, bas', exact: true }) });
+    await kitchen.waitFor();
+    if (await kitchen.getByRole('button').count()) throw new Error('a device that cannot be addressed offers a control');
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'tuya.png'), fullPage: true });
   });
   await test('drivers starting (full): notes, functions off, looks again by itself, then on', async p => {

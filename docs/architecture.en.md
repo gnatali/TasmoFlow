@@ -178,7 +178,7 @@ gateway and Tasmota's own pages stay available (console, `Rule<n>`).
 How the light bundle stays small, with the same sources:
 
 - `main_lite.js` imports only `views.js` (devices), `tuya.js` and `update.js`; the full interface's
-  screens are in their own modules (`rules*.js`, `gateways.js`, `views_full.js`), with their texts
+  screens are in their own modules (`rules*.js`, `gateways.js`, `tuya_colour.js`, `views_full.js`), with their texts
   (`i18n_full.js`, added by `addTexts()`) and styles (`style_full.css`). What a screen loads when
   it opens is registered by `main.js` (`onTab()`), the gateway picker of the header too.
 - No `preact/hooks` in the light bundle: the stores (`store.js`) have no `use()`; after any `set()`
@@ -418,8 +418,23 @@ Controls come from the Matter bindings of `tuya.json` (`controlsFor` in `app/src
 | none | `toggle` on each boolean DP |
 
 `TuyaSend <device>,<dp>,toggle` flips a switch; sliders send the raw value. The state shown is
-the one reported back by the device (no optimistic display). The colour of `light3` is not
-offered yet. Device names containing a comma cannot be addressed by `TuyaSend`.
+the one reported back by the device (no optimistic display).
+
+**Colour of `light3`** (full interface only, `app/src/tuya_colour.js`, plugged into the cards
+through `EXTRA.more` of `tuya.js`; the light interface does not carry it, to keep its size): a colour
+picker on `dp_colour` (24). Choosing a colour sends the mode first (`TuyaSend <device>,21,colour`,
+only if the device reports a mode DP) and then the colour as a JSON string
+(`TuyaSend <device>,24,"hhhhssssvvvv"`: hue 0 to 360, saturation and value 0 to 1000, in
+hexadecimal; quoted because a value of digits only would be read as a number). The dimmer of a
+`light3` acts in white mode; in colour mode the brightness is the colour's value.
+
+**Names with a comma**: `TuyaSend` cuts its argument at the first two commas (`string.split(payload,
+",", 2)` in the driver), so such a name cannot be given. The driver also takes a **device id**
+(`find_node`), which `TuyaConfig` returns for Wi-Fi devices and Tuya gateways: TasmoFlow uses it in
+place of the name (`sendName` in `tuya_model.js`) and shows the name in sentences. A sub-device of a
+Tuya gateway has no `id` (only a `cid`, which `find_node` does not match) and a gateway whose
+`TuyaConfig` was not read has none either: such a device shows its readings but offers no control.
+The id is not a secret (the local key is, and never reaches the interface).
 
 **`"enabled": false`** on a Matter binding only takes the endpoint out of Matter (and out of
 `TuyaActive`): TasmoFlow still uses the binding to know what the DPs mean (found on the gateway on
@@ -551,7 +566,7 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   left out with a hint. *Zigbee actions*: `ZbSend {"device":"0x1234","send":{"Power":"On"}}`
   (on, off, toggle; by address, which never changes) for devices with a `Power` attribute.
   *Tuya actions*: `TuyaSend <name>,<dp>,true|false|toggle` per switch, `TuyaSend <name>,<dp>,` to
-  complete for a slider (names with a comma left out). *Tuya triggers* are not offered: the
+  complete for a slider (a name with a comma goes by its id, or is left out without one). *Tuya triggers* are not offered: the
   `Tuya#Dps#<dp>` rule does not see the device name (Berry rules will). Sentences read in plain
   language where the pattern is known (`Lampe · Power = 1`, `basculer Lampe`). The attributes
   listed are the ones a device has reported since the interface opened or in its last state:
@@ -619,5 +634,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] v0.2: the light interface (GitHub blocked) shows the Rules tab with enable/disable and restore, without the editor (removed on 11 November 2026: rules are in the full interface only)
 - [x] v0.2 (11 November 2026): memory with the rule API loaded (`tf_rules.be` is compiled with the API server), after `tasmota.gc()`: at rest 75-76 KB free / Berry 39 KB (8 to 9 KB), interface open 52 KB / 55 KB (32 KB), 5 minutes after closing 70 KB / 39 KB (14 KB, budget 15 KB)
 - [x] v0.2: long URLs (test build with the string parser, `.tapp` installed again, `Restart 1`): `http://<gateway>:8384/api/status?t=<token>&p=<a repeated 130 times>`, then 90 and 50, answer the status; request lines of 190 and 512 characters answer too; one of 900 characters answers `{"error":"uri_too_long"}`; the gateway never restarts (`Status 1`: `RestartReason` unchanged, uptime keeps growing); the interface still works (devices, console, Rules screen: save and restore)
+- [ ] v0.1 (12 November 2026, `.tapp` installed again, light interface changed): a Tuya device whose name has a comma (Wi-Fi or gateway, listed by `TuyaConfig` with its `id`) switches from its card in both interfaces (`TuyaSend <id>,<dp>,toggle` in the log) and appears in the rule pickers under its name; a sub-device of a gateway with a comma shows its readings without a control
+- [ ] v0.1 (12 November 2026, test build): a `light3` card of the full interface shows a colour picker (not the light interface); choosing a colour changes the lamp and the picker follows the state sent back; the dimmer still works in white mode
 - [ ] v0.1: check that `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)
 - [x] v0.1: what stays allocated after the first opening (6 KB free heap, 4 KB Berry): not pursued, dropped at Guillaume's request (12 November 2026)

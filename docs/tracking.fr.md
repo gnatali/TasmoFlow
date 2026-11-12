@@ -68,6 +68,7 @@ Cahier des charges (en français, hors du dépôt) :
 | 9 nov. | v0.1 : **option B décidée** : interface complète sur GitHub Pages seulement (figée, SRI), interface légère (13,7 Ko gzip, appareils + console + diagnostic) dans la `.tapp` ; second point d'entrée esbuild des mêmes sources. Raison : `UfsFree` 148 Ko sur 320 Ko et une interface complète qui va grossir |
 | 12 nov. | **Pilotes détectés à l'ouverture** (demandé par Guillaume) : `S.drivers` (`zigbee`, `tuya` : running, starting, disabled, absent), `zigbee_state` ajouté à `/api/status` ; un pilote qui ne tourne pas a ses fonctions désactivées avec une note. Interface complète : relit toutes les 5 s tant qu'un pilote démarre (2 minutes au plus) et l'active toute seule ; interface légère : désactivé dans tous les cas, demande de recharger la page, aucune boucle. `.tapp` 41 352 octets (budget 41 534). 24 tests de bout en bout. **La `.tapp` doit être réinstallée** (`extension/` et interface légère modifiés) ; à essayer sur la passerelle (élément « pilotes à l'ouverture » du plan de test) |
 | 12 nov. | Builds de test (`--dev`) : Berry minifié comme une release, mais sans budget de taille (la release de chaque commit reste contrôlée par la CI). Essayé sur un build : `.tapp` de test avec les sources telles quelles (77 Ko), abandonné à la demande de Guillaume |
+| 12 nov. | Restes de la v0.1 écrits : couleur des liaisons `light3` (sélecteur de couleur, interface complète seulement, `tuya_colour.js` branché par `EXTRA.more`) et appareils Tuya dont le nom contient une virgule (adressés par leur `id`, `sendName`). Passerelle simulée : une `light3`, deux appareils avec virgule. 24 tests de bout en bout, 24 contrôles unitaires. La `.tapp` est à réinstaller ; deux nouveaux points dans le plan de test |
 | 12 nov. | **Vérifié sur la passerelle** (Guillaume) : contrôle de place de la mise à jour, pilotes à l'ouverture, URL longues, port 8384 fermé puis ré-écouté. Les 6 Ko de mémoire non rendus après la première ouverture : abandonnés, plus d'enquête |
 | 12 nov. | `.tapp` réduite vérifiée sur la passerelle (Guillaume). Le contrôle de place de la mise à jour ne suivait pas les tailles réelles (deux nouvelles copies plus 20 Ko) : maintenant `/api/update_check?size=` (taille de `latest.json`), avant le téléchargement puis au premier morceau, compare l'espace libre, la `.bak` et un `.new` resté à la nouvelle taille plus 20 Ko ; la `.bak` n'est supprimée qu'en cas de besoin. `.tapp` 40 920 octets. 21 tests de bout en bout |
 | 11 nov. | **`.tapp` divisée par deux** (83 069 à 39 807 octets) : interface légère réduite au pilotage des appareils et à la mise à jour (ses règles, sa console et son diagnostic sont partis : interface complète seulement) ; ses textes, styles et écrans séparés de ceux de la complète (`i18n_full.js`, `style_full.css`, `views_full.js`), plus de `preact/hooks` (les magasins d'état redessinent depuis la racine) ; Berry minifié par `pack_tapp.py` (contrôle des jetons), compilé et testé en CI ; budgets 41 534 octets (`.tapp`) et 14 Ko (`lite.js.gz`) |
@@ -107,8 +108,8 @@ Après `tasmota.gc()`, passerelle avec le pilote Tuya (9 novembre 2026) :
 
 Le budget de 15 Ko est tenu avec l'API des règles : **8 à 9 Ko au repos, 14 Ko cinq minutes après la fermeture de l'interface** (15 Ko en v0.1). Interface ouverte, le coût est de 32 Ko (25 Ko en v0.1) : `tf_rules.be` et le corps POST ajoutent 7 Ko tant que le serveur tourne. Le pilote Tuya demande 45 Ko libres pour démarrer : 52 Ko laissent 7 Ko de marge. `HeapUsed` de Berry revient à 39 Ko après la fermeture, comme en v0.1. Environ 6 Ko de mémoire libre ne sont toujours pas rendus après la première ouverture (75 à 70 Ko, comme en v0.1 : 75 à 69 Ko), cause inconnue et **pas poursuivie** (décision du 12 novembre 2026).
 
-Cible : 15 Ko. Tailles (12 novembre 2026) : `TasmoFlow.tapp` 40,9 Ko (budget 41,5 Ko, la moitié
-des 83 Ko de la v0.2.0), `lite.js.gz` 13,6 Ko (budget 14 Ko), `app.js.gz` 26,4 Ko (budget 120 Ko).
+Cible : 15 Ko. Tailles (12 novembre 2026) : `TasmoFlow.tapp` 41,4 Ko (41 448 octets, budget 41,5 Ko, la moitié
+des 83 Ko de la v0.2.0 : **86 octets de marge**), `lite.js.gz` 14,1 Ko (budget 14 Ko), `app.js.gz` 27,4 Ko (budget 120 Ko).
 
 ## Décisions encore ouvertes
 
@@ -137,8 +138,8 @@ Fait dans le code et la fausse passerelle (voir l'[architecture](architecture.fr
 
 Reste pour la v0.1 (petit) :
 
-- **Couleur des liaisons `light3`** (`colour_data_v2`, `hhhhssssvvvv`) : pas encore proposée.
-- **Noms de sous-appareils Tuya** contenant une virgule, que `TuyaSend` ne sait pas adresser.
+- **Couleur des liaisons `light3`** (`colour_data_v2`) : **écrite** (12 novembre 2026), interface complète seulement (`tuya_colour.js`), à essayer sur la passerelle.
+- **Noms Tuya avec une virgule** : **écrit** (12 novembre 2026) : un tel appareil est adressé par son `id` (appareils Wi-Fi et passerelles Tuya) ; un sous-appareil de passerelle n'en a pas et montre seulement ses mesures. À essayer sur la passerelle. La `.tapp` est à réinstaller (`tuya.js` et `tuya_model.js` sont dans l'interface légère).
 - **`VERSION` vaut `0.2.0`** (11 novembre 2026). La passer dans une pull request **avant** de tagger une
   version : le job `release` refuse un tag différent de `VERSION` (le premier tag `v0.2.0` a échoué ainsi).
 - **Vérifications sur la passerelle** : les points `[ ]` marqués v0.1 du plan de test (le

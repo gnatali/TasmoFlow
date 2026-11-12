@@ -188,7 +188,7 @@ Comment le paquet léger reste petit, avec les mêmes sources :
 
 - `main_lite.js` n'importe que `views.js` (appareils), `tuya.js` et `update.js` ; les écrans de
   l'interface complète sont dans leurs propres modules (`rules*.js`, `gateways.js`,
-  `views_full.js`), avec leurs textes (`i18n_full.js`, ajoutés par `addTexts()`) et leurs styles
+  `tuya_colour.js`, `views_full.js`), avec leurs textes (`i18n_full.js`, ajoutés par `addTexts()`) et leurs styles
   (`style_full.css`). Ce qu'un écran charge à son ouverture est enregistré par `main.js`
   (`onTab()`), de même que le choix de la passerelle dans l'en-tête.
 - Pas de `preact/hooks` dans le paquet léger : les magasins d'état (`store.js`) n'ont plus de
@@ -440,9 +440,25 @@ Les contrôles viennent des liaisons Matter de `tuya.json` (`controlsFor` dans
 | aucune | `toggle` sur chaque DP booléen |
 
 `TuyaSend <appareil>,<dp>,toggle` inverse un interrupteur ; les curseurs envoient la valeur
-brute. L'état affiché est celui que l'appareil renvoie (pas d'affichage optimiste). La couleur
-des `light3` n'est pas encore proposée. Un nom d'appareil qui contient une virgule ne peut pas
-être adressé par `TuyaSend`.
+brute. L'état affiché est celui que l'appareil renvoie (pas d'affichage optimiste).
+
+**Couleur des `light3`** (interface complète seulement, `app/src/tuya_colour.js`, branché sur les
+cartes par `EXTRA.more` de `tuya.js` ; l'interface légère ne l'embarque pas, pour garder sa taille) :
+un sélecteur de couleur sur `dp_colour` (24). Choisir une couleur envoie d'abord le mode
+(`TuyaSend <appareil>,21,colour`, seulement si l'appareil signale un DP de mode) puis la couleur en
+chaîne JSON (`TuyaSend <appareil>,24,"hhhhssssvvvv"` : teinte 0 à 360, saturation et valeur 0 à 1000,
+en hexadécimal ; entre guillemets, car une valeur faite uniquement de chiffres serait lue comme un
+nombre). Le variateur d'une `light3` agit en mode blanc ; en mode couleur, la luminosité est la
+valeur de la couleur.
+
+**Noms avec une virgule** : `TuyaSend` coupe son argument aux deux premières virgules
+(`string.split(payload, ",", 2)` dans le pilote), un tel nom ne peut donc pas être donné. Le pilote
+accepte aussi un **identifiant d'appareil** (`find_node`), que `TuyaConfig` renvoie pour les
+appareils Wi-Fi et les passerelles Tuya : TasmoFlow l'utilise à la place du nom (`sendName` dans
+`tuya_model.js`) et affiche le nom dans les phrases. Un sous-appareil d'une passerelle Tuya n'a pas
+d'`id` (seulement un `cid`, que `find_node` ne compare pas), et une passerelle dont `TuyaConfig` n'a
+pas été lue non plus : un tel appareil montre ses mesures mais n'offre aucun contrôle.
+L'identifiant n'est pas un secret (la clé locale en est un, et n'arrive jamais dans l'interface).
 
 **`"enabled": false`** sur une liaison Matter retire seulement le point de terminaison de Matter (et
 de `TuyaActive`) : TasmoFlow se sert quand même de la liaison pour savoir ce que veulent dire les DP
@@ -582,7 +598,7 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   `ZbSend {"device":"0x1234","send":{"Power":"On"}}` (allumer, éteindre, basculer ; par adresse, qui
   ne change jamais) pour les appareils qui ont un attribut `Power`. *Actions Tuya* :
   `TuyaSend <nom>,<dp>,true|false|toggle` par interrupteur, `TuyaSend <nom>,<dp>,` à compléter pour
-  un curseur (noms avec virgule écartés). Pas de *déclencheurs Tuya* : la règle `Tuya#Dps#<dp>` ne
+  un curseur (un nom avec virgule passe par son identifiant, ou est écarté sans lui). Pas de *déclencheurs Tuya* : la règle `Tuya#Dps#<dp>` ne
   voit pas le nom de l'appareil (les règles Berry le feront). Les phrases se lisent en langage clair
   quand le motif est connu (`Lampe · Power = 1`, `basculer Lampe`). Les attributs listés sont ceux
   qu'un appareil a signalés depuis l'ouverture de l'interface ou dans son dernier état : un bouton
@@ -652,5 +668,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] v0.2 : l'interface légère (GitHub bloqué) montre l'onglet Règles avec activation/désactivation et restauration, sans l'éditeur (retiré le 11 novembre 2026 : les règles ne sont plus que dans l'interface complète)
 - [x] v0.2 (11 novembre 2026) : mémoire avec l'API des règles chargée (`tf_rules.be` est compilé avec le serveur d'API), après `tasmota.gc()` : au repos 75-76 Ko libres / Berry 39 Ko (8 à 9 Ko), interface ouverte 52 Ko / 55 Ko (32 Ko), 5 minutes après la fermeture 70 Ko / 39 Ko (14 Ko, budget 15 Ko)
 - [x] v0.2 : URL longues (version de test avec l'analyseur à base de chaînes, `.tapp` réinstallé, `Restart 1`) : `http://<passerelle>:8384/api/status?t=<jeton>&p=<a répété 130 fois>`, puis 90 et 50, renvoient l'état ; des lignes de requête de 190 et 512 caractères répondent aussi ; une de 900 caractères renvoie `{"error":"uri_too_long"}` ; la passerelle ne redémarre jamais (`Status 1` : `RestartReason` inchangée, la durée de fonctionnement continue d'augmenter) ; l'interface marche toujours (appareils, console, écran Règles : enregistrer et restaurer)
+- [ ] v0.1 (12 novembre 2026, `.tapp` réinstallée, interface légère modifiée) : un appareil Tuya dont le nom contient une virgule (Wi-Fi ou passerelle, listé par `TuyaConfig` avec son `id`) se commande depuis sa carte dans les deux interfaces (`TuyaSend <id>,<dp>,toggle` dans le journal) et apparaît dans les sélecteurs de règles sous son nom ; un sous-appareil de passerelle dont le nom contient une virgule montre ses mesures sans contrôle
+- [ ] v0.1 (12 novembre 2026, version de test) : la carte d'une `light3` de l'interface complète montre un sélecteur de couleur (pas l'interface légère) ; choisir une couleur change la lampe et le sélecteur suit l'état renvoyé ; le variateur marche toujours en mode blanc
 - [ ] v0.1 : vérifier que `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)
 - [x] v0.1 : ce qui reste alloué après la première ouverture (6 Ko de mémoire libre, 4 Ko de Berry) : pas poursuivi, abandonné à la demande de Guillaume (12 novembre 2026)

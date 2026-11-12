@@ -5,12 +5,16 @@ import { html } from './html.js';
 import { t } from './i18n.js';
 import { cmd } from './state.js';
 import { createStore } from './store.js';
-import { controlsFor } from './tuya_model.js';
+import { controlsFor, sendName } from './tuya_model.js';
 
 // the driver's answer to the last command of each device, when it was not "Done": { name: text }
 const M = createStore({});
 
+// controls only the full interface knows (tuya_colour.js sets `more`): { ..., render: Component }
+export const EXTRA = {};
+
 function Control({ c, node, send }) {
+  if (c.render) return html`<${c.render} c=${c} node=${node} send=${send}/>`;
   const v = node.dps[c.dp];
   if (c.kind === 'read') {
     return html`<span>${c.label} <b>${v == null ? '?' : +(v / c.div).toFixed(2) + (c.unit ? ' ' + c.unit : '')}</b></span>`;
@@ -31,11 +35,13 @@ function Control({ c, node, send }) {
 export function TuyaCard({ name, node, entry }) {
   const msg = M.get()[name];
   const setMsg = text => M.set({ [name]: text });
-  const send = (dp, value) => cmd('TuyaSend ' + name + ',' + dp + ',' + value).then(r => {
+  const addr = sendName(name, entry);
+  const send = (dp, value) => cmd('TuyaSend ' + addr + ',' + dp + ',' + value).then(r => {
     const x = r.TuyaSend;
     setMsg(x === 'Done' ? null : typeof x === 'string' ? x : JSON.stringify(x));
   }).catch(e => setMsg(e.message));
-  const cs = controlsFor(node, entry);
+  // a name with a comma and no known id (sub-device, or TuyaConfig not read): read only
+  const cs = controlsFor(node, entry).concat(EXTRA.more ? EXTRA.more(entry) : []).filter(c => addr || c.kind === 'read');
   const reads = cs.filter(c => c.kind === 'read');
   const acts = cs.filter(c => c.kind !== 'read');
   return html`<article class="card">
