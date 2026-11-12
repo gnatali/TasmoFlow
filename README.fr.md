@@ -30,7 +30,7 @@ eWeLink ZB-GW03 avec le firmware
   sources : la **complète** (26,4 Ko gzip, GitHub Pages) et une **légère** (13,4 Ko, dans la
   `.tapp` : pilotage des appareils et mise à jour seulement) que la passerelle sert quand GitHub
   est inaccessible. Tout le reste (règles, console, diagnostic, passerelles) n'est que dans la
-  complète : la `.tapp` fait environ 39 Ko (83 Ko en v0.2.0).
+  complète : la `.tapp` fait environ 40 Ko (83 Ko en v0.2.0).
 - Le serveur d'API du port 8384 ne tourne que pendant qu'une interface est ouverte (la RAM est
   la ressource critique).
 - Écran **Passerelles** : utiliser plusieurs passerelles depuis une seule interface (copier le

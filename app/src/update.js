@@ -24,8 +24,18 @@ const b64 = bytes => {
   return btoa(s);
 };
 
+const kb = n => Math.ceil(n / 1024);
+
 async function send(info) {
   U.set({ phase: 'download', done: 0, total: 0, error: '' });
+  // room on the gateway for the size latest.json announces, before downloading anything
+  const room = await get('/api/update_check', { size: info.size });
+  if (!room.room) {
+    const e = new Error('space');
+    e.detail = t('updateSpaceDetail').replace('{need}', kb(room.need)).replace('{size}', kb(info.size))
+      .replace('{free}', kb(room.free + room.bak + room.stale)).replace('{bak}', kb(room.bak));
+    throw e;
+  }
   const r = await fetch(info.url, { cache: 'no-store' });
   if (!r.ok) throw new Error('HTTP ' + r.status + ' (download)');
   const bytes = new Uint8Array(await r.arrayBuffer());
@@ -64,7 +74,7 @@ export async function runUpdate(info) {
     await send(info);
   } catch (e) {
     const code = String(e.message || e);
-    U.set({ phase: 'error', error: t('update_' + code) === 'update_' + code ? code : t('update_' + code) });
+    U.set({ phase: 'error', error: (t('update_' + code) === 'update_' + code ? code : t('update_' + code)) + (e.detail ? ' ' + e.detail : '') });
     get('/api/update_abort').catch(() => {});
     return;
   }

@@ -134,9 +134,11 @@ veut 45) ; la connexion HTTPS du navigateur est vérifiée et ne coûte rien à 
    mise à jour si le commit diffère (les commits ne sont pas ordonnés). Dans ce cas l'interface
    **légère** se charge avec `window.TASMOFLOW.update = {version, size, sha256, url}` ; `/tf?u=0`
    saute la vérification pour la visite ; un manifeste illisible ne change rien.
-3. **Transfert** (`app/src/update.js`, interface légère seulement) : téléchargement de la `.tapp` sur
-   Pages, puis morceaux de 1 500 octets en base64 (2 000 caractères, sous `MAX_BODY`) vers
-   `POST /api/update?off=&size=`.
+3. **Place, puis transfert** (`app/src/update.js`, interface légère seulement) : d'abord
+   `/api/update_check?size=` avec la taille annoncée par `latest.json` ; si elle ne tient pas, la page
+   le dit avec les tailles (nécessaire, disponible, dont l'ancienne `.bak`) et ne télécharge rien.
+   Puis téléchargement de la `.tapp` sur Pages, et morceaux de 1 500 octets en base64 (2 000
+   caractères, sous `MAX_BODY`) vers `POST /api/update?off=&size=`.
 4. **Installation** (`extension/tf_update.be`, compilé à la première requête `/api/update*`,
    libéré avec le serveur : la marge de 7 Ko d'une interface ouverte n'en permet pas plus) : écrit
    `<tapp>.new`, puis `/api/update_apply?size=&sha256=` contrôle la taille, l'en-tête zip et le
@@ -145,7 +147,15 @@ veut 45) ; la connexion HTTPS du navigateur est vérifiée et ne coûte rien à 
    `be_path_tasmota_lib.c`), répond, et lance `Restart 1` 1,5 s plus tard. Les copies ne finissent
    jamais par `.tapp` : Tasmota charge tout `*.tapp` de `/` et de `/.extensions/`. Le gestionnaire
    d'extensions officiel (`extension_manager.be`) écrit sur le fichier vivant sans fichier temporaire
-   ni contrôle ; ici non. `UfsFree` doit laisser la place de deux copies plus 20 Ko.
+   ni contrôle ; ici non. **Place** (`room()`, depuis le 12 novembre 2026, d'après les tailles
+   réelles) : pendant l'écriture du nouveau fichier la `.tapp` installée reste, puis un simple
+   renommage en fait la `.bak` ; le nouveau fichier demande donc sa taille (celle de `latest.json`)
+   plus 20 Ko d'espace libre (`UfsFree`). Un `.new` laissé par une mise à jour interrompue et
+   l'ancienne `.bak` comptent comme disponibles : le `.new` est supprimé, la `.bak` seulement si
+   l'espace libre seul ne suffit pas (la `.tapp` installée n'est jamais touchée). Le contrôle a lieu
+   avant le téléchargement (`/api/update_check`) et de nouveau au premier morceau. Avant, il fallait
+   la place de deux nouvelles copies plus 20 Ko, quel que soit le poids de l'ancienne `.tapp` et de
+   la `.bak`.
 5. **Attente** : la page interroge `/api/status` toutes les 2 s (en réveillant le serveur d'API par
    `/tf?w=1`) jusqu'à ce que `tasmoflow` soit la nouvelle version, puis recharge ; au bout de 120 s
    (`UPDATE_WAIT_MS`) elle dit que le redémarrage est long et renvoie à l'accueil de Tasmota.
@@ -192,14 +202,14 @@ Comment le paquet léger reste petit, avec les mêmes sources :
   `extension/` ; un numéro de ligne dans un message d'erreur de la passerelle désigne le fichier
   minifié.
 
-| Taille (octets) | v0.2.0 | 11 novembre 2026 |
+| Taille (octets) | v0.2.0 | 12 novembre 2026 |
 | --- | --- | --- |
 | `tasmoflow.be` | 19 516 | 10 741 |
 | `tf_http.be` | 25 710 | 7 421 |
 | `tf_rules.be` | 9 095 | 4 330 |
-| `tf_update.be` | 6 384 | 2 935 |
-| `lite.js.gz` | 21 086 | 13 385 |
-| **`TasmoFlow.tapp`** | **83 069** | **39 807** (-52 % ; budget 41 534) |
+| `tf_update.be` | 6 384 | 3 803 |
+| `lite.js.gz` | 21 086 | 13 630 |
+| **`TasmoFlow.tapp`** | **83 069** | **40 920** (-51 % ; budget 41 534) |
 
 Jamais dans l'interface légère : règles, éditeur de phrases, groupes, scènes, plugins Zigbee,
 administration (OTA), console, diagnostic, plusieurs passerelles.
@@ -222,7 +232,7 @@ Pourquoi :
 - **Gardé en local, léger** : GitHub (compte, Pages, dépôt) ne doit pas être un point de
   défaillance unique pour piloter la passerelle.
 - L'interface légère est un autre point d'entrée des mêmes sources : pas de seconde base de
-  code, même client d'API, même modèle Tuya, mêmes textes (13,4 Ko gzip contre 26,4 Ko pour la
+  code, même client d'API, même modèle Tuya, mêmes textes (13,6 Ko gzip contre 26,4 Ko pour la
   complète).
 - L'interface complète ne peut pas passer sur `https://gnatali.github.io` pour gérer les
   passerelles depuis un seul endroit : une page HTTPS qui appelle `http://<passerelle>` est
@@ -243,6 +253,7 @@ Pourquoi :
 | `POST /api/rule_set?t=&n=` | Envoie le nouveau texte du jeu `n` (corps de la requête) |
 | `GET /api/rule_apply?t=&n=&step=` | L'applique en trois requêtes : `bak` (copie du texte actuel), `put` (`Rule<n>`), `check` (relecture) ; en cas d'échec l'interface appelle `rule_restore` |
 | `GET /api/autoexec?t=` | `/autoexec.be` en texte, en lecture seule, 6 000 octets au plus (`{"exists":false}` sans lui). Le seul fichier que l'API lit : les autres (`tuya.json`…) contiennent des clés |
+| `GET /api/update_check?t=&size=` | Place pour une `.tapp` de `size` octets : `{free, tapp, bak, stale, need, room}` en octets (voir [Mise à jour de la .tapp](#mise-à-jour-de-la-tapp)) |
 | `POST /api/update?t=&off=&size=` | Un morceau (base64, corps de la requête) de la nouvelle `.tapp`, écrit dans `<tapp>.new` |
 | `GET /api/update_apply?t=&size=&sha256=` | Contrôle `<tapp>.new`, l'installe (`<tapp>.bak` gardé), redémarre |
 | `GET /api/update_abort?t=` | Supprime `<tapp>.new` |
@@ -585,7 +596,8 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] Sans accès Internet, `/tf` charge la copie locale (onglet Diagnostic : « local ») ; depuis la v0.1 cette copie est l'interface légère (bandeau, en-tête « · lite »), à revérifier
 - [x] `open(tasmota.wd + "app.js.gz", "rb")` lit bien le fichier dans la `.tapp`, et le navigateur décompresse la copie locale (`lite.js.gz` depuis la v0.1)
 - [ ] v0.1 : navigateur hors ligne (ou `gnatali.github.io` bloqué), `/tf` affiche l'interface légère : les appareils avec leurs bascules, la console et le diagnostic fonctionnent, les onglets Passerelles et Événements sont absents, « Réessayer » charge l'interface complète dès que GitHub répond (la console et le diagnostic ont quitté l'interface légère le 11 novembre 2026 : voir le point suivant)
-- [ ] v0.2, `.tapp` réduite (11 novembre 2026, build de test, `.tapp` réinstallée, `Restart 1`) : la `.tapp` fait environ 39 Ko ; le journal de démarrage affiche `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` (le Berry minifié se charge) ; GitHub bloqué, `/tf` n'affiche que les appareils, sans barre d'onglets : une bascule Zigbee, « Appairer », un interrupteur et un curseur Tuya fonctionnent et leur état revient, le bouton de langue fonctionne, « Réessayer » charge l'interface complète dès que GitHub répond ; GitHub joignable, l'interface complète marche comme avant (Règles : enregistrer et restaurer, règles Berry, `autoexec.be` ; console ; diagnostic ; passerelles) ; une mise à jour depuis l'interface légère fonctionne toujours ; mémoire au repos et interface ouverte inchangée ou plus basse
+- [ ] v0.2, `.tapp` réduite (11 novembre 2026, build de test, `.tapp` réinstallée, `Restart 1`) : la `.tapp` fait environ 40 Ko ; le journal de démarrage affiche `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` (le Berry minifié se charge) ; GitHub bloqué, `/tf` n'affiche que les appareils, sans barre d'onglets : une bascule Zigbee, « Appairer », un interrupteur et un curseur Tuya fonctionnent et leur état revient, le bouton de langue fonctionne, « Réessayer » charge l'interface complète dès que GitHub répond ; GitHub joignable, l'interface complète marche comme avant (Règles : enregistrer et restaurer, règles Berry, `autoexec.be` ; console ; diagnostic ; passerelles) ; une mise à jour depuis l'interface légère fonctionne toujours ; mémoire au repos et interface ouverte inchangée ou plus basse (12 novembre 2026 : fonctionne sur la passerelle, Guillaume)
+- [ ] v0.2, place pour la mise à jour (12 novembre 2026, la `.tapp` avec `/api/update_check` installée une fois à la main) : avec assez d'espace libre la mise à jour passe et l'ancienne `TasmoFlow.tapp.bak` reste jusqu'au contrôle du nouveau fichier ; avec peu d'espace libre mais une `.bak`, la `.bak` est supprimée et la mise à jour passe ; avec trop peu de place même sans la `.bak`, le bandeau le dit avec les tailles (nécessaire, disponible) avant tout téléchargement, et rien ne change
 - [x] La liste des appareils correspond à `ZbStatus1`
 - [x] Un appui sur un bouton Zigbee apparaît dans l'onglet Événements en moins de 2 s
 - [x] « Basculer » allume et éteint une lampe ; « Appairer » ouvre l'appairage 60 s

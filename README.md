@@ -30,7 +30,7 @@ firmware.
   sources: the **full** one (26.4 KB gzipped, GitHub Pages) and a **light** one (13.4 KB, in the
   `.tapp`: device control and the update only) that the gateway serves when GitHub cannot be
   reached. Everything else (rules, console, diagnostics, gateways) is in the full one only, so
-  the `.tapp` is about 39 KB (83 KB in v0.2.0).
+  the `.tapp` is about 40 KB (83 KB in v0.2.0).
 - The port 8384 API server only runs while an interface is open (RAM is the critical resource).
 - **Gateways** screen: use several gateways from one interface (copy a gateway's link, paste it
   in another one's screen).

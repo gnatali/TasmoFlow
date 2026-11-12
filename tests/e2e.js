@@ -397,6 +397,34 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     const st = await (await fetch('http://localhost:8386/api/status?t=0123456789abcdef0123456789abcdef')).json();
     if (st.tasmoflow !== '0.0.9') throw new Error('version changed: ' + st.tasmoflow);
   });
+  await test('update: not enough room is said before the download, with the sizes', async p => {
+    await reset(8386, '0.0.9', '&free=' + 30 * 1024);                     // 30 KB free, no .bak
+    await manifest(p, UPD, latest());
+    let fetched = false;
+    await p.route(TAPP_URL, r => { fetched = true; r.abort(); });
+    await p.goto('http://localhost:8082/tf');
+    await expectSource(p, 'local');
+    p.once('dialog', d => d.accept());
+    await p.getByRole('button', { name: 'Mettre à jour' }).click();
+    const need = Math.ceil((TAPP.length + 20 * 1024) / 1024);
+    await p.getByRole('alert').filter({ hasText: `Il faut ${need} Ko` }).filter({ hasText: '30 Ko sont disponibles' }).waitFor({ timeout: 10000 });
+    if (fetched) throw new Error('the .tapp was downloaded although it cannot fit');
+    await reset(8386, '0.0.9');
+  });
+  await test('update: the old .bak makes room when free space alone is short, and the update goes through', async p => {
+    await reset(8386, '0.0.9', '&restart=1&free=' + 30 * 1024 + '&bak=83069');   // 30 KB free + an 81 KB .bak
+    await p.route(CDN, r => r.fulfill(jsBody(APP)));
+    await manifest(p, UPD, latest());
+    await tappRoute(p);
+    await p.goto('http://localhost:8082/tf');
+    await expectSource(p, 'local');
+    p.once('dialog', d => d.accept());
+    await p.getByRole('button', { name: 'Mettre à jour' }).click();
+    await p.waitForFunction(v => window.TASMOFLOW && window.TASMOFLOW.source === 'github' && window.TASMOFLOW.version === v, VERSION, { timeout: 30000 });
+    const r = await (await fetch('http://localhost:8386/api/update_check?t=0123456789abcdef0123456789abcdef&size=1000')).json();
+    if (r.bak !== 83069 || r.tapp !== TAPP.length) throw new Error('after the update: ' + JSON.stringify(r));
+    await reset(8386, '0.0.9');
+  });
   await test('update, test channel: another commit is offered, the same one is not', async p => {
     await p.route(CDN, r => r.fulfill(jsBody(APP)));
     await manifest(p, DEVUPD, latest({ version: '0.1.0-dev.bbbbbbb', tapp: 'TasmoFlow.tapp' }));

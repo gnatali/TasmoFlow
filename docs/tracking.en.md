@@ -10,12 +10,14 @@ Specification (French, outside the repository):
 ## Status (9 November 2026)
 
 - **`.tapp` halved** (11 November 2026, branch `claude/tasmoflow-tapp-reduction-t5ofde`, asked by
-  Guillaume): 83,069 B in v0.2.0, **39,807 B** now (-52 %; `pack_tapp.py` budget 41,534 B, half of
+  Guillaume): 83,069 B in v0.2.0, **40,920 B** now (-51 %; `pack_tapp.py` budget 41,534 B, half of
   v0.2.0). The light interface keeps only device control and the update (rules, console,
   diagnostics left it: full interface only), without `preact/hooks`; the Berry files are minified
-  at packing (CI compiles them and runs the parser test on the minified `tf_http.be`). 19 end-to-end
-  tests pass; **not tried on the gateway yet**: test build, `.tapp` to install again (test plan item
-  "v0.2, reduced `.tapp`"). Details: [architecture](architecture.en.md#full-interface-on-github-light-interface-on-the-gateway).
+  at packing (CI compiles them and runs the parser test on the minified `tf_http.be`). **Works on the
+  gateway** (12 November, Guillaume). Then the update's room check, which still asked for two new
+  copies plus 20 KB, was redone from the real sizes (`/api/update_check`, size from `latest.json`):
+  21 end-to-end tests pass, **to try on the gateway** (test plan item "v0.2, update room"; the
+  `.tapp` must be installed by hand once, the update code changed). Details: [architecture](architecture.en.md#full-interface-on-github-light-interface-on-the-gateway).
 - **v0.1 released**: tag `v0.1.0`, `.tapp` attached to the release, interface published on GitHub
   Pages (PRs #1 to #3 merged). Installed on the gateway: server start/stop, memory and the
   light interface after a restart checked; the other `[ ]` items of the test plan are left.
@@ -57,6 +59,7 @@ Specification (French, outside the repository):
 | 9 Nov | All v0.0 checks passed, memory measured after `tasmota.gc()`; v0.0.1 tagged by Guillaume, GitHub Pages enabled |
 | 9 Nov | v0.1: **Preact + htm chosen** (same screen: 6.6 KB gzipped against 6.3 KB for Lit, 5.4 KB for the prototype without dependency); interface bundled with esbuild (12.9 KB gzipped, then 14.6 KB with Tuya) |
 | 9 Nov | v0.1: **option B decided**: full interface on GitHub Pages only (pinned, SRI), light interface (13.7 KB gzipped, devices + console + diagnostics) in the `.tapp`; second esbuild entry point of the same sources. Reason: `UfsFree` 148 KB of 320 KB and a full interface that will grow |
+| 12 Nov | Halved `.tapp` checked on the gateway (Guillaume). The room check of the update did not follow the real sizes (two new copies plus 20 KB): now `/api/update_check?size=` (size from `latest.json`) before the download, and on the first piece, counts the free space, the `.bak` and a leftover `.new` against the new size plus 20 KB; the `.bak` is deleted only when needed. `.tapp` 40,920 B. 21 end-to-end tests |
 | 11 Nov | **`.tapp` halved** (83,069 to 39,807 B): light interface reduced to device control and the update (its rules, console and diagnostics left: full interface only); its texts, styles and screens split from the full interface's (`i18n_full.js`, `style_full.css`, `views_full.js`), no `preact/hooks` (stores render again from the root); Berry minified by `pack_tapp.py` (token check), compiled and tested in CI; budgets 41,534 B (`.tapp`) and 14 KB (`lite.js.gz`) |
 | 11 Nov | Update button (decision: the browser relays the `.tapp` from GitHub Pages): manifests `latest.json` / `dev/latest.json`, the light interface offers the update when the channel has a newer version (test builds: a different commit), the gateway checks size and SHA-256 and replaces itself (`tf_update.be`, `.bak` kept), the page waits for the restart (120 s at most). Simulated gateway: 414 above 512 characters instead of cutting the connection |
 | 11 Nov | v0.2 merged (PR #5). The `v0.2.0` tag created on github.com made the `release` job fail ("Tag matches the VERSION file": `VERSION` was still `0.1.0`); `VERSION` bumped to `0.2.0`, the tag then has to be moved onto the new `main` |
@@ -94,8 +97,8 @@ After `tasmota.gc()`, gateway running the Tuya driver (9 November 2026):
 
 The budget of 15 KB holds with the rule API: **8 to 9 KB at rest, 14 KB five minutes after the interface was closed** (15 KB in v0.1). With an interface open the cost is 32 KB (25 KB in v0.1): `tf_rules.be` and the POST body add 7 KB while the server runs. The Tuya driver needs 45 KB free to start: 52 KB leaves 7 KB. Berry `HeapUsed` is back at 39 KB after closing, as in v0.1. About 6 KB of free heap are still not given back after the first opening (75 to 70 KB, same as v0.1: 75 to 69 KB), cause unknown (see the open point in the test plan).
 
-Target: 15 KB. Sizes (11 November 2026): `TasmoFlow.tapp` 39.8 KB (budget 41.5 KB, half of
-v0.2.0's 83 KB), `lite.js.gz` 13.4 KB (budget 14 KB), `app.js.gz` 26.4 KB (budget 120 KB).
+Target: 15 KB. Sizes (12 November 2026): `TasmoFlow.tapp` 40.9 KB (budget 41.5 KB, half of
+v0.2.0's 83 KB), `lite.js.gz` 13.6 KB (budget 14 KB), `app.js.gz` 26.4 KB (budget 120 KB).
 
 ## Decisions still open
 

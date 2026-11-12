@@ -129,8 +129,11 @@ verified and costs the gateway nothing.
    (commits are not ordered). If so the **light** interface loads with
    `window.TASMOFLOW.update = {version, size, sha256, url}`; `/tf?u=0` skips the check for the visit;
    a manifest that cannot be read changes nothing.
-3. **Transfer** (`app/src/update.js`, light interface only): download of the `.tapp` from Pages, then
-   pieces of 1,500 bytes in base64 (2,000 characters, under `MAX_BODY`) to `POST /api/update?off=&size=`.
+3. **Room, then transfer** (`app/src/update.js`, light interface only): first
+   `/api/update_check?size=` with the size `latest.json` announces; if it does not fit, the page says
+   so with the sizes (needed, available, of which the old `.bak`) and downloads nothing. Then download
+   of the `.tapp` from Pages, and pieces of 1,500 bytes in base64 (2,000 characters, under
+   `MAX_BODY`) to `POST /api/update?off=&size=`.
 4. **Installation** (`extension/tf_update.be`, compiled at the first `/api/update*` request, freed
    with the server: the 7 KB margin of an open interface does not allow more): writes
    `<tapp>.new`, then `/api/update_apply?size=&sha256=` checks the size, the zip header and the
@@ -139,7 +142,13 @@ verified and costs the gateway nothing.
    `be_path_tasmota_lib.c`), answers, and runs `Restart 1` 1.5 s later. The copies never end in
    `.tapp`: Tasmota loads every `*.tapp` of `/` and `/.extensions/`. The official extension manager
    (`extension_manager.be`) writes over the live file without a temporary file or a check; this
-   does not. `UfsFree` must leave room for two copies plus 20 KB.
+   does not. **Room** (`room()`, since 12 November 2026, from the real sizes): while the new file is
+   written the installed `.tapp` stays, then only a rename makes it the `.bak`, so the new file needs
+   its size (from `latest.json`) plus 20 KB of free space (`UfsFree`). A `.new` left by an
+   interrupted update and the previous `.bak` count as available: the `.new` is deleted, the `.bak`
+   only when the free space alone is short (the installed `.tapp` is never touched). The check runs
+   before the download (`/api/update_check`) and again on the first piece. Before, two new copies
+   plus 20 KB were required, whatever the old `.tapp` and `.bak` weighed.
 5. **Wait**: the page polls `/api/status` every 2 s (waking the API server with `/tf?w=1`) until
    `tasmoflow` equals the new version, then reloads; after 120 s (`UPDATE_WAIT_MS`) it says the
    restart is taking long and links to Tasmota's home page.
@@ -181,14 +190,14 @@ How the light bundle stays small, with the same sources:
   `tests/tf_http_test.be` on the minified `tf_http.be`. The commented sources stay in `extension/`;
   a line number in a gateway error message refers to the minified file.
 
-| Size (bytes) | v0.2.0 | 11 November 2026 |
+| Size (bytes) | v0.2.0 | 12 November 2026 |
 | --- | --- | --- |
 | `tasmoflow.be` | 19,516 | 10,741 |
 | `tf_http.be` | 25,710 | 7,421 |
 | `tf_rules.be` | 9,095 | 4,330 |
-| `tf_update.be` | 6,384 | 2,935 |
-| `lite.js.gz` | 21,086 | 13,385 |
-| **`TasmoFlow.tapp`** | **83,069** | **39,807** (-52 %; budget 41,534) |
+| `tf_update.be` | 6,384 | 3,803 |
+| `lite.js.gz` | 21,086 | 13,630 |
+| **`TasmoFlow.tapp`** | **83,069** | **40,920** (-51 %; budget 41,534) |
 
 Never in the light interface: rules, sentence editor, groups, scenes, Zigbee plugins,
 administration (OTA), console, diagnostics, several gateways.
@@ -208,7 +217,7 @@ Why:
 - **Kept local, light**: GitHub (account, Pages, repository) must not be a single point of
   failure for controlling the gateway.
 - The light interface is another entry point of the same sources, so no second code base:
-  same API client, same Tuya model, same texts (13.4 KB gzipped against 26.4 KB for the full one).
+  same API client, same Tuya model, same texts (13.6 KB gzipped against 26.4 KB for the full one).
 - The full interface cannot be moved to `https://gnatali.github.io` to manage gateways from
   one place: an HTTPS page calling `http://<gateway>` is blocked (mixed content, Private
   Network Access). It must stay loaded by the gateway's HTTP page.
@@ -228,6 +237,7 @@ Why:
 | `POST /api/rule_set?t=&n=` | Sends the new text of rule set `n` (request body) |
 | `GET /api/rule_apply?t=&n=&step=` | Applies it in three requests: `bak` (copy of the current text), `put` (`Rule<n>`), `check` (read back); on failure the interface calls `rule_restore` |
 | `GET /api/autoexec?t=` | `/autoexec.be` as text, read only, at most 6,000 bytes (`{"exists":false}` without it). The one file the API reads: the others (`tuya.json`...) hold keys |
+| `GET /api/update_check?t=&size=` | Room for a `.tapp` of `size` bytes: `{free, tapp, bak, stale, need, room}` in bytes (see [Updating the .tapp](#updating-the-tapp)) |
 | `POST /api/update?t=&off=&size=` | A piece (base64, request body) of the new `.tapp`, written to `<tapp>.new` |
 | `GET /api/update_apply?t=&size=&sha256=` | Checks `<tapp>.new`, installs it (`<tapp>.bak` kept), restarts |
 | `GET /api/update_abort?t=` | Deletes `<tapp>.new` |
@@ -554,7 +564,8 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] Without internet access, `/tf` loads the local copy (Diagnostics tab: "local"); since v0.1 this copy is the light interface (banner, header "· lite"), to check again
 - [x] `open(tasmota.wd + "app.js.gz", "rb")` reads the file inside the `.tapp`, and the browser decompresses the local copy (`lite.js.gz` since v0.1)
 - [ ] v0.1: with the browser offline (or `gnatali.github.io` blocked), `/tf` shows the light interface: devices with toggles, console and diagnostics work, the Gateways and Events tabs are absent, "Retry" loads the full interface once GitHub answers (console and diagnostics left the light interface on 11 November 2026: see the item below)
-- [ ] v0.2, reduced `.tapp` (11 November 2026, test build, `.tapp` installed again, `Restart 1`): the `.tapp` is about 39 KB; the boot log shows `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` (the minified Berry loads); with GitHub blocked, `/tf` shows the devices only, without a tab bar: a Zigbee toggle, "Pair", a Tuya switch and slider work and their state comes back, the language button works, "Retry" loads the full interface once GitHub answers; with GitHub reachable, the full interface works as before (Rules: save and restore, Berry rules, `autoexec.be`; console; diagnostics; gateways); an update from the light interface still works; memory at rest and with an interface open unchanged or lower
+- [ ] v0.2, reduced `.tapp` (11 November 2026, test build, `.tapp` installed again, `Restart 1`): the `.tapp` is about 40 KB; the boot log shows `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` (the minified Berry loads); with GitHub blocked, `/tf` shows the devices only, without a tab bar: a Zigbee toggle, "Pair", a Tuya switch and slider work and their state comes back, the language button works, "Retry" loads the full interface once GitHub answers; with GitHub reachable, the full interface works as before (Rules: save and restore, Berry rules, `autoexec.be`; console; diagnostics; gateways); an update from the light interface still works; memory at rest and with an interface open unchanged or lower (12 November 2026: works on the gateway, Guillaume)
+- [ ] v0.2, update room (12 November 2026, the `.tapp` with `/api/update_check` installed by hand once): with enough free space the update goes through and the previous `TasmoFlow.tapp.bak` stays until the new file is checked; with free space short but a `.bak`, the `.bak` is deleted and the update goes through; with too little room even without the `.bak`, the banner says so with the sizes (needed, available) before any download, and nothing changes
 - [x] The device list matches `ZbStatus1`
 - [x] A Zigbee button press shows up in the Events tab within 2 s
 - [x] "Toggle" switches a light on and off; "Pair" opens pairing for 60 s

@@ -9,8 +9,11 @@
 # The browser downloads the new .tapp from GitHub Pages (a verified HTTPS connection) and sends
 # it here in small pieces: the gateway needs no TLS (Tasmota's reserves 16 KB in one piece and
 # does not check the server). Routes (all need the `t` token):
+#   /api/update_check?size=<total>   room on the file system for a new .tapp of <total> bytes (the
+#                              size in latest.json), asked before the download (see room())
 #   POST /api/update?off=<offset>&size=<total>   one piece, base64, in the request body. The
-#                              first (off=0) starts <tapp>.new, the others must follow
+#                              first (off=0) checks the room again and starts <tapp>.new, the others
+#                              must follow
 #   /api/update_apply?size=&sha256=   checks size, zip header and SHA-256 of <tapp>.new, then
 #                              installs it and restarts (see apply())
 #   /api/update_abort          deletes <tapp>.new
@@ -32,7 +35,7 @@ import crypto
 
 class tf_update
   static var MAX_SIZE = 153600          # largest .tapp accepted (pack_tapp.py's budget is smaller: room to grow)
-  static var MARGIN_KB = 20             # free file system left after the copy and the new file
+  static var MARGIN_KB = 20             # free file system left once the new file is written
 
   var tf                                # the tasmoflow instance
   var written                           # bytes of <tapp>.new received so far
@@ -55,6 +58,41 @@ class tf_update
     cnx.content_stop()
   end
 
+  # size of a file in bytes, 0 if there is none
+  static def fsize(name)
+    if !path.exists(name)    return 0    end
+    var f = open(name, "r")
+    var n = f.size()
+    f.close()
+    return n
+  end
+
+  # Room for a new .tapp of `total` bytes, from the real sizes. While it is written the installed
+  # .tapp stays (it then becomes the .bak by a rename, which takes no room), so the new file needs
+  # `total` bytes plus MARGIN_KB of free space. A <tapp>.new left by an interrupted update and the
+  # previous <tapp>.bak can be deleted to make that room. Returns a map, sizes in bytes:
+  #   free (UfsFree, nil if unknown), tapp, bak, stale (.new), need, room (true if it fits)
+  def room(total)
+    var base = self.target()
+    var free = tasmota.cmd("UfsFree", true)
+    free = isinstance(free, map) ? free.find("UfsFree") : nil
+    var r = {'free': free == nil ? nil : int(free) * 1024, 'tapp': self.fsize(base), 'bak': self.fsize(base + ".bak"),
+             'stale': self.fsize(base + ".new"), 'need': total + self.MARGIN_KB * 1024}
+    r['room'] = free == nil || r['free'] + r['stale'] + r['bak'] >= r['need']
+    return r
+  end
+
+  # /api/update_check?size=: the room, before the browser downloads anything
+  def check(cnx, q)
+    if self.target() == nil    return self.answer(cnx, false, "path")    end
+    var total = int(q.find('size', '0'))
+    if total <= 0 || total > self.MAX_SIZE    return self.answer(cnx, false, "size")    end
+    var r = self.room(total)
+    r['ok'] = true
+    cnx.send(200, "application/json", json.dump(r))
+    cnx.content_stop()
+  end
+
   # one piece of the new file
   def receive(cnx, q)
     var base = self.target()
@@ -64,10 +102,11 @@ class tf_update
     var total = int(q.find('size', '0'))
     if off == 0
       if total <= 0 || total > self.MAX_SIZE    return self.answer(cnx, false, "size")    end
-      var free = tasmota.cmd("UfsFree", true)
-      free = isinstance(free, map) ? free.find("UfsFree") : nil
-      # the old file stays until the new one is checked: room for both
-      if free != nil && free < (total * 2) / 1024 + self.MARGIN_KB    return self.answer(cnx, false, "space")    end
+      var r = self.room(total)
+      if !r['room']    return self.answer(cnx, false, "space")    end
+      if r['stale'] > 0    path.remove(tmp)    end
+      # the previous copy only goes if the new file needs its room (the installed one always stays)
+      if r['free'] != nil && r['bak'] > 0 && r['free'] + r['stale'] < r['need']    path.remove(base + ".bak")    end
       self.written = 0
     elif off != self.written
       return self.answer(cnx, false, "offset")          # a piece was lost or repeated: start again
@@ -135,6 +174,8 @@ class tf_update
       if route == "/api/update"
         if verb != 'POST'    return self.answer(cnx, false, "method")    end
         self.receive(cnx, q)
+      elif route == "/api/update_check"
+        self.check(cnx, q)
       elif route == "/api/update_apply"
         self.apply(cnx, q)
       elif route == "/api/update_abort"
