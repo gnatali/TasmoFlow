@@ -62,7 +62,17 @@ function RuleCard({ r, note, setNote, mode, setMode }) {
     catch (e) { setNote({ n: r.n, ok: false, text: errText(e.message) }); }
     setBusy(false);
   };
-  const flag = (on, opt) => run('rule_done', () => cmd('Rule' + r.n + ' ' + opt[on ? 1 : 0]));
+  // On/off, once, stop on error act on the gateway at once and rebuild the card with what it holds:
+  // a text not saved yet would be lost, so it is saved first (the user is asked), or nothing happens.
+  // `box`: the checkbox clicked, put back as it was when nothing is done (the screen would show a state the gateway does not have)
+  const flag = (on, opt, box) => {
+    const go = () => cmd('Rule' + r.n + ' ' + opt[on ? 1 : 0]);
+    if (!dirty) return run('rule_done', go);
+    if (box) box.checked = !on;
+    if (lint || tooLong) return setNote({ n: r.n, ok: false, text: t('rule_unsavedBad') });
+    if (!confirm(t('rule_unsavedAsk'))) return;
+    run('rule_saved', async () => { await saveRule(r.n, flat); await go(); });
+  };
   const save = () => run('rule_saved', () => saveRule(r.n, flat));
   const restore = () => {
     if (confirm(t('rule_confirmRestore'))) run('rule_restored', () => get('/api/rule_restore', { n: r.n }));
@@ -71,8 +81,8 @@ function RuleCard({ r, note, setNote, mode, setMode }) {
   return html`<article class="card">
     <div class="row tight">
       <button class="b" aria-pressed=${r.on} disabled=${busy} onClick=${() => flag(!r.on, ['0', '1'])}>${r.on ? t('on') : t('off')}</button>
-      <label><input type="checkbox" checked=${r.once} disabled=${busy} onChange=${e => flag(e.target.checked, ['4', '5'])}/> ${t('rule_once')}</label>
-      <label><input type="checkbox" checked=${r.stop} disabled=${busy} onChange=${e => flag(e.target.checked, ['8', '9'])}/> ${t('rule_stop')}</label>
+      <label><input type="checkbox" checked=${r.once} disabled=${busy} onChange=${e => flag(e.target.checked, ['4', '5'], e.target)}/> ${t('rule_once')}</label>
+      <label><input type="checkbox" checked=${r.stop} disabled=${busy} onChange=${e => flag(e.target.checked, ['8', '9'], e.target)}/> ${t('rule_stop')}</label>
       <span class="q">${r.len + ' ' + t('rule_chars') + ' · ' + t('rule_free') + ' ' + r.free}</span>
     </div>
     ${Editor ? html`<div class="row tight" role="group" aria-label=${t('rule_view')}>

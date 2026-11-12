@@ -375,6 +375,39 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await dlg.getByText('Modifier la règle').waitFor();
     await p.keyboard.press('Escape');
   });
+  await test('rules: an option clicked with an unsaved text asks to save first, nothing is lost', async p => {
+    await openFull(p);
+    await p.getByRole('button', { name: 'Règles' }).click();
+    const r3 = await rule(p, 3);
+    const flags = () => p.evaluate(async t => { const r = (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[2]; return { once: r.once, text: r.text }; },
+      '0123456789abcdef0123456789abcdef');
+    const was = await flags();
+    const draft = was.text + ' on System#Boot do Var9 1 endon';
+    await r3.getByRole('textbox').fill(draft);
+    // refused: the text stays in the field, the option is not applied
+    let asked = '';
+    p.once('dialog', d => { asked = d.message(); d.dismiss(); });
+    await r3.getByRole('checkbox', { name: 'une seule fois' }).click();
+    if (!/non enregistrées/.test(asked)) throw new Error('no question asked: ' + asked);
+    if ((await r3.getByRole('textbox').inputValue()).indexOf('Var9 1') < 0) throw new Error('the draft was lost on refusal');
+    if ((await flags()).once !== was.once) throw new Error('the option was applied on refusal');
+    // accepted: saved first, then the option; the new rule is still there
+    p.once('dialog', d => d.accept());
+    await r3.getByRole('checkbox', { name: 'une seule fois' }).click();
+    await r3.getByText(/Enregistré/).waitFor({ timeout: 4000 });
+    const now = await flags();
+    if (now.once === was.once || now.text.indexOf('Var9 1') < 0) throw new Error('not saved or not applied: ' + JSON.stringify(now));
+    if ((await (await rule(p, 3)).getByRole('textbox').inputValue()).indexOf('Var9 1') < 0) throw new Error('the new rule vanished');
+    // an invalid draft is not saved: the user is told, nothing happens
+    await r3.getByRole('textbox').fill('on System#Boot do');
+    await r3.getByRole('checkbox', { name: 'une seule fois' }).click();
+    await r3.getByText(/modifications non enregistrées et incorrectes/).waitFor();
+    // put the flag and the text back
+    await r3.getByRole('button', { name: 'Annuler' }).click();
+    await r3.getByRole('checkbox', { name: 'une seule fois' }).click();
+    await p.waitForFunction(async ([t, once]) => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[2].once === once,
+      ['0123456789abcdef0123456789abcdef', was.once]);
+  });
   await test('conflicts: two rule sets toggling the same light on the same event', async p => {
     await openFull(p);
     await p.getByRole('button', { name: 'Règles' }).click();

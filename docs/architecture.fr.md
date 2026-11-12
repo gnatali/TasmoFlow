@@ -605,6 +605,7 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   le formulaire dans une **fenêtre par-dessus la page** (`<dialog>` natif : Échap et le fond la
   ferment, le bouton *Terminé* reste visible sur téléphone), et non sur place ; deux tuiles en
   pointillés ajoutent une règle : une règle **guidée** (ci-dessous) ou une règle **libre** (le formulaire).
+- **Texte non enregistré et options** (12 novembre 2026) : allumé/éteint, *une seule fois* et *arrêt sur erreur* agissent aussitôt sur la passerelle, puis la carte est reconstruite d'après ce qu'elle contient, ce qui faisait perdre un texte non enregistré (une nouvelle règle comprise). Avec un tel texte, l'interface propose maintenant de l'enregistrer d'abord (puis applique l'option) ; en cas de refus, rien ne se passe et la case est remise comme elle était ; si le texte est invalide (ou trop long), elle le dit et ne fait rien. Fermer la section d'un jeu de règles ou quitter l'écran Règles perd encore un texte non enregistré.
 - **Éditeur en phrases** (v0.2 étape 2, écrit ; la vue **Phrases** d'un jeu de règles, interface
   complète seulement : `rules_model.js`, `rules_editor.js`, enregistré par `main.js` pour que
   l'interface légère ne le contienne pas ; rien ne change sur la passerelle). Un bloc
