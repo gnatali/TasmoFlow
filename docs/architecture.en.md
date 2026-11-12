@@ -231,7 +231,7 @@ Why:
 | Route | Response |
 | --- | --- |
 | `GET /lite.js` | Light interface (gzip), sent in 1 KB chunks |
-| `GET /api/status?t=` | Versions, free memory, file system, Zigbee state, number of devices |
+| `GET /api/status?t=` | Versions, free memory, file system, Zigbee state (`zigbee`, and `zigbee_state`: `absent`, `starting` or `running`), number of devices |
 | `GET /api/devices?t=` | Zigbee devices: address, name, model, manufacturer, LQI, battery, last message, last attributes |
 | `POST /api/cmd?t=` | Runs the Tasmota command in the body and returns its JSON response (`GET /api/cmd?t=&c=` still works for a short command) |
 | `GET /api/events?t=&since=` | SSE stream; first sends the kept events after `since` (50 at most) |
@@ -393,8 +393,9 @@ with a mapping editor, then load it (`ZbLoad`).
 `loadTuya()` runs after the Zigbee devices, one command at a time (each loads driver data):
 
 1. `TuyaEnable`: no `TuyaEnable` key in the answer (`{"Command":"Unknown"}`) means no driver;
-   `Enabled: false` means disabled; any `State` other than `running` is shown as waiting. In
-   the first two cases **no Tuya screen is shown**.
+   `Enabled: false` means disabled; any `State` other than `running` means the driver is
+   starting (see [Drivers at opening](#drivers-at-opening)). With no driver **no Tuya screen is
+   shown**.
 2. `TuyaStatus`: every device and sub-device (name, `Connected`, `Ip`, `Version`, `Dps`).
 3. `/api/status`, then `TuyaConfig` **only if at least 32 KB are free** (the driver refuses
    below 30 KB, and `TuyaConfig` loads the whole `tuya.json`). Otherwise the cards fall back to
@@ -427,6 +428,28 @@ offered yet. Device names containing a comma cannot be addressed by `TuyaSend`.
 DPs of a disabled binding (it kept only DP 20 and 34 of the `light3`), so a slider with no known
 value is marked `?` until the device reports a change; `"keep": [21, 22, 24]` in `tuya.json` keeps
 them.
+
+### Drivers at opening
+
+Once the status and the Tuya state are read, `detect()` (`app/src/state.js`) sets `S.drivers`:
+`zigbee` and `tuya` are `running`, `starting`, `disabled` or `absent` (plus `tuyaWhy`, the
+driver's `State`, e.g. `waiting for Zigbee`). Zigbee comes from `zigbee_state` of `/api/status`
+(`absent`: no `zigbee` global, `starting`: present but `started()` is false; Tasmota gives no way
+to tell a disabled Zigbee from one still starting; an older `.tapp` only sends the `zigbee`
+boolean, read as running or starting). Tuya comes from `TuyaEnable` (`waiting` is `starting`).
+
+A driver that is not `running` has its functions off (pairing, its devices, the pickers of the
+sentence editor) and the Devices screen says why (`DriverNote`, `views.js`). An `absent` driver is
+simply not shown. The two interfaces differ:
+
+- **Full**: while a driver is `starting`, `drivers_full.js` reads it again every 5 seconds (only
+  what is starting: the status for Zigbee, `TuyaEnable` for Tuya, never `TuyaConfig`), loads the
+  devices when Zigbee comes up, and turns the functions on without a click. It gives up after
+  2 minutes (a Zigbee that never starts) and offers "Retry". A `disabled` driver is not read
+  again; "Refresh" reads everything again.
+- **Light**: the state read at opening is kept; whatever the reason (`starting` or `disabled`),
+  the functions are off and the page asks to be reloaded. Nothing is read again, the light bundle
+  carries no loop (budget).
 
 ### Memory
 
@@ -467,7 +490,7 @@ compared with the state before the first opening; the cause is not identified ye
 - Show, store or send a local key or the Tuya cloud credentials: entering them stays on the
   driver's page (`/tuya`).
 - Work without the driver: on a Tasmota without the Tuya driver, or with the driver disabled
-  (`TuyaEnable 0`), the Tuya screens are hidden.
+  (`TuyaEnable 0`), the Tuya cards are not shown (an absent driver leaves no trace, a disabled one a note: see [Drivers at opening](#drivers-at-opening)).
 
 ## Rules
 
@@ -581,7 +604,8 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] v0.1: after a restart, port 8384 does not answer until `/tf` is opened; the log shows `TFL: API server started on port 8384`, then `TFL: API server stopped` 5 minutes after the last tab is closed, and `/tf` starts it again (the port can be listened to again)
 - [ ] v0.1: `curl "http://<gateway>/tf?w=1"` answers `ok` without a password and starts the server
 - [ ] v0.1: the Tuya cards match `TuyaStatus`; a switch, a dimmer and a fan speed act on the real devices; a change made on a device (button, Smart Life) reaches the interface within 2 s
-- [ ] v0.1: with the Tuya driver disabled (`TuyaEnable 0`) or absent, the Tuya section is hidden
+- [ ] v0.1: with the Tuya driver absent, the Tuya section is hidden; disabled (`TuyaEnable 0`), it shows "Tuya is disabled" (changed on 12 November 2026, see the next item)
+- [ ] v0.2, drivers at opening (12 November 2026, test build, `.tapp` installed again, `Restart 1`): open `/tf` right after a restart: the full interface says "Zigbee is starting" with pairing off, then "Tuya is starting (waiting for Zigbee)", and turns each on by itself within 5 seconds of it coming up, without a reload; the light interface (GitHub blocked) says "Zigbee is not ready" / "Tuya is not ready", keeps pairing and the Tuya cards off and does nothing until "Reload"; `TuyaEnable 0`: the full interface says Tuya is disabled, the light one that it is not ready, neither shows a card
 - [x] v0.1: memory at rest after `tasmota.gc()`: 75 KB free, Berry 35 KB, i.e. 9 KB (target 15 KB); with an interface open 63 KB / 48 KB (cached `import`, see [Memory](#memory))
 - [x] v0.1: with the uncached loading, the memory partly returns 5 minutes after the last tab is closed: 59 KB free / Berry 48 KB with the interface open, 69 KB / 39 KB after (75 KB / 35 KB before the first opening)
 - [x] v0.2 (11 November 2026, two updates in a row, `dev.1688247` to `dev.e00d0d6` to `dev.f34f8c7`): update (`.tapp` of the previous test build installed, then run `Build` again): `/tf` shows the light interface with the banner and **Update**; the button sends the file, the page waits then reloads on the new build (`dev.<commit>` in the header), `TasmoFlow.tapp.bak` exists next to `TasmoFlow.tapp`, no `.new` is left, no `.tapp` in both `/` and `/.extensions/`; **Later** opens the usual interface; memory at rest and with an interface open unchanged (`tf_update.be` is compiled only when used)

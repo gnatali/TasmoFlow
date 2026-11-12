@@ -33,7 +33,11 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
   const mocks = [mock(['--cdn', CDN, '--sri', SRI]), mock(['--web', '8081', '--api', '8385', '--cdn', CDN, '--sri', SRI, '--token', TOKEN_B, '--name', 'Passerelle B', '--no-tuya']),
     // gateways one version behind: the /tf page checks the update manifest of its channel
     mock(['--web', '8082', '--api', '8386', '--cdn', CDN, '--sri', SRI, '--version', '0.0.9', '--upd', UPD]),
-    mock(['--web', '8083', '--api', '8387', '--cdn', CDN, '--sri', SRI, '--version', '0.1.0-dev.aaaaaaa', '--upd', DEVUPD])];
+    mock(['--web', '8083', '--api', '8387', '--cdn', CDN, '--sri', SRI, '--version', '0.1.0-dev.aaaaaaa', '--upd', DEVUPD]),
+    // drivers: Zigbee then Tuya starting (delays counted from the first request), Tuya disabled, Zigbee never up
+    mock(['--web', '8084', '--api', '8388', '--cdn', CDN, '--sri', SRI, '--zb-delay', '3', '--tuya-delay', '7']),
+    mock(['--web', '8085', '--api', '8389', '--cdn', CDN, '--sri', SRI, '--tuya-disabled']),
+    mock(['--web', '8086', '--api', '8390', '--cdn', CDN, '--sri', SRI, '--zb-delay', '3600', '--tuya-disabled'])];
   await wait(1000);
   const browser = await chromium.launch();
   const results = [];
@@ -455,6 +459,50 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await lamp.getByLabel('Intensité').waitFor();
     await lamp.getByLabel('Température de couleur').waitFor();
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'tuya.png'), fullPage: true });
+  });
+  await test('drivers starting (full): notes, functions off, looks again by itself, then on', async p => {
+    await p.route(CDN, r => r.fulfill(jsBody(APP)));
+    await p.goto('http://localhost:8084/tf');
+    await p.waitForFunction(() => window.TASMOFLOW && window.TASMOFLOW.source === 'github', null, { timeout: 8000 });
+    const note = n => p.getByRole('status').filter({ hasText: new RegExp(n + ' démarre') });
+    await note('Zigbee').waitFor({ timeout: 4000 });
+    if (!(await p.getByRole('button', { name: /^Appairer/ }).isDisabled())) throw new Error('pairing offered while Zigbee starts');
+    await p.getByText('la page se met à jour toute seule').first().waitFor();
+    // Zigbee comes up (3 s), the next look (every 5 s) enables it without a click; Tuya still waits (7 s)
+    await p.getByRole('button', { name: /^Appairer/ }).waitFor({ state: 'visible' });
+    await p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe salon' }) }).waitFor({ timeout: 9000 });
+    if (await p.getByRole('button', { name: /^Appairer/ }).isDisabled()) throw new Error('pairing still off');
+    await note('Zigbee').waitFor({ state: 'detached', timeout: 2000 });
+    await note('Tuya').waitFor({ timeout: 2000 });
+    await p.locator('article.card', { has: p.getByRole('heading', { name: 'Ventilateur', exact: true }) }).waitFor({ timeout: 12000 });
+    await note('Tuya').waitFor({ state: 'detached', timeout: 2000 });
+  });
+  await test('Tuya disabled (full): note, no card, nothing polled', async p => {
+    await p.route(CDN, r => r.fulfill(jsBody(APP)));
+    await p.goto('http://localhost:8085/tf');
+    await p.waitForFunction(() => window.TASMOFLOW && window.TASMOFLOW.source === 'github', null, { timeout: 8000 });
+    await p.getByRole('status').filter({ hasText: 'Tuya est désactivé' }).waitFor({ timeout: 4000 });
+    await wait(1500);
+    let polled = 0;
+    p.on('request', r => { if (/TuyaEnable|api\/status/.test(decodeURIComponent(r.url()) + (r.postData() || ''))) polled++; });
+    await wait(6500);
+    if (polled) throw new Error('driver state read again while nothing starts');
+    if (await p.getByRole('heading', { name: 'Ventilateur' }).count()) throw new Error('Tuya device shown');
+    if (await p.getByRole('button', { name: /^Appairer/ }).isDisabled()) throw new Error('Zigbee is up, pairing must be on');
+  });
+  await test('drivers off (light): everything off, invitation to reload, no automatic look', async p => {
+    await p.route(CDN, r => r.abort());
+    await p.goto('http://localhost:8086/tf');
+    await p.waitForFunction(() => window.TASMOFLOW && window.TASMOFLOW.source === 'local', null, { timeout: 8000 });
+    await p.getByRole('status').filter({ hasText: "Zigbee n'est pas prêt" }).waitFor({ timeout: 4000 });
+    await p.getByRole('status').filter({ hasText: "Tuya n'est pas prêt" }).waitFor();
+    if (!(await p.getByRole('button', { name: /^Appairer/ }).isDisabled())) throw new Error('pairing offered');
+    let polled = 0;
+    p.on('request', r => { if (/api\/(status|cmd)/.test(r.url())) polled++; });
+    await wait(6500);
+    if (polled) throw new Error(polled + ' requests: the light interface must not look again');
+    await p.getByRole('button', { name: 'Recharger' }).first().click();
+    await p.getByRole('status').filter({ hasText: "Zigbee n'est pas prêt" }).waitFor({ timeout: 4000 });
   });
   await test('several gateways: bad link, add, test, use, still there after reload, remove', async p => {
     await openFull(p);

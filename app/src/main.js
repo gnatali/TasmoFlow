@@ -13,11 +13,13 @@ import { RulesView, registerEditor, loadRules } from './rules.js';
 import { SentenceEditor } from './rules_editor.js';
 import { ConflictBanner } from './rules_conflicts_view.js';
 import { findConflicts } from './rules_conflicts.js';
+import { watchDrivers } from './drivers_full.js';
 import { GatewaysView, GatewayPicker, initGateways } from './gateways.js';
 
 addTexts(FULL_TEXTS);
 registerEditor(SentenceEditor, ConflictBanner, findConflicts);
 onTab({ diag: loadStatus, rules: loadRules });
 initGateways();
+watchDrivers();
 boot({ devices: DevicesView, rules: RulesView, events: EventsView, console: ConsoleView, gateways: GatewaysView, diag: DiagView },
   { css, Picker: GatewayPicker });

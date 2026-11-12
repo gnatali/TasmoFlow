@@ -3,6 +3,10 @@
 // added by main.js: the light interface (main_lite.js) does not carry them.
 export const FULL_TEXTS = {
   fr: {
+    driverAuto: "{d} démarre : ses fonctions sont désactivées, la page se met à jour toute seule dès qu'il est prêt.",
+    driverDisabled: '{d} est désactivé : ses fonctions sont désactivées.',
+    driverGaveUp: "{d} n'a pas démarré après 2 minutes : ses fonctions sont désactivées.",
+    rule_driverNote: "Zigbee ou Tuya n'est pas démarré : ses appareils ne sont pas proposés ici (les règles existantes restent modifiables en texte).",
     events: 'Événements', console: 'Console', gateways: 'Passerelles', diag: 'Diagnostic', send: 'Envoyer',
     cmdPlaceholder: 'Commande Tasmota, ex. ZbInfo', noEvent: "Aucun événement depuis l'ouverture.",
     source: 'Interface chargée depuis', loadTime: "Démarrage de l'interface", heap: 'Mémoire libre',
@@ -50,6 +54,10 @@ export const FULL_TEXTS = {
     rule_cDuplicate: 'même ordre donné deux fois'
   },
   en: {
+    driverAuto: '{d} is starting: its functions are turned off, this page updates by itself as soon as it is ready.',
+    driverDisabled: '{d} is disabled: its functions are turned off.',
+    driverGaveUp: '{d} has not started after 2 minutes: its functions are turned off.',
+    rule_driverNote: 'Zigbee or Tuya is not started: its devices are not offered here (existing rules can still be edited as text).',
     events: 'Events', console: 'Console', gateways: 'Gateways', diag: 'Diagnostics', send: 'Send',
     cmdPlaceholder: 'Tasmota command, e.g. ZbInfo', noEvent: 'No event since opening.',
     source: 'Interface loaded from', loadTime: 'Interface start-up', heap: 'Free memory', ufs: 'Free file system',
