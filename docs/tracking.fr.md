@@ -17,9 +17,8 @@ Cahier des charges (en français, hors du dépôt) :
   l'assemblage (la CI les compile et passe le test du parseur sur le `tf_http.be` minifié). **Fonctionne sur
   la passerelle** (12 novembre, Guillaume). Ensuite le contrôle de place de la mise à jour, qui
   demandait encore deux nouvelles copies plus 20 Ko, a été refait d'après les tailles réelles
-  (`/api/update_check`, taille de `latest.json`) : 21 tests de bout en bout passent, **à essayer sur
-  la passerelle** (point « v0.2, place pour la mise à jour » du plan de test ; la `.tapp` est à
-  installer une fois à la main, le code de mise à jour a changé). Détails :
+  (`/api/update_check`, taille de `latest.json`) : 21 tests de bout en bout passent, **vérifié sur
+  la passerelle** (12 novembre, Guillaume). Détails :
   [architecture](architecture.fr.md#interface-complète).
 - **v0.1 publiée** : tag `v0.1.0`, `.tapp` jointe à la release, interface publiée sur GitHub
   Pages (PR n° 1 à 3 fusionnées). Installée sur la passerelle : démarrage/arrêt du serveur,
@@ -40,11 +39,13 @@ Cahier des charges (en français, hors du dépôt) :
   `.claude/rules/`).
 - **v0.1 (pilotage)** : interface Preact + htm, serveur d'API à la demande, écran Passerelles,
   appareils Tuya dans le tableau de bord (détails plus bas).
-- **Plantage des URL longues corrigé dans le code** (10 novembre, branche `ccr-77cdec39-duy9lp`) :
+- **Plantage des URL longues corrigé** (10 novembre, branche `ccr-77cdec39-duy9lp`) :
   cause trouvée dans le source de Tasmota (le moteur de `re` s'appelle lui-même une fois par
   caractère de l'URI et déborde la pile de 8 Ko de la boucle) ; `tf_http.be` lit désormais les
-  requêtes avec `string.find()`. À vérifier sur la passerelle avec une version de test (`.tapp` à
-  réinstaller) : voir le point « URL longues » du plan de test.
+  requêtes avec `string.find()`. **Vérifié sur la passerelle** (12 novembre, Guillaume).
+- **Vérifié sur la passerelle le 12 novembre** (Guillaume) : contrôle de place de la mise à jour,
+  pilotes détectés à l'ouverture, URL longues, port 8384 fermé puis ré-écouté. Les 6 Ko de mémoire
+  libre non rendus après la première ouverture : **pas poursuivis** (décision de Guillaume).
 - **Suite** : dérouler les points `[ ]` du
   [plan de test](architecture.fr.md#plan-de-test-sur-la-passerelle) sur la ZB-GW03 (v0.1 et les
   nouveaux de la v0.2). Mémoire avec l'API des règles mesurée le 11 novembre (plus bas).
@@ -67,6 +68,7 @@ Cahier des charges (en français, hors du dépôt) :
 | 9 nov. | v0.1 : **option B décidée** : interface complète sur GitHub Pages seulement (figée, SRI), interface légère (13,7 Ko gzip, appareils + console + diagnostic) dans la `.tapp` ; second point d'entrée esbuild des mêmes sources. Raison : `UfsFree` 148 Ko sur 320 Ko et une interface complète qui va grossir |
 | 12 nov. | **Pilotes détectés à l'ouverture** (demandé par Guillaume) : `S.drivers` (`zigbee`, `tuya` : running, starting, disabled, absent), `zigbee_state` ajouté à `/api/status` ; un pilote qui ne tourne pas a ses fonctions désactivées avec une note. Interface complète : relit toutes les 5 s tant qu'un pilote démarre (2 minutes au plus) et l'active toute seule ; interface légère : désactivé dans tous les cas, demande de recharger la page, aucune boucle. `.tapp` 41 352 octets (budget 41 534). 24 tests de bout en bout. **La `.tapp` doit être réinstallée** (`extension/` et interface légère modifiés) ; à essayer sur la passerelle (élément « pilotes à l'ouverture » du plan de test) |
 | 12 nov. | Builds de test (`--dev`) : Berry minifié comme une release, mais sans budget de taille (la release de chaque commit reste contrôlée par la CI). Essayé sur un build : `.tapp` de test avec les sources telles quelles (77 Ko), abandonné à la demande de Guillaume |
+| 12 nov. | **Vérifié sur la passerelle** (Guillaume) : contrôle de place de la mise à jour, pilotes à l'ouverture, URL longues, port 8384 fermé puis ré-écouté. Les 6 Ko de mémoire non rendus après la première ouverture : abandonnés, plus d'enquête |
 | 12 nov. | `.tapp` réduite vérifiée sur la passerelle (Guillaume). Le contrôle de place de la mise à jour ne suivait pas les tailles réelles (deux nouvelles copies plus 20 Ko) : maintenant `/api/update_check?size=` (taille de `latest.json`), avant le téléchargement puis au premier morceau, compare l'espace libre, la `.bak` et un `.new` resté à la nouvelle taille plus 20 Ko ; la `.bak` n'est supprimée qu'en cas de besoin. `.tapp` 40 920 octets. 21 tests de bout en bout |
 | 11 nov. | **`.tapp` divisée par deux** (83 069 à 39 807 octets) : interface légère réduite au pilotage des appareils et à la mise à jour (ses règles, sa console et son diagnostic sont partis : interface complète seulement) ; ses textes, styles et écrans séparés de ceux de la complète (`i18n_full.js`, `style_full.css`, `views_full.js`), plus de `preact/hooks` (les magasins d'état redessinent depuis la racine) ; Berry minifié par `pack_tapp.py` (contrôle des jetons), compilé et testé en CI ; budgets 41 534 octets (`.tapp`) et 14 Ko (`lite.js.gz`) |
 | 11 nov. | Bouton de mise à jour (décision : le navigateur relaie la `.tapp` depuis GitHub Pages) : manifestes `latest.json` / `dev/latest.json`, l'interface légère propose la mise à jour quand le canal a une version plus récente (builds de test : un commit différent), la passerelle contrôle taille et SHA-256 et se remplace (`tf_update.be`, `.bak` gardé), la page attend le redémarrage (120 s au plus). Passerelle simulée : 414 au-delà de 512 caractères au lieu de couper la connexion |
@@ -103,7 +105,7 @@ Après `tasmota.gc()`, passerelle avec le pilote Tuya (9 novembre 2026) :
 | **v0.2** étape 1, interface ouverte (10 novembre) | 52 Ko | 55 Ko | 32 Ko |
 | **v0.2** étape 1, 5 minutes après sa fermeture (11 novembre, deux essais) | 70 Ko, 70 Ko | 39 Ko, 39 Ko | **14 Ko** |
 
-Le budget de 15 Ko est tenu avec l'API des règles : **8 à 9 Ko au repos, 14 Ko cinq minutes après la fermeture de l'interface** (15 Ko en v0.1). Interface ouverte, le coût est de 32 Ko (25 Ko en v0.1) : `tf_rules.be` et le corps POST ajoutent 7 Ko tant que le serveur tourne. Le pilote Tuya demande 45 Ko libres pour démarrer : 52 Ko laissent 7 Ko de marge. `HeapUsed` de Berry revient à 39 Ko après la fermeture, comme en v0.1. Environ 6 Ko de mémoire libre ne sont toujours pas rendus après la première ouverture (75 à 70 Ko, comme en v0.1 : 75 à 69 Ko), cause inconnue (voir le point ouvert du plan de test).
+Le budget de 15 Ko est tenu avec l'API des règles : **8 à 9 Ko au repos, 14 Ko cinq minutes après la fermeture de l'interface** (15 Ko en v0.1). Interface ouverte, le coût est de 32 Ko (25 Ko en v0.1) : `tf_rules.be` et le corps POST ajoutent 7 Ko tant que le serveur tourne. Le pilote Tuya demande 45 Ko libres pour démarrer : 52 Ko laissent 7 Ko de marge. `HeapUsed` de Berry revient à 39 Ko après la fermeture, comme en v0.1. Environ 6 Ko de mémoire libre ne sont toujours pas rendus après la première ouverture (75 à 70 Ko, comme en v0.1 : 75 à 69 Ko), cause inconnue et **pas poursuivie** (décision du 12 novembre 2026).
 
 Cible : 15 Ko. Tailles (12 novembre 2026) : `TasmoFlow.tapp` 40,9 Ko (budget 41,5 Ko, la moitié
 des 83 Ko de la v0.2.0), `lite.js.gz` 13,6 Ko (budget 14 Ko), `app.js.gz` 26,4 Ko (budget 120 Ko).
@@ -127,7 +129,7 @@ Fait dans le code et la fausse passerelle (voir l'[architecture](architecture.fr
    pilote Tuya qui garde des données après `TuyaConfig` / `TuyaStatus` (les lancer à la main,
    puis `Br tasmota.gc()`), des modules chargés à la première utilisation (`re`, que
    `tf_http.be` n'utilise plus depuis le 10 novembre ; `introspect`, `sys`), ou une référence qui
-   retient encore la classe `tf_http`.
+   retient encore la classe `tf_http`. **Abandonné le 12 novembre 2026**, plus d'enquête.
 3. **Appareils Tuya dans le tableau de bord** (F7.1 à F7.3) : interrupteurs, variateurs,
    température de couleur, vitesse de ventilateur, mesures, mise à jour en direct, masqués sans
    le pilote.
@@ -139,9 +141,9 @@ Reste pour la v0.1 (petit) :
 - **Noms de sous-appareils Tuya** contenant une virgule, que `TuyaSend` ne sait pas adresser.
 - **`VERSION` vaut `0.2.0`** (11 novembre 2026). La passer dans une pull request **avant** de tagger une
   version : le job `release` refuse un tag différent de `VERSION` (le premier tag `v0.2.0` a échoué ainsi).
-- **Vérifications sur la passerelle** : les points `[ ]` marqués v0.1 du plan de test, en
-  particulier que le `tcpserver` du port 8384 peut être fermé puis ré-écouté, et la mémoire
-  utilisée par `TuyaConfig`.
+- **Vérifications sur la passerelle** : les points `[ ]` marqués v0.1 du plan de test (le
+  `tcpserver` du port 8384 fermé puis ré-écouté a été vérifié le 12 novembre), en particulier la
+  mémoire utilisée par `TuyaConfig`.
 
 **Accepté le 11 novembre 2026, à faire plus tard** (pas commencé) : un **mode guidé simple** pour la fenêtre de règle (choisir un appareil, dire en mots ce qui lui arrive, choisir quoi faire), où les événements Zigbee s'apprennent en appuyant sur le bouton (l'interface écoute le flux d'événements et écrit le déclencheur d'après ce qu'elle vient de voir).
 
@@ -157,11 +159,11 @@ en partie essayées sur la passerelle, voir le plan de test.
 ## Points à vérifier
 
 - **Une URL longue fait redémarrer la passerelle** (port 8384, ligne de requête de 152 caractères
-  ou plus) : cause trouvée et corrigée dans le code (10 novembre, voir
+  ou plus) : cause trouvée et corrigée (10 novembre, voir
   [Lecture des requêtes sans expressions régulières](architecture.fr.md#lecture-des-requêtes-sans-expressions-régulières)
-  et [investigations/long-url-crash.md](investigations/long-url-crash.md), en anglais). Vérifié sur la
-  passerelle le 11 novembre ; la fausse passerelle répond maintenant 414 au-delà de 512 caractères,
-  comme la vraie.
+  et [investigations/long-url-crash.md](investigations/long-url-crash.md), en anglais). **Vérifié sur la
+  passerelle le 12 novembre.** Rien à faire ; la fausse passerelle répond 414 au-delà de 512
+  caractères, comme la vraie.
 
 - Écriture d'un DP d'un appareil Tuya Zigbee (TS0601, cluster `EF00`) avec `ZbSend` : à essayer
   sur un appareil réel (nécessaire pour la v0.3).
