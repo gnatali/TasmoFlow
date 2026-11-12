@@ -20,12 +20,14 @@ export const usableKey = k => /^[^\s#=<>!|"']+$/.test(k);
 const named = d => d.name && !isAddr(d.name) && d.name !== d.addr;
 // the key Tasmota writes for this device
 export const zbKey = (d, useNames) => (useNames && named(d) ? d.name : d.addr);
-const shown = d => (named(d) ? d.name : d.addr);
+export const shown = d => (named(d) ? d.name : d.addr);
 
 const byName = (a, b) => shown(a).localeCompare(shown(b));
-const sorted = devices => Object.values(devices || {}).sort(byName);
+export const sorted = devices => Object.values(devices || {}).sort(byName);
 
-export const zbAttrs = d => Object.keys(d.attrs || {}).filter(k => !NOT_ATTRS.has(k));
+// the attributes of a message (or of a device's last state) a rule can wait for
+export const triggerAttrs = attrs => Object.keys(attrs || {}).filter(k => !NOT_ATTRS.has(k));
+export const zbAttrs = d => triggerAttrs(d.attrs);
 
 // [{ group, items: [{ label, value }] }]: one group per Zigbee device, one item per attribute
 // it reported. `skipped`: how many devices had a name no trigger can carry.

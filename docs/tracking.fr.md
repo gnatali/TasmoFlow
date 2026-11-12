@@ -113,8 +113,8 @@ Après `tasmota.gc()`, passerelle avec le pilote Tuya (9 novembre 2026) :
 
 Le budget de 15 Ko est tenu avec l'API des règles : **8 à 9 Ko au repos, 14 Ko cinq minutes après la fermeture de l'interface** (15 Ko en v0.1). Interface ouverte, le coût est de 32 Ko (25 Ko en v0.1) : `tf_rules.be` et le corps POST ajoutent 7 Ko tant que le serveur tourne. Le pilote Tuya demande 45 Ko libres pour démarrer : 52 Ko laissent 7 Ko de marge. `HeapUsed` de Berry revient à 39 Ko après la fermeture, comme en v0.1. Environ 6 Ko de mémoire libre ne sont toujours pas rendus après la première ouverture (75 à 70 Ko, comme en v0.1 : 75 à 69 Ko), cause inconnue et **pas poursuivie** (décision du 12 novembre 2026).
 
-Cible : 15 Ko. Tailles (12 novembre 2026) : `TasmoFlow.tapp` 41,4 Ko (41 457 octets, budget 41,5 Ko, la moitié
-des 83 Ko de la v0.2.0 : **77 octets de marge**), `lite.js.gz` 14,1 Ko (budget 14 Ko), `app.js.gz` 28,6 Ko (budget 120 Ko).
+Cible : 15 Ko. Tailles (12 novembre 2026) : `TasmoFlow.tapp` 41,4 Ko (41 499 octets, budget 41,5 Ko, la moitié
+des 83 Ko de la v0.2.0 : **35 octets de marge** : le garde qui propose d'enregistrer avant de quitter l'écran Règles a pris 42 octets de `state.js`, partagé avec l'interface légère ; le `.tapp` doit être réinstallé), `lite.js.gz` 14,1 Ko (budget 14 Ko), `app.js.gz` 33,0 Ko (budget 120 Ko).
 
 ## Décisions encore ouvertes
 
@@ -150,11 +150,11 @@ Reste pour la v0.1 (petit) :
   `tcpserver` du port 8384 fermé puis ré-écouté a été vérifié le 12 novembre), en particulier la
   mémoire utilisée par `TuyaConfig`.
 
-**Accepté le 11 novembre 2026, à faire plus tard** (pas commencé) : un **mode guidé simple** pour la fenêtre de règle (choisir un appareil, dire en mots ce qui lui arrive, choisir quoi faire), où les événements Zigbee s'apprennent en appuyant sur le bouton (l'interface écoute le flux d'événements et écrit le déclencheur d'après ce qu'elle vient de voir).
+**Mode guidé** (accepté le 11 novembre 2026, **écrit** le 12 novembre 2026) : une tuile *Règle guidée* ouvre une fenêtre en deux étapes (choisir un appareil, dire en mots ce qui lui arrive, choisir quoi faire), où un déclencheur Zigbee peut s'apprendre en appuyant sur le bouton (l'interface écoute le flux d'événements et écrit le déclencheur d'après ce qu'elle vient de voir). Interface complète seulement, pas de `.tapp` à réinstaller ; **à essayer sur la passerelle avec le vrai bouton** (plan de test). Pour plus tard : conditions dans la fenêtre guidée, déclencheurs Tuya et Matter.
 
 Ensuite, dans cet ordre (à confirmer avec Guillaume) : mesurer la mémoire de cette version (au repos, interface ouverte, après fermeture) ; ouvrir la pull request (la branche a une quarantaine de commits d'avance sur `main`) ; puis tagger `v0.2.0` (le build prend la version dans le tag, `latest.json` et le bouton de mise à jour suivent).
 
-v0.2, ce qui reste après l'étape 4 : le **mode guidé** (accepté, plus tard), Matter dans les
+v0.2, ce qui reste après l'étape 4 : le **mode guidé** (écrit, à essayer sur la passerelle), Matter dans les
 sélecteurs, `elseif` et plusieurs déclencheurs dans l'éditeur en phrases, les **actions** (une
 automatisation TasmoFlow devient une règle Tasmota ou du Berry, les déclencheurs Tuya demandent du
 Berry), la **modification** des règles Berry et d'`autoexec.be` avec copie avant écriture et contrôle de

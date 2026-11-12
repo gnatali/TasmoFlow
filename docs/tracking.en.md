@@ -108,8 +108,8 @@ After `tasmota.gc()`, gateway running the Tuya driver (9 November 2026):
 
 The budget of 15 KB holds with the rule API: **8 to 9 KB at rest, 14 KB five minutes after the interface was closed** (15 KB in v0.1). With an interface open the cost is 32 KB (25 KB in v0.1): `tf_rules.be` and the POST body add 7 KB while the server runs. The Tuya driver needs 45 KB free to start: 52 KB leaves 7 KB. Berry `HeapUsed` is back at 39 KB after closing, as in v0.1. About 6 KB of free heap are still not given back after the first opening (75 to 70 KB, same as v0.1: 75 to 69 KB), cause unknown and **not pursued** (decision of 12 November 2026).
 
-Target: 15 KB. Sizes (12 November 2026): `TasmoFlow.tapp` 41.4 KB (41,457 B, budget 41.5 KB, half of
-v0.2.0's 83 KB: **77 B left**), `lite.js.gz` 14.1 KB (budget 14 KB), `app.js.gz` 28.6 KB (budget 120 KB).
+Target: 15 KB. Sizes (12 November 2026): `TasmoFlow.tapp` 41.4 KB (41,499 B, budget 41.5 KB, half of
+v0.2.0's 83 KB: **35 B left**: the guard that asks to save before leaving the Rules screen took 42 B of `state.js`, shared with the light interface; the `.tapp` must be installed again), `lite.js.gz` 14.1 KB (budget 14 KB), `app.js.gz` 33.0 KB (budget 120 KB).
 
 ## Decisions still open
 
@@ -143,11 +143,11 @@ Left for v0.1 (small):
   `tcpserver` closing and listening again was checked on 12 November), in particular `TuyaConfig`
   memory use.
 
-**Agreed on 11 November 2026, to do later** (not started): a **simple guided mode** for the rule dialog (pick a device, say what happens to it in words, pick what to do), where Zigbee events are learned by pressing the button (the interface listens to the event stream and writes the trigger from what it just saw).
+**Guided mode** (agreed on 11 November 2026, **written** on 12 November 2026): a *Guided rule* tile opens a two-step dialog (pick a device, say what happens to it in words, pick what to do), where a Zigbee trigger can be learned by pressing the button (the interface listens to the event stream and writes the trigger from what it just saw). Full interface only, no `.tapp` to install again; **to try on the gateway with the real button** (test plan). Left for later: conditions in the guided dialog, Tuya and Matter triggers.
 
 Next, in this order (to confirm with Guillaume): measure the memory of this version (at rest, interface open, after closing); open the pull request (the branch is about 40 commits ahead of `main`); then tag `v0.2.0` (the build takes the version from the tag, `latest.json` and the update button follow).
 
-v0.2, what is left after step 4: the **guided mode** (agreed, later), Matter in the pickers,
+v0.2, what is left after step 4: the **guided mode** (written, to try on the gateway), Matter in the pickers,
 `elseif` and several triggers in the sentence editor, **automations** (a TasmoFlow automation becomes a
 Tasmota rule or Berry code, Tuya triggers need Berry), **editing** Berry rules and `autoexec.be` with
 copy before write and a compilation check. Steps 2 to 4 (sentence editor, pickers, Berry view and

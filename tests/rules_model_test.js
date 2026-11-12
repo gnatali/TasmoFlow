@@ -8,7 +8,7 @@ const esbuild = require('esbuild');
 const SRC = path.join(__dirname, '..', 'app', 'src');
 // the modules are plain ES modules: bundle them to CommonJS for Node
 const out = esbuild.buildSync({
-  stdin: { contents: "export * from './rules_model.js'; export * from './rules_lint.js'; export * from './rules_devices.js'; export * from './rules_conflicts.js'; export * from './tuya_model.js'; export * from './tuya_colour.js';", resolveDir: SRC },
+  stdin: { contents: "export * from './rules_model.js'; export * from './rules_lint.js'; export * from './rules_devices.js'; export * from './rules_conflicts.js'; export * from './rules_guided_model.js'; export * from './tuya_model.js'; export * from './tuya_colour.js';", resolveDir: SRC },
   loader: { '.css': 'text' }, define: { __BUILD__: '""' },
   bundle: true, format: 'cjs', write: false, logLevel: 'silent'
 }).outputFiles[0].text;
@@ -19,7 +19,7 @@ globalThis.document = { documentElement: {} };
 globalThis.window = {};
 const m = { exports: {} };
 new Function('module', 'exports', out)(m, m.exports);
-const { controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
+const { controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
 
 let n = 0;
 const ok = (name, f) => { f(); n++; };
@@ -247,6 +247,53 @@ ok('conflicts: toggles cancel, orders contradict, duplicates, disabled sets and 
   assert.strictEqual(c.find(x => x.kind === 'contradict').target, 'Power1');
   assert.strictEqual(findConflicts([{ n: 1, on: true, text: 'on a#b do Power1 on endon on a#b do Power1 on endon' }])[0].kind, 'duplicate');
   assert.strictEqual(findConflicts([{ n: 1, on: true, text: 'on a#b do if (Var1==1) Power1 on else Power1 off endif endon' }]).length, 0);   // one block, two branches
+});
+
+const GZ = {
+  '0x1A2B': { addr: '0x1A2B', name: 'Bouton salon', attrs: { Click: 'single', BatteryPercentage: 87, LinkQuality: 120 } },
+  '0x3C4D': { addr: '0x3C4D', name: 'Lampe salon', attrs: { Power: 0, Dimmer: 180 } },
+  '0x5E6F': { addr: '0x5E6F', name: 'Capteur bureau', attrs: { Temperature: 21.4 } },
+  '0x7788': { addr: '0x7788', name: 'Prise cuisine bas', attrs: { Power: 1 } },          // a name with a space
+  '0x9999': { addr: '0x9999', name: '', attrs: {} }                                       // nothing reported yet
+};
+ok('guided: devices that can start a rule, name or address as SetOption83 says, spaces left out', () => {
+  const byAddr = guidedDevices(GZ, false);
+  assert.deepStrictEqual(byAddr.list.map(d => d.key), ['0x9999', '0x1A2B', '0x5E6F', '0x3C4D', '0x7788']);   // by the name shown: the unnamed first
+  assert.strictEqual(byAddr.skipped, 0);
+  const byName = guidedDevices(GZ, true);
+  assert.strictEqual(byName.skipped, 4);                                                  // every name here has a space but 0x9999's (none)
+  assert.deepStrictEqual(byName.list.map(d => d.key), ['0x9999']);
+  assert.deepStrictEqual(byAddr.list.find(d => d.addr === '0x9999').attrs, ['Power']);    // like the pickers: Power by default
+  assert.deepStrictEqual(byAddr.list.find(d => d.addr === '0x1A2B').attrs, ['Click', 'BatteryPercentage']);
+});
+ok('guided: values seen, options of an attribute', () => {
+  const ev = [{ type: 'zigbee', device: '0x1A2B', attrs: { Click: 'double' } }, { type: 'zigbee', device: '0x1A2B', attrs: { Click: 'long' } },
+    { type: 'zigbee', device: '0x1A2B', attrs: { Click: 'double' } }, { type: 'zigbee', device: '0x3C4D', attrs: { Click: 'other' } },
+    { type: 'tuya', name: 'x', dps: {} }, { type: 'zigbee', device: '0x1A2B', attrs: { Click: 'two words' } }];
+  assert.deepStrictEqual(seenValues(ev, GZ['0x1A2B'], 'Click'), ['double', 'long', 'single']);   // events, then the last state; no repeat, one word only
+  assert.deepStrictEqual(triggerOptions('Click', ['single']).map(o => [o.kind, o.op, o.value]), [['any', '', ''], ['value', '=', 'single']]);
+  assert.deepStrictEqual(triggerOptions('Power', []).map(o => [o.kind, o.op, o.value]), [['on', '=', '1'], ['off', '=', '0'], ['any', '', '']]);
+});
+ok('guided: learning from the messages received', () => {
+  const ev = [   // newest first, like the interface keeps them
+    { seq: 9, type: 'zigbee', device: '0x1A2B', name: 'Bouton salon', attrs: { Device: '0x1A2B', Click: 'single', Endpoint: 1, LinkQuality: 120 } },
+    { seq: 8, type: 'zigbee', device: '0x5E6F', name: 'Capteur bureau', attrs: { Device: '0x5E6F', Temperature: 21.4, Endpoint: 1 } },
+    { seq: 7, type: 'tuya', name: 'Pince', dps: { 131: 1 } },
+    { seq: 5, type: 'zigbee', device: '0x3C4D', name: 'Lampe salon', attrs: { Power: 1 } }];
+  assert.strictEqual(learn(ev, 9, ''), null);                                             // nothing after seq 9
+  assert.deepStrictEqual(learn(ev, 5, ''), { seq: 9, addr: '0x1A2B', name: 'Bouton salon', attr: 'Click', op: '=', value: 'single' });   // the temperature is a reading sent by itself: skipped
+  assert.strictEqual(learn(ev, 5, '0x5E6F').attr, 'Temperature');                         // but wanted when that device is the one chosen
+  assert.strictEqual(learn(ev, 5, '0x3C4D'), null);                                       // nothing new from the lamp
+  assert.strictEqual(learn(ev, 0, '').seq, 5);                                            // the first one heard, not the last
+  assert.deepStrictEqual(learn([{ seq: 1, type: 'zigbee', device: '0x1', attrs: { Zone: 'x', ZoneStatus: 1, Led: { a: 1 } } }], 0, ''), { seq: 1, addr: '0x1', name: undefined, attr: 'Led', op: '', value: '' });   // an object has no value to compare
+});
+ok('guided: the block written, with the name or the address', () => {
+  const b = guidedBlock({ addr: '0x1A2B', attr: 'Click', op: '=', value: 'single' }, ['ZbSend {"device":"0x3C4D","send":{"Power":"Toggle"}}', ' '], GZ, false);
+  assert.strictEqual(serializeBlock(b), 'on ZbReceived#0x1A2B#Click=single do ZbSend {"device":"0x3C4D","send":{"Power":"Toggle"}} endon');
+  assert.strictEqual(serializeBlock(guidedBlock({ addr: '0x9999', attr: 'Power', op: '', value: '' }, ['Power1 on'], { '0x9999': { addr: '0x9999', name: 'Prise' } }, true)),
+    'on ZbReceived#Prise#Power do Power1 on endon');
+  assert.strictEqual(guidedBlock({ addr: '0x7788', attr: 'Power', op: '', value: '' }, ['Power1 on'], GZ, true), null);   // "Prise cuisine bas": no name in a trigger
+  assert.strictEqual(parseBlock(serializeBlock(b)).kind, 'sentence');                    // the editor reads it back
 });
 
 console.log(`ok     rule model (${n} checks)`);

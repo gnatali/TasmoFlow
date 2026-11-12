@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'preact/hooks';
 import { html } from './html.js';
 import { t } from './i18n.js';
-import { S, cmd, get, post, current, fail } from './state.js';
+import { S, cmd, get, post, current, fail, guardLeave } from './state.js';
 import { lintRule, flatRule, showRule } from './rules_lint.js';
 
 // the sentence editor, registered by the full interface only (not part of the light bundle)
@@ -46,6 +46,30 @@ export async function saveRule(n, text) {
   }
 }
 
+// The texts being edited and not saved, { n: { flat, invalid } }, kept by the cards: what the screen
+// asks about before it closes a section, leaves for another screen or another gateway, or the page goes.
+const pending = {};
+
+// Before something that would drop them: the user is asked, rule set by rule set, to save the texts not
+// saved yet. True when nothing is left to lose (all saved, or none pending); false when the user
+// refuses or a text is not valid (it is said, and nothing is lost: the screen stays as it is).
+async function settle(ns, setNote) {
+  const todo = ns.filter(n => pending[n]);
+  const bad = todo.find(n => pending[n].invalid);
+  if (bad) { setNote({ n: bad, ok: false, text: t('rule_unsavedBad') }); return false; }
+  for (const n of todo) {
+    if (!confirm(t('rule_unsavedAskN').replace('{n}', n))) return false;
+    try { await saveRule(n, pending[n].flat); } catch (e) { setNote({ n, ok: false, text: errText(e.message) }); return false; }
+    delete pending[n];
+  }
+  if (todo.length) await loadRules();
+  return true;
+}
+
+if (typeof window !== 'undefined') {       // closing the page: the browser's own question
+  window.addEventListener('beforeunload', e => { if (Object.keys(pending).length) { e.preventDefault(); e.returnValue = ''; } });
+}
+
 const errText = e => t('rule_' + e) === 'rule_' + e ? e : t('rule_' + e);
 
 function RuleCard({ r, note, setNote, mode, setMode }) {
@@ -56,13 +80,27 @@ function RuleCard({ r, note, setNote, mode, setMode }) {
   const dirty = flat !== flatRule(r.text);
   const lint = dirty ? lintRule(flat) : null;
   const tooLong = flat.length > HARD_LIMIT;
+  useEffect(() => {
+    if (dirty) pending[r.n] = { flat, invalid: !!lint || tooLong };
+    return () => { delete pending[r.n]; };
+  }, [dirty, flat, !!lint, tooLong]);
   const run = async (what, f) => {
     setBusy(true);
     try { await f(); await loadRules(); setNote({ n: r.n, ok: true, text: t(what) }); }
     catch (e) { setNote({ n: r.n, ok: false, text: errText(e.message) }); }
     setBusy(false);
   };
-  const flag = (on, opt) => run('rule_done', () => cmd('Rule' + r.n + ' ' + opt[on ? 1 : 0]));
+  // On/off, once, stop on error act on the gateway at once and rebuild the card with what it holds:
+  // a text not saved yet would be lost, so it is saved first (the user is asked), or nothing happens.
+  // `box`: the checkbox clicked, put back as it was when nothing is done (the screen would show a state the gateway does not have)
+  const flag = (on, opt, box) => {
+    const go = () => cmd('Rule' + r.n + ' ' + opt[on ? 1 : 0]);
+    if (!dirty) return run('rule_done', go);
+    if (box) box.checked = !on;
+    if (lint || tooLong) return setNote({ n: r.n, ok: false, text: t('rule_unsavedBad') });
+    if (!confirm(t('rule_unsavedAsk'))) return;
+    run('rule_saved', async () => { await saveRule(r.n, flat); await go(); });
+  };
   const save = () => run('rule_saved', () => saveRule(r.n, flat));
   const restore = () => {
     if (confirm(t('rule_confirmRestore'))) run('rule_restored', () => get('/api/rule_restore', { n: r.n }));
@@ -71,8 +109,8 @@ function RuleCard({ r, note, setNote, mode, setMode }) {
   return html`<article class="card">
     <div class="row tight">
       <button class="b" aria-pressed=${r.on} disabled=${busy} onClick=${() => flag(!r.on, ['0', '1'])}>${r.on ? t('on') : t('off')}</button>
-      <label><input type="checkbox" checked=${r.once} disabled=${busy} onChange=${e => flag(e.target.checked, ['4', '5'])}/> ${t('rule_once')}</label>
-      <label><input type="checkbox" checked=${r.stop} disabled=${busy} onChange=${e => flag(e.target.checked, ['8', '9'])}/> ${t('rule_stop')}</label>
+      <label><input type="checkbox" checked=${r.once} disabled=${busy} onChange=${e => flag(e.target.checked, ['4', '5'], e.target)}/> ${t('rule_once')}</label>
+      <label><input type="checkbox" checked=${r.stop} disabled=${busy} onChange=${e => flag(e.target.checked, ['8', '9'], e.target)}/> ${t('rule_stop')}</label>
       <span class="q">${r.len + ' ' + t('rule_chars') + ' · ' + t('rule_free') + ' ' + r.free}</span>
     </div>
     ${Editor ? html`<div class="row tight" role="group" aria-label=${t('rule_view')}>
@@ -133,8 +171,14 @@ export function RulesView() {
   const [note, setNote] = useState(null);
   const [modes, setModes] = useState({});               // view of each rule set: 'text' (default) | 'sentences'; kept when a card is rebuilt
   const [open, setOpen] = useState({ 1: true });        // accordion: each section opens and closes on its own
+  // the Rules screen answers for what is unsaved when the tab or the gateway changes
+  useEffect(() => { guardLeave(() => settle(Object.keys(pending).map(Number), setNote)); return () => guardLeave(null); }, []);
   if (!rules) return html`<p>${t('loading')}</p>`;
-  const toggle = k => () => setOpen({ ...open, [k]: !open[k] });
+  // closing a section drops its card: a text not saved yet is asked about first
+  const toggle = k => async () => {
+    if (open[k] && k && !(await settle([k], setNote))) return;
+    setOpen(o => ({ ...o, [k]: !o[k] }));
+  };
   const flagged = new Set(clashes(rules.rules).flatMap(c => c.where.map(w => w.n)));      // sets with a rule that clashes
   return html`${Banner ? html`<${Banner} rules=${rules.rules}/>` : null}<div class="accs">
     ${rules.rules.map(r => html`<${Section} key=${r.n} title=${'Rule' + r.n + (r.on ? '' : ' · ' + t('off'))} dot=${r.on} warn=${flagged.has(r.n)} open=${!!open[r.n]} toggle=${toggle(r.n)}>

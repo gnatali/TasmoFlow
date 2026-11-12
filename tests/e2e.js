@@ -252,7 +252,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await dlg.waitFor({ state: 'hidden' });
     await r1.locator('.tile .chip', { hasText: 'Var1==1' }).waitFor();             // the tile shows the condition
     // a new rule: a tile to add one, an empty one cannot be saved
-    await r1.getByRole('button', { name: /Ajouter une règle/ }).click();
+    await r1.getByRole('button', { name: /Règle libre/ }).click();
     await dlg.waitFor();
     if (!(await r1.getByRole('button', { name: 'Enregistrer' }).isDisabled())) throw new Error('an empty block can be saved');
     await write(dlg, 'Alors 1', 'Power1 on');
@@ -295,7 +295,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.getByRole('button', { name: 'Règles' }).click();
     const r3 = await rule(p, 3);
     await r3.getByRole('button', { name: 'Phrases' }).click();
-    await r3.getByRole('button', { name: /Ajouter une règle/ }).click();
+    await r3.getByRole('button', { name: /Règle libre/ }).click();
     const dlg = p.getByRole('dialog');
     await dlg.waitFor();
     // in a small window (the report: about 520 px high) the list floats over the dialog, whole
@@ -328,6 +328,136 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     const want = 'on ZbReceived#0x3C4D#Power=1 do Backlog ZbSend {"device":"0x3C4D","send":{"Power":"Toggle"}}; TuyaSend Ventilateur,20,toggle endon';
     if (text !== want) throw new Error('stored: ' + text);
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'pickers.png'), fullPage: true });
+  });
+  await test('guided mode: learn a trigger by pressing the button, pick what to do, or pick it all by hand', async p => {
+    await openFull(p);
+    await p.getByRole('button', { name: 'Règles' }).click();
+    const r3 = await rule(p, 3);
+    await r3.getByRole('button', { name: 'Phrases' }).click();
+    const stored = () => p.evaluate(async t => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[2].text,
+      '0123456789abcdef0123456789abcdef');
+    const before = await stored();
+    await r3.getByRole('button', { name: /Règle guidée/ }).click();
+    const dlg = p.getByRole('dialog');
+    await dlg.waitFor();
+    if (!(await dlg.getByRole('button', { name: 'Créer la règle' }).isDisabled())) throw new Error('an empty guided rule can be created');
+    // learn: the button sends its message (a click: single, double or long), the interface writes the trigger from it
+    await dlg.getByLabel('Appareil déclencheur').selectOption({ label: 'Bouton salon' });
+    await dlg.getByRole('button', { name: /^Apprendre/ }).click();
+    await dlg.getByText(/En attente d'un message/).waitFor();
+    await dlg.getByText(/^Reçu : Bouton salon · Click = \w+/).waitFor({ timeout: 25000 });
+    const click = (await dlg.getByText(/^Reçu : /).textContent()).match(/Click = (\w+)/)[1];
+    if (!(await dlg.getByRole('radio', { name: 'Click = ' + click }).isChecked())) throw new Error('the value heard is not selected');
+    // step 2 appears once the trigger is set; the sentence follows the choices
+    await dlg.getByLabel('Appareil à commander 1').selectOption({ label: 'Zigbee · Lampe salon' });
+    await dlg.getByLabel('Action 1').selectOption({ label: 'basculer' });
+    await dlg.getByText(new RegExp('Quand Bouton salon · Click = ' + click + ', alors basculer Lampe salon')).waitFor();
+    if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'guided.png') });
+    await dlg.getByRole('button', { name: 'Créer la règle' }).click();
+    await dlg.waitFor({ state: 'hidden' });
+    await r3.locator('.tile .chip', { hasText: 'Click = ' + click }).last().waitFor();
+    await r3.getByRole('button', { name: 'Enregistrer' }).click();
+    await r3.getByText(/Enregistré/).waitFor({ timeout: 4000 });
+    const want = 'on ZbReceived#0x1A2B#Click=' + click + ' do ZbSend {"device":"0x3C4D","send":{"Power":"Toggle"}} endon';
+    if (!(await stored()).endsWith(want)) throw new Error('stored: ' + (await stored()));
+    // by hand: a device, what happens to it in words, two actions; the free form takes over on request
+    await r3.getByRole('button', { name: /Règle guidée/ }).click();
+    await dlg.waitFor();
+    await dlg.getByLabel('Appareil déclencheur').selectOption({ label: 'Lampe salon' });
+    await dlg.getByRole('radio', { name: "il s'allume" }).check();
+    await dlg.getByLabel('Appareil à commander 1').selectOption({ label: 'Zigbee · Lampe salon' });
+    await dlg.getByLabel('Action 1').selectOption({ label: 'éteindre' });
+    await dlg.getByRole('button', { name: 'Ajouter une autre action' }).click();
+    await dlg.getByLabel('Appareil à commander 2').selectOption({ label: 'Tuya · Ventilateur' });
+    await dlg.getByLabel('Action 2').selectOption({ label: 'Lumière ventilateur · allumer' });
+    await dlg.getByText(/Quand Lampe salon · Power = 1, alors éteindre Lampe salon, allumer Ventilateur \(DP 20\)/).waitFor();
+    await dlg.getByRole('button', { name: 'Passer en règle libre' }).click();    // leaves the guided dialog for an empty free-form block
+    await dlg.getByText('Modifier la règle').waitFor();
+    await p.keyboard.press('Escape');
+  });
+  await test('rules: an option clicked with an unsaved text asks to save first, nothing is lost', async p => {
+    await openFull(p);
+    await p.getByRole('button', { name: 'Règles' }).click();
+    const r3 = await rule(p, 3);
+    const flags = () => p.evaluate(async t => { const r = (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[2]; return { once: r.once, text: r.text }; },
+      '0123456789abcdef0123456789abcdef');
+    const was = await flags();
+    const draft = was.text + ' on System#Boot do Var9 1 endon';
+    await r3.getByRole('textbox').fill(draft);
+    // refused: the text stays in the field, the option is not applied
+    let asked = '';
+    p.once('dialog', d => { asked = d.message(); d.dismiss(); });
+    await r3.getByRole('checkbox', { name: 'une seule fois' }).click();
+    if (!/non enregistrées/.test(asked)) throw new Error('no question asked: ' + asked);
+    if ((await r3.getByRole('textbox').inputValue()).indexOf('Var9 1') < 0) throw new Error('the draft was lost on refusal');
+    if ((await flags()).once !== was.once) throw new Error('the option was applied on refusal');
+    // accepted: saved first, then the option; the new rule is still there
+    p.once('dialog', d => d.accept());
+    await r3.getByRole('checkbox', { name: 'une seule fois' }).click();
+    await r3.getByText(/Enregistré/).waitFor({ timeout: 4000 });
+    const now = await flags();
+    if (now.once === was.once || now.text.indexOf('Var9 1') < 0) throw new Error('not saved or not applied: ' + JSON.stringify(now));
+    if ((await (await rule(p, 3)).getByRole('textbox').inputValue()).indexOf('Var9 1') < 0) throw new Error('the new rule vanished');
+    // an invalid draft is not saved: the user is told, nothing happens
+    await r3.getByRole('textbox').fill('on System#Boot do');
+    await r3.getByRole('checkbox', { name: 'une seule fois' }).click();
+    await r3.getByText(/modifications non enregistrées et incorrectes/).waitFor();
+    // put the flag and the text back
+    await r3.getByRole('button', { name: 'Annuler' }).click();
+    await r3.getByRole('checkbox', { name: 'une seule fois' }).click();
+    await p.waitForFunction(async ([t, once]) => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[2].once === once,
+      ['0123456789abcdef0123456789abcdef', was.once]);
+  });
+  await test('rules: closing a section or leaving the screen with an unsaved text asks to save it', async p => {
+    await openFull(p);
+    await p.getByRole('button', { name: 'Règles' }).click();
+    const text = n => p.evaluate(async ([t, n]) => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[n - 1].text,
+      ['0123456789abcdef0123456789abcdef', 3]);
+    const r3 = await rule(p, 3);
+    const head = p.getByRole('button', { name: /^Rule3/ });
+    const was = await text();
+    const ask = async (click, accept) => {
+      let msg = '';
+      p.once('dialog', d => { msg = d.message(); accept ? d.accept() : d.dismiss(); });
+      await click();
+      return msg;
+    };
+    // closing the section: refused, it stays open with the draft
+    await r3.getByRole('textbox').fill(was + ' on System#Boot do Var8 1 endon');
+    let msg = await ask(() => head.click(), false);
+    if (!/^Rule3 .*non enregistrées/.test(msg)) throw new Error('no question: ' + msg);
+    if ((await head.getAttribute('aria-expanded')) !== 'true') throw new Error('closed on refusal');
+    if ((await r3.getByRole('textbox').inputValue()).indexOf('Var8 1') < 0) throw new Error('draft lost on refusal');
+    // accepted: saved, then closed; reopened it holds the new rule
+    await ask(() => head.click(), true);
+    await head.and(p.locator('[aria-expanded=false]')).waitFor({ timeout: 6000 });
+    if ((await text()).indexOf('Var8 1') < 0) throw new Error('not saved on closing');
+    await head.click();
+    const r3b = p.getByRole('region', { name: /^Rule3/ });
+    if ((await r3b.getByRole('textbox').inputValue()).indexOf('Var8 1') < 0) throw new Error('the rule vanished');
+    // leaving for another screen: an invalid text is reported, nothing moves
+    await r3b.getByRole('textbox').fill('on System#Boot do');
+    await p.getByRole('navigation').getByRole('button', { name: 'Événements' }).click();
+    await r3b.getByText(/incorrectes/).waitFor();
+    if ((await p.getByRole('navigation').getByRole('button', { name: 'Règles' }).getAttribute('aria-current')) !== 'page') throw new Error('left with an invalid text');
+    // a valid one, refused: still on Rules with the draft; accepted: saved, and on the other screen
+    await r3b.getByRole('textbox').fill(was);
+    await r3b.getByRole('textbox').fill(was + ' on System#Boot do Var7 1 endon');
+    await ask(() => p.getByRole('navigation').getByRole('button', { name: 'Événements' }).click(), false);
+    if ((await r3b.getByRole('textbox').inputValue()).indexOf('Var7 1') < 0) throw new Error('draft lost on refusal');
+    await ask(() => p.getByRole('navigation').getByRole('button', { name: 'Événements' }).click(), true);
+    await p.getByRole('navigation').getByRole('button', { name: 'Événements' }).and(p.locator('[aria-current=page]')).waitFor();
+    if ((await text()).indexOf('Var7 1') < 0) throw new Error('not saved on leaving');
+    // nothing unsaved: no question
+    await p.getByRole('navigation').getByRole('button', { name: 'Règles' }).click();
+    await p.getByRole('navigation').getByRole('button', { name: 'Console' }).click();
+    await p.getByRole('navigation').getByRole('button', { name: 'Console' }).and(p.locator('[aria-current=page]')).waitFor();
+    // put the text back
+    await p.getByRole('navigation').getByRole('button', { name: 'Règles' }).click();
+    const r3c = await rule(p, 3);
+    await r3c.getByRole('textbox').fill(was);
+    await r3c.getByRole('button', { name: 'Enregistrer' }).click();
+    await r3c.getByText(/Enregistré/).waitFor({ timeout: 4000 });
   });
   await test('conflicts: two rule sets toggling the same light on the same event', async p => {
     await openFull(p);
@@ -647,6 +777,20 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
       const box = await p.getByRole('dialog').boundingBox();
       if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'mobile-dialog.png') });
       results.push(['mobile 360 px: rules tiles and dialog inside the screen', !tilesOverflow && box.x >= 0 && box.x + box.width <= 360]);
+      // the guided dialog, filled as far as it goes (device, what happens, two actions), also fits
+      await p.keyboard.press('Escape');
+      await panel.getByRole('button', { name: /Règle guidée/ }).click();
+      const g = p.getByRole('dialog');
+      await g.waitFor();
+      await g.getByLabel('Appareil déclencheur').selectOption({ label: 'Lampe salon' });
+      await g.getByRole('radio', { name: "il change d'état (allumé ou éteint)" }).check();
+      await g.getByLabel('Appareil à commander 1').selectOption({ label: 'Tuya · Ventilateur' });
+      await g.getByLabel('Action 1').selectOption({ label: 'Lumière ventilateur · allumer' });
+      await g.getByRole('button', { name: 'Ajouter une autre action' }).click();
+      const gbox = await g.boundingBox();
+      const gover = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+      if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'mobile-guided.png') });
+      results.push(['mobile 360 px: guided dialog inside the screen', !gover && gbox.x >= 0 && gbox.x + gbox.width <= 360]);
     } catch (e) { results.push(['mobile 360 px: rules tiles and dialog inside the screen', false, e.message.split('\n')[0]]); }
     await ctx.close();
   }
