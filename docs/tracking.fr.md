@@ -113,8 +113,8 @@ Après `tasmota.gc()`, passerelle avec le pilote Tuya (9 novembre 2026) :
 
 Le budget de 15 Ko est tenu avec l'API des règles : **8 à 9 Ko au repos, 14 Ko cinq minutes après la fermeture de l'interface** (15 Ko en v0.1). Interface ouverte, le coût est de 32 Ko (25 Ko en v0.1) : `tf_rules.be` et le corps POST ajoutent 7 Ko tant que le serveur tourne. Le pilote Tuya demande 45 Ko libres pour démarrer : 52 Ko laissent 7 Ko de marge. `HeapUsed` de Berry revient à 39 Ko après la fermeture, comme en v0.1. Environ 6 Ko de mémoire libre ne sont toujours pas rendus après la première ouverture (75 à 70 Ko, comme en v0.1 : 75 à 69 Ko), cause inconnue et **pas poursuivie** (décision du 12 novembre 2026).
 
-Cible : 15 Ko. Tailles (12 novembre 2026) : `TasmoFlow.tapp` 41,4 Ko (41 457 octets, budget 41,5 Ko, la moitié
-des 83 Ko de la v0.2.0 : **77 octets de marge**), `lite.js.gz` 14,1 Ko (budget 14 Ko), `app.js.gz` 28,6 Ko (budget 120 Ko).
+Cible : 15 Ko. Tailles (12 novembre 2026) : `TasmoFlow.tapp` 41,4 Ko (41 499 octets, budget 41,5 Ko, la moitié
+des 83 Ko de la v0.2.0 : **35 octets de marge** : le garde qui propose d'enregistrer avant de quitter l'écran Règles a pris 42 octets de `state.js`, partagé avec l'interface légère ; le `.tapp` doit être réinstallé), `lite.js.gz` 14,1 Ko (budget 14 Ko), `app.js.gz` 33,0 Ko (budget 120 Ko).
 
 ## Décisions encore ouvertes
 

@@ -180,9 +180,19 @@ function start() {
   }).catch(e => fail(gw, e));
 }
 
+// A screen with work not saved yet (the rules, full interface) registers a function that asks and
+// answers true to go on: it runs before the tab or the gateway changes.
+let guard = null;
+export const guardLeave = f => { guard = f; };
+const leave = go => guard ? Promise.resolve(guard()).then(ok => { if (ok) go(); else S.set({}); }) : go();   // refused: draw again, a picker put back
+
 export function selectGateway(id) {
   const gw = id === 'local' ? LOCAL : S.get().gws.find(g => g.id === id) || LOCAL;
   if (gw === S.get().gw) return;
+  leave(() => switchTo(gw));
+}
+
+function switchTo(gw) {
   closeEvents();
   api = client(gw);
   lastSeq = 0;
@@ -191,8 +201,8 @@ export function selectGateway(id) {
 }
 
 export function setTab(tab) {
-  S.set({ tab });
-  load(tab);
+  if (tab === S.get().tab) { load(tab); return; }
+  leave(() => { S.set({ tab }); load(tab); });
 }
 
 export const init = start;

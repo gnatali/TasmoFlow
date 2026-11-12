@@ -108,8 +108,8 @@ After `tasmota.gc()`, gateway running the Tuya driver (9 November 2026):
 
 The budget of 15 KB holds with the rule API: **8 to 9 KB at rest, 14 KB five minutes after the interface was closed** (15 KB in v0.1). With an interface open the cost is 32 KB (25 KB in v0.1): `tf_rules.be` and the POST body add 7 KB while the server runs. The Tuya driver needs 45 KB free to start: 52 KB leaves 7 KB. Berry `HeapUsed` is back at 39 KB after closing, as in v0.1. About 6 KB of free heap are still not given back after the first opening (75 to 70 KB, same as v0.1: 75 to 69 KB), cause unknown and **not pursued** (decision of 12 November 2026).
 
-Target: 15 KB. Sizes (12 November 2026): `TasmoFlow.tapp` 41.4 KB (41,457 B, budget 41.5 KB, half of
-v0.2.0's 83 KB: **77 B left**), `lite.js.gz` 14.1 KB (budget 14 KB), `app.js.gz` 28.6 KB (budget 120 KB).
+Target: 15 KB. Sizes (12 November 2026): `TasmoFlow.tapp` 41.4 KB (41,499 B, budget 41.5 KB, half of
+v0.2.0's 83 KB: **35 B left**: the guard that asks to save before leaving the Rules screen took 42 B of `state.js`, shared with the light interface; the `.tapp` must be installed again), `lite.js.gz` 14.1 KB (budget 14 KB), `app.js.gz` 33.0 KB (budget 120 KB).
 
 ## Decisions still open
 

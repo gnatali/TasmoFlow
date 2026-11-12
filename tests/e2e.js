@@ -408,6 +408,57 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.waitForFunction(async ([t, once]) => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[2].once === once,
       ['0123456789abcdef0123456789abcdef', was.once]);
   });
+  await test('rules: closing a section or leaving the screen with an unsaved text asks to save it', async p => {
+    await openFull(p);
+    await p.getByRole('button', { name: 'Règles' }).click();
+    const text = n => p.evaluate(async ([t, n]) => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[n - 1].text,
+      ['0123456789abcdef0123456789abcdef', 3]);
+    const r3 = await rule(p, 3);
+    const head = p.getByRole('button', { name: /^Rule3/ });
+    const was = await text();
+    const ask = async (click, accept) => {
+      let msg = '';
+      p.once('dialog', d => { msg = d.message(); accept ? d.accept() : d.dismiss(); });
+      await click();
+      return msg;
+    };
+    // closing the section: refused, it stays open with the draft
+    await r3.getByRole('textbox').fill(was + ' on System#Boot do Var8 1 endon');
+    let msg = await ask(() => head.click(), false);
+    if (!/^Rule3 .*non enregistrées/.test(msg)) throw new Error('no question: ' + msg);
+    if ((await head.getAttribute('aria-expanded')) !== 'true') throw new Error('closed on refusal');
+    if ((await r3.getByRole('textbox').inputValue()).indexOf('Var8 1') < 0) throw new Error('draft lost on refusal');
+    // accepted: saved, then closed; reopened it holds the new rule
+    await ask(() => head.click(), true);
+    await head.and(p.locator('[aria-expanded=false]')).waitFor({ timeout: 6000 });
+    if ((await text()).indexOf('Var8 1') < 0) throw new Error('not saved on closing');
+    await head.click();
+    const r3b = p.getByRole('region', { name: /^Rule3/ });
+    if ((await r3b.getByRole('textbox').inputValue()).indexOf('Var8 1') < 0) throw new Error('the rule vanished');
+    // leaving for another screen: an invalid text is reported, nothing moves
+    await r3b.getByRole('textbox').fill('on System#Boot do');
+    await p.getByRole('navigation').getByRole('button', { name: 'Événements' }).click();
+    await r3b.getByText(/incorrectes/).waitFor();
+    if ((await p.getByRole('navigation').getByRole('button', { name: 'Règles' }).getAttribute('aria-current')) !== 'page') throw new Error('left with an invalid text');
+    // a valid one, refused: still on Rules with the draft; accepted: saved, and on the other screen
+    await r3b.getByRole('textbox').fill(was);
+    await r3b.getByRole('textbox').fill(was + ' on System#Boot do Var7 1 endon');
+    await ask(() => p.getByRole('navigation').getByRole('button', { name: 'Événements' }).click(), false);
+    if ((await r3b.getByRole('textbox').inputValue()).indexOf('Var7 1') < 0) throw new Error('draft lost on refusal');
+    await ask(() => p.getByRole('navigation').getByRole('button', { name: 'Événements' }).click(), true);
+    await p.getByRole('navigation').getByRole('button', { name: 'Événements' }).and(p.locator('[aria-current=page]')).waitFor();
+    if ((await text()).indexOf('Var7 1') < 0) throw new Error('not saved on leaving');
+    // nothing unsaved: no question
+    await p.getByRole('navigation').getByRole('button', { name: 'Règles' }).click();
+    await p.getByRole('navigation').getByRole('button', { name: 'Console' }).click();
+    await p.getByRole('navigation').getByRole('button', { name: 'Console' }).and(p.locator('[aria-current=page]')).waitFor();
+    // put the text back
+    await p.getByRole('navigation').getByRole('button', { name: 'Règles' }).click();
+    const r3c = await rule(p, 3);
+    await r3c.getByRole('textbox').fill(was);
+    await r3c.getByRole('button', { name: 'Enregistrer' }).click();
+    await r3c.getByText(/Enregistré/).waitFor({ timeout: 4000 });
+  });
   await test('conflicts: two rule sets toggling the same light on the same event', async p => {
     await openFull(p);
     await p.getByRole('button', { name: 'Règles' }).click();
