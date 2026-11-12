@@ -195,17 +195,14 @@ Comment le paquet léger reste petit, avec les mêmes sources :
   `use()` ; après chaque `set()` l'interface se redessine depuis sa racine (`boot.js`, une fois par
   tâche) et Preact ne change que ce qui diffère. Les écrans propres à l'interface complète
   gardent les hooks pour leur état local.
-- Dans une `.tapp` de **release** (job `build`, celle qui est taguée, jointe à la release et proposée
-  par le bouton de mise à jour sur le canal des releases) les fichiers Berry sont **minifiés** par
-  `pack_tapp.py` (`minify_berry()`) ; la `.tapp` de **test** (`--dev`, job `preview`) emporte les
-  sources telles quelles, commentaires et mise en forme compris, pour les lire et déboguer sur la
-  passerelle (environ 77 Ko ; le budget de taille ne vaut que pour la release, que la CI assemble à
-  chaque commit). Minifiés : sans commentaires,
+- Les fichiers Berry sont **minifiés** par `pack_tapp.py` (`minify_berry()`), dans une `.tapp` de
+  release comme de test (`--dev`) ; le budget de taille ne vaut que pour la release, que la CI
+  assemble à chaque commit (un build de test peut le dépasser). Minifiés : sans commentaires,
   sans indentation, sans blanc entre un mot et un signe ; chaînes intactes, sauts de ligne gardés.
   Il vérifie que la suite de jetons est celle de la source, et la CI compile les copies minifiées
   et passe `tests/tf_http_test.be` sur le `tf_http.be` minifié. Les sources commentées restent dans
   `extension/` ; un numéro de ligne dans un message d'erreur de la passerelle désigne le fichier
-  minifié (la source avec un build de test).
+  minifié.
 
 | Taille (octets) | v0.2.0 | 12 novembre 2026 |
 | --- | --- | --- |
@@ -601,7 +598,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] Sans accès Internet, `/tf` charge la copie locale (onglet Diagnostic : « local ») ; depuis la v0.1 cette copie est l'interface légère (bandeau, en-tête « · lite »), à revérifier
 - [x] `open(tasmota.wd + "app.js.gz", "rb")` lit bien le fichier dans la `.tapp`, et le navigateur décompresse la copie locale (`lite.js.gz` depuis la v0.1)
 - [ ] v0.1 : navigateur hors ligne (ou `gnatali.github.io` bloqué), `/tf` affiche l'interface légère : les appareils avec leurs bascules, la console et le diagnostic fonctionnent, les onglets Passerelles et Événements sont absents, « Réessayer » charge l'interface complète dès que GitHub répond (la console et le diagnostic ont quitté l'interface légère le 11 novembre 2026 : voir le point suivant)
-- [ ] v0.2, `.tapp` réduite (11 novembre 2026, build de test, `.tapp` réinstallée, `Restart 1`) : la `.tapp` de release fait environ 40 Ko (une de test environ 77 Ko, Berry non minifié) ; le journal de démarrage affiche `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` (le Berry minifié se charge) ; GitHub bloqué, `/tf` n'affiche que les appareils, sans barre d'onglets : une bascule Zigbee, « Appairer », un interrupteur et un curseur Tuya fonctionnent et leur état revient, le bouton de langue fonctionne, « Réessayer » charge l'interface complète dès que GitHub répond ; GitHub joignable, l'interface complète marche comme avant (Règles : enregistrer et restaurer, règles Berry, `autoexec.be` ; console ; diagnostic ; passerelles) ; une mise à jour depuis l'interface légère fonctionne toujours ; mémoire au repos et interface ouverte inchangée ou plus basse (12 novembre 2026 : fonctionne sur la passerelle, Guillaume)
+- [ ] v0.2, `.tapp` réduite (11 novembre 2026, build de test, `.tapp` réinstallée, `Restart 1`) : la `.tapp` fait environ 40 Ko ; le journal de démarrage affiche `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` (le Berry minifié se charge) ; GitHub bloqué, `/tf` n'affiche que les appareils, sans barre d'onglets : une bascule Zigbee, « Appairer », un interrupteur et un curseur Tuya fonctionnent et leur état revient, le bouton de langue fonctionne, « Réessayer » charge l'interface complète dès que GitHub répond ; GitHub joignable, l'interface complète marche comme avant (Règles : enregistrer et restaurer, règles Berry, `autoexec.be` ; console ; diagnostic ; passerelles) ; une mise à jour depuis l'interface légère fonctionne toujours ; mémoire au repos et interface ouverte inchangée ou plus basse (12 novembre 2026 : fonctionne sur la passerelle, Guillaume)
 - [ ] v0.2, place pour la mise à jour (12 novembre 2026, la `.tapp` avec `/api/update_check` installée une fois à la main) : avec assez d'espace libre la mise à jour passe et l'ancienne `TasmoFlow.tapp.bak` reste jusqu'au contrôle du nouveau fichier ; avec peu d'espace libre mais une `.bak`, la `.bak` est supprimée et la mise à jour passe ; avec trop peu de place même sans la `.bak`, le bandeau le dit avec les tailles (nécessaire, disponible) avant tout téléchargement, et rien ne change
 - [x] La liste des appareils correspond à `ZbStatus1`
 - [x] Un appui sur un bouton Zigbee apparaît dans l'onglet Événements en moins de 2 s

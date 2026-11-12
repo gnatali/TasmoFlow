@@ -47,8 +47,8 @@ paths:
   (`tf_streamer`), at the client's pace (`buf_out_empty()`).
 - Files inside a `.tapp` are opened with `open(tasmota.wd + "name")`; a `.tapp` is an
   uncompressed zip (`tools/pack_tapp.py`).
-- A **release** `.tapp` holds **minified** Berry (`pack_tapp.py`, `minify_berry()`; a test build,
-  `--dev`, keeps the sources as they are, to read on the gateway): no comments, no
+- The `.tapp` holds **minified** Berry, test builds too (`pack_tapp.py`, `minify_berry()`; the size
+  budget only applies to release builds): no comments, no
   indentation, no blank between a word and a sign (`static var VERSION= "0.2.0"`). Never parse the
   shipped files expecting the source's layout (the simulated gateway's version regex once did), and
   read a line number of a gateway error in the minified file (`python3 -m zipfile -e`). Comments

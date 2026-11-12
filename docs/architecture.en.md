@@ -184,16 +184,13 @@ How the light bundle stays small, with the same sources:
 - No `preact/hooks` in the light bundle: the stores (`store.js`) have no `use()`; after any `set()`
   the interface renders again from its root (`boot.js`, once per task) and Preact only changes what
   differs. The full interface's own screens still use hooks for their local state.
-- In a **release** `.tapp` (job `build`, the one tagged, attached to the release and offered by the
-  update button on the release channel) the Berry files are **minified** by `pack_tapp.py`
-  (`minify_berry()`); the **test** `.tapp` (`--dev`, job `preview`) carries the sources as they are,
-  comments and layout included, to read and debug on the gateway (about 77 KB; the size budget
-  applies to the release build only, which CI builds from every commit). Minified: no comments, no
+- The Berry files are **minified** by `pack_tapp.py` (`minify_berry()`), in a release `.tapp` and in
+  a test one (`--dev`) alike; the size budget only applies to the release build, which CI builds
+  from every commit (a test build may go over it). Minified: no comments, no
   indentation, no blank between a word and a sign; strings untouched, line breaks kept. It checks
   that the token sequence equals the source's, and CI compiles the minified copies and runs
   `tests/tf_http_test.be` on the minified `tf_http.be`. The commented sources stay in `extension/`;
-  a line number in a gateway error message refers to the minified file (to the source with a test
-  build).
+  a line number in a gateway error message refers to the minified file.
 
 | Size (bytes) | v0.2.0 | 12 November 2026 |
 | --- | --- | --- |
@@ -569,7 +566,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] Without internet access, `/tf` loads the local copy (Diagnostics tab: "local"); since v0.1 this copy is the light interface (banner, header "· lite"), to check again
 - [x] `open(tasmota.wd + "app.js.gz", "rb")` reads the file inside the `.tapp`, and the browser decompresses the local copy (`lite.js.gz` since v0.1)
 - [ ] v0.1: with the browser offline (or `gnatali.github.io` blocked), `/tf` shows the light interface: devices with toggles, console and diagnostics work, the Gateways and Events tabs are absent, "Retry" loads the full interface once GitHub answers (console and diagnostics left the light interface on 11 November 2026: see the item below)
-- [ ] v0.2, reduced `.tapp` (11 November 2026, test build, `.tapp` installed again, `Restart 1`): the release `.tapp` is about 40 KB (a test one about 77 KB, Berry not minified); the boot log shows `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` (the minified Berry loads); with GitHub blocked, `/tf` shows the devices only, without a tab bar: a Zigbee toggle, "Pair", a Tuya switch and slider work and their state comes back, the language button works, "Retry" loads the full interface once GitHub answers; with GitHub reachable, the full interface works as before (Rules: save and restore, Berry rules, `autoexec.be`; console; diagnostics; gateways); an update from the light interface still works; memory at rest and with an interface open unchanged or lower (12 November 2026: works on the gateway, Guillaume)
+- [ ] v0.2, reduced `.tapp` (11 November 2026, test build, `.tapp` installed again, `Restart 1`): the `.tapp` is about 40 KB; the boot log shows `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` (the minified Berry loads); with GitHub blocked, `/tf` shows the devices only, without a tab bar: a Zigbee toggle, "Pair", a Tuya switch and slider work and their state comes back, the language button works, "Retry" loads the full interface once GitHub answers; with GitHub reachable, the full interface works as before (Rules: save and restore, Berry rules, `autoexec.be`; console; diagnostics; gateways); an update from the light interface still works; memory at rest and with an interface open unchanged or lower (12 November 2026: works on the gateway, Guillaume)
 - [ ] v0.2, update room (12 November 2026, the `.tapp` with `/api/update_check` installed by hand once): with enough free space the update goes through and the previous `TasmoFlow.tapp.bak` stays until the new file is checked; with free space short but a `.bak`, the `.bak` is deleted and the update goes through; with too little room even without the `.bak`, the banner says so with the sizes (needed, available) before any download, and nothing changes
 - [x] The device list matches `ZbStatus1`
 - [x] A Zigbee button press shows up in the Events tab within 2 s
