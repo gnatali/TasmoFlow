@@ -177,6 +177,8 @@ ok('Tuya light2/light3: one panel per binding replaces the shared sliders; colou
   const p = cs.find(x => x.kind === 'light');
   assert.deepStrictEqual([p.dp, p.modeDp, p.briDp, p.bmin, p.bmax, p.ctDp], ['24', '21', '22', 10, 1000, null]);
   assert.strictEqual(typeof p.render, 'function');
+  assert.strictEqual(p.swDp, '20');
+  assert.strictEqual(lightControls([], { matter: [{ type: 'light3', dp: 31 }] }).find(x => x.kind === 'light').swDp, '31');
   assert.strictEqual(lightControls(controlsFor({ dps: {} }, { matter: [{ type: 'light3' }] }), { matter: [{ type: 'light3' }] }).find(x => x.kind === 'light').dp, '24');
   assert.strictEqual(lightControls(controlsFor({ dps: {} }, { matter: [{ type: 'light3', dp_ct: 23 }] }), { matter: [{ type: 'light3', dp_ct: 23 }] }).find(x => x.kind === 'light').ctDp, '23');
   const l2 = { matter: [{ type: 'light2', dp_ct: 23 }] };

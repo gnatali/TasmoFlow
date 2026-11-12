@@ -149,7 +149,8 @@ def tuya_command(c):
             except ValueError:      # not JSON: the driver takes the text as it is (`colour`)
                 new = value
         d["Dps"][dp] = new
-        push_tuya(real, {dp: new})
+        # a real driver reports the new value a moment after the command (network round trip)
+        threading.Timer(0.4, push_tuya, (real, {dp: new})).start()
         return {"TuyaSend": "Done"}
     return None
 

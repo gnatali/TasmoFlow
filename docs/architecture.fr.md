@@ -461,6 +461,15 @@ une valeur faite uniquement de chiffres serait lue comme un nombre). Les valeurs
 `"keep": [21, 22, 24]` dans `tuya.json` quand la liaison est désactivée (voir plus bas).
 Pas proposés : scènes (`scene_data_v2`, DP 25), minuteries, ne pas déranger, modes réveil et sommeil.
 
+**Valeur tenue et options masquées** (panneaux `light2` et `light3`) : une valeur qu'on vient de régler
+(teinte, saturation, luminosité, température) reste affichée jusqu'à ce que l'appareil la signale, 3 s au
+plus, pour que l'ancienne valeur ne revienne pas entre la commande et l'événement de l'appareil (un par
+DP, un instant plus tard) ; un événement plus ancien d'une autre valeur ne casse pas la tenue. Après 3 s,
+l'état réel s'affiche de nouveau. Les onglets de mode et les curseurs de l'interface légère montrent
+toujours l'état de l'appareil seul. Tant que la lampe est éteinte (DP d'interrupteur, 20, à faux) ou
+l'appareil déconnecté, le panneau (onglets, roue, arc, curseurs) est masqué et seul le bouton
+d'alimentation de la carte reste ; un état d'interrupteur inconnu laisse le panneau visible.
+
 **Panneau `light2`** (même module) : une lampe blanche seule (température de couleur, pas de couleur) a un
 seul panneau avec un **cadran en arc ouvert** pour la température de couleur (`dp_ct`, 23, 0 à 1000
 affiché en % : 270 degrés ouverts en bas, chaud en bas à gauche, froid en bas à droite, anneau dégradé,

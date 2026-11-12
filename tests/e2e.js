@@ -513,9 +513,16 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     const ring = (deg) => [box.x + box.width / 2 + Math.cos(deg * Math.PI / 180) * box.width * 0.4, box.y + box.height / 2 - Math.sin(deg * Math.PI / 180) * box.height * 0.4];
     await p.mouse.click(...ring(0));                                         // right: hue 0, saturation and value kept
     await until(d => d['24'] === '000003e803e8' && d['21'] === 'colour', 'hue 0');
+    await garland.locator('[role=slider][aria-valuenow="0"]').waitFor({ timeout: 4000 });
+    // no flicker: the device's event comes 0.4 s after the command (simulator), the card keeps the new hue meanwhile
+    await p.evaluate(() => { window.__hues = []; const w = document.querySelector('[aria-label=Teinte]');
+      new MutationObserver(() => window.__hues.push(w.getAttribute('aria-valuenow') + '@' + Math.round(performance.now() % 100000))).observe(w, { attributes: true, attributeFilter: ['aria-valuenow'] }); });
     await p.mouse.click(...ring(90));                                        // top: hue 90
     await until(d => d['24'] === '005a03e803e8', 'hue 90');
     await garland.locator('[role=slider][aria-valuenow="90"]').waitFor({ timeout: 4000 });   // the event came back: the card shows it
+    await p.waitForTimeout(1200);
+    const hues = await p.evaluate(() => window.__hues);
+    if (!hues.length || hues.some(h => !h.startsWith('90@'))) throw new Error('hue flickers: ' + hues);
     await garland.getByLabel('Saturation').fill('50');
     await until(d => d['24'] === '005a01f403e8', 'saturation 50 %');
     await garland.getByText('50 %').first().waitFor({ timeout: 4000 });
@@ -529,6 +536,17 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     if (await garland.getByRole('slider', { name: 'Teinte' }).count()) throw new Error('hue wheel in the white tab');
     await tab('Couleur').click();
     await until(d => d['21'] === 'colour', 'back to colour mode');
+    // lamp off: the options are hidden, the power button stays; on again: they are back
+    await garland.getByRole('button', { name: 'Guirlande · allumé' }).click();
+    await garland.getByRole('button', { name: 'Guirlande · éteint' }).waitFor({ timeout: 4000 });
+    if (await garland.getByRole('tab').count() || await garland.getByRole('slider').count()) throw new Error('options shown while the lamp is off');
+    await garland.getByRole('button', { name: 'Guirlande · éteint' }).click();
+    await garland.getByRole('tab', { name: 'Couleur' }).waitFor({ timeout: 4000 });
+    await lamp.getByRole('button', { name: 'Lampe bureau · allumé' }).click();
+    await lamp.getByRole('button', { name: 'Lampe bureau · éteint' }).waitFor({ timeout: 4000 });
+    if (await lamp.getByRole('slider').count()) throw new Error('light2 options shown while the lamp is off');
+    await lamp.getByRole('button', { name: 'Lampe bureau · éteint' }).click();
+    await lamp.getByRole('slider', { name: 'Température de couleur' }).waitFor({ timeout: 4000 });
     // a name with a comma: controlled by its id; without a known id: readings only, no control
     const tv = p.locator('article.card', { has: p.getByRole('heading', { name: 'Salon, TV', exact: true }) });
     await tv.getByRole('button', { name: 'TV · éteint' }).click();

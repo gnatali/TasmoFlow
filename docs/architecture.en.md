@@ -437,6 +437,14 @@ reports one and is not in colour mode) then the whole colour as a JSON string
 The values shown need `"keep": [21, 22, 24]` in `tuya.json` when the binding is disabled (see below).
 Not offered: scenes (`scene_data_v2`, DP 25), timers, do-not-disturb, wake-up and sleep modes.
 
+**Held value and hidden options** (`light2` and `light3` panels): a value just set (hue, saturation,
+brightness, temperature) stays on screen until the device reports it, 3 s at most, so the old value does
+not come back between the command and the device's event (one per DP, a moment later); an earlier event
+of another value does not break the hold. Past 3 s the real state shows again. The mode tabs and the
+light interface's sliders keep showing the device's state only. While the lamp is off (switch DP, 20,
+false) or the device is disconnected, the panel (tabs, wheel, arc, sliders) is hidden and only the card's
+power button stays; an unknown switch state keeps the panel visible.
+
 **`light2` panel** (same module): a white-only lamp (colour temperature, no colour) gets one panel with
 an **open arc dial** for the colour temperature (`dp_ct`, 23, 0 to 1000 shown in %: 270 degrees open at
 the bottom, warm at the bottom left, cool at the bottom right, gradient ring, knob; a click in the gap

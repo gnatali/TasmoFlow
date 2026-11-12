@@ -5,7 +5,7 @@
 // colour temperature arc (if the binding has `dp_ct`) and brightness, the colour tab a hue wheel and two
 // sliders (brightness = value, saturation). `light2` (white only): colour temperature on an open arc dial
 // (warm to cool) and brightness, a change leaves a scene or other mode for the white one.
-import { useState, useRef } from 'preact/hooks';
+import { useState, useRef, useEffect } from 'preact/hooks';
 import { html } from './html.js';
 import { t } from './i18n.js';
 import { EXTRA } from './tuya.js';
@@ -46,7 +46,7 @@ export function lightControls(controls, entry) {
       const i = out.findIndex(c => c.kind === 'range' && c.dp === dp && c.percent);
       if (i >= 0) out.splice(i, 1);
     }
-    out.push({ kind: 'light', render: LightPanel, colour: !white, dp: dpOf('dp_colour', 24), modeDp: dpOf('dp_mode', 21),
+    out.push({ kind: 'light', render: LightPanel, colour: !white, swDp: dpOf('dp', 20), dp: dpOf('dp_colour', 24), modeDp: dpOf('dp_mode', 21),
       briDp, bmin: b.bri_min != null ? +b.bri_min : 10, bmax: b.bri_max != null ? +b.bri_max : 1000, ctDp });
   }
   return out;
@@ -122,31 +122,53 @@ function ArcDial({ raw, disabled, onPick }) {
     nudge=${(v, d) => clamp(v + 5 * d, 0, 100)}/>`;
 }
 
+// How long a value just sent stays on screen when the device has not reported it (ms)
+const HOLD = 3000;
+const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
+
+// The options are hidden while the lamp is off or the device is not connected (the card keeps its power
+// button). A value just set is held on screen until the device reports it (or HOLD ms), so the old value
+// does not come back in between: the device answers with one event per DP, a moment after the command.
 function LightPanel({ c, node, send }) {
+  const [held, setHeld] = useState({});             // { dp: value sent }
+  const timers = useRef({});
+  useEffect(() => () => Object.values(timers.current).forEach(clearTimeout), []);
+  const drop = dps => setHeld(h => { const n = Object.assign({}, h); dps.forEach(dp => delete n[dp]); return n; });
+  useEffect(() => {                                  // reported by the device: the hold is over
+    const done = Object.keys(held).filter(dp => node.dps[dp] != null && same(node.dps[dp], held[dp]));
+    done.forEach(dp => clearTimeout(timers.current[dp]));
+    if (done.length) drop(done);
+  });
+  if (!node.connected || node.dps[c.swDp] === false) return null;
+  const hold = (dp, v) => {
+    clearTimeout(timers.current[dp]);
+    setHeld(h => Object.assign({}, h, { [dp]: v }));
+    timers.current[dp] = setTimeout(() => drop([dp]), HOLD);
+  };
+  const shown = dp => dp in held ? held[dp] : node.dps[dp];
   const mode = node.dps[c.modeDp];
-  const colour = parseColour(node.dps[c.dp]) || { h: 0, s: 1000, v: 1000 };   // the driver's default
-  const off = !node.connected;
+  const colour = parseColour(shown(c.dp)) || { h: 0, s: 1000, v: 1000 };   // the driver's default
   // the wanted mode first (when the device reports a mode DP and is not in it), then the value
   const inMode = (m, go) => mode === undefined || mode === m ? go() : send(c.modeDp, m).then(go);
   // the whole colour as a JSON string (a value of digits only would be read as a number)
   const setColour = patch => {
-    const n = Object.assign({}, colour, patch);
-    return inMode('colour', () => send(c.dp, '"' + formatColour(n.h, n.s, n.v) + '"'));
+    const n = Object.assign({}, colour, patch), f = formatColour(n.h, n.s, n.v);
+    hold(c.dp, f);
+    return inMode('colour', () => send(c.dp, '"' + f + '"'));
   };
-  const setWhite = (dp, v) => inMode('white', () => send(dp, v));
+  const setWhite = (dp, v) => { hold(dp, v); return inMode('white', () => send(dp, v)); };
   return html`<div class="l3">
     ${c.colour ? html`<div class="tabs" role="tablist">${['white', 'colour'].map(m => html`<button role="tab" aria-selected=${mode === m}
-      disabled=${off} onClick=${() => send(c.modeDp, m)}>${t(m)}</button>`)}</div>` : null}
+      onClick=${() => send(c.modeDp, m)}>${t(m)}</button>`)}</div>` : null}
     ${mode === 'colour' && c.colour ? html`
-      <${HueWheel} hue=${colour.h} rgb=${colourToRgb(colour)} disabled=${off} onPick=${h => setColour({ h })}/>
-      <${Range} label=${t('brightness')} raw=${node.dps[c.dp] == null ? null : colour.v} lo=${V_MIN} hi=${V_MAX} disabled=${off}
+      <${HueWheel} hue=${colour.h} rgb=${colourToRgb(colour)} onPick=${h => setColour({ h })}/>
+      <${Range} label=${t('brightness')} raw=${shown(c.dp) == null ? null : colour.v} lo=${V_MIN} hi=${V_MAX}
         onSend=${v => setColour({ v })}/>
-      <${Range} label=${t('saturation')} raw=${node.dps[c.dp] == null ? null : colour.s} lo=${0} hi=${1000} disabled=${off}
+      <${Range} label=${t('saturation')} raw=${shown(c.dp) == null ? null : colour.s} lo=${0} hi=${1000}
         onSend=${s => setColour({ s })}/>` : html`
-      ${c.ctDp ? html`<${ArcDial} raw=${node.dps[c.ctDp]} disabled=${off} onPick=${v => setWhite(c.ctDp, v)}/>` : null}
-      <${Range} label=${t('brightness')} raw=${node.dps[c.briDp]} lo=${c.bmin} hi=${c.bmax} disabled=${off}
+      ${c.ctDp ? html`<${ArcDial} raw=${shown(c.ctDp)} onPick=${v => setWhite(c.ctDp, v)}/>` : null}
+      <${Range} label=${t('brightness')} raw=${shown(c.briDp)} lo=${c.bmin} hi=${c.bmax}
         onSend=${v => setWhite(c.briDp, v)}/>`}
   </div>`;
 }
-
 EXTRA.refine = lightControls;
