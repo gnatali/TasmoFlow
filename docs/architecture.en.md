@@ -598,7 +598,7 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   language where the pattern is known (`Lampe · Power = 1`, `basculer Lampe`). The attributes
   listed are the ones a device has reported since the interface opened or in its last state:
   a button shows `Click` after its first press. Not yet: Matter, moving a block, plain names for the gateway's own events.
-- **`elseif`, several triggers, device connected** (v0.2, written on 13 November 2026; full interface
+- **`elseif`, several triggers, device connected** (v0.2, written on 12 November 2026; full interface
   only, no change on the gateway for TasmoFlow itself). Checked in Tasmota's source (firmware commit
   `43d9409`, `tasmota/tasmota_xdrv_driver/xdrv_10_rules.ino`):
   - **`elseif`**: `if (c1) a elseif (c2) b else c endif` is supported (`ProcessIfStatement`), any number of

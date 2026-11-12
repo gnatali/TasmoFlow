@@ -635,7 +635,7 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   qu'un appareil a signalés depuis l'ouverture de l'interface ou dans son dernier état : un bouton
   montre `Click` après son premier appui. Pas encore : Matter, déplacement d'un bloc, noms clairs
   pour les événements propres à la passerelle.
-- **`elseif`, plusieurs déclencheurs, appareil connecté** (v0.2, écrit le 13 novembre 2026 ; interface
+- **`elseif`, plusieurs déclencheurs, appareil connecté** (v0.2, écrit le 12 novembre 2026 ; interface
   complète seulement, rien ne change sur la passerelle pour TasmoFlow lui-même). Vérifié dans la source de
   Tasmota (commit du firmware `43d9409`, `tasmota/tasmota_xdrv_driver/xdrv_10_rules.ino`) :
   - **`elseif`** : `if (c1) a elseif (c2) b else c endif` est géré (`ProcessIfStatement`), autant de
