@@ -442,14 +442,24 @@ Les contrôles viennent des liaisons Matter de `tuya.json` (`controlsFor` dans
 `TuyaSend <appareil>,<dp>,toggle` inverse un interrupteur ; les curseurs envoient la valeur
 brute. L'état affiché est celui que l'appareil renvoie (pas d'affichage optimiste).
 
-**Couleur des `light3`** (interface complète seulement, `app/src/tuya_colour.js`, branché sur les
-cartes par `EXTRA.more` de `tuya.js` ; l'interface légère ne l'embarque pas, pour garder sa taille) :
-un sélecteur de couleur sur `dp_colour` (24). Choisir une couleur envoie d'abord le mode
-(`TuyaSend <appareil>,21,colour`, seulement si l'appareil signale un DP de mode) puis la couleur en
-chaîne JSON (`TuyaSend <appareil>,24,"hhhhssssvvvv"` : teinte 0 à 360, saturation et valeur 0 à 1000,
-en hexadécimal ; entre guillemets, car une valeur faite uniquement de chiffres serait lue comme un
-nombre). Le variateur d'une `light3` agit en mode blanc ; en mode couleur, la luminosité est la
-valeur de la couleur.
+**Panneau `light3`** (interface complète seulement, `app/src/tuya_colour.js`, branché sur les cartes par
+`EXTRA.refine` de `tuya.js` ; l'interface légère ne l'embarque pas, pour garder sa taille, et garde
+l'interrupteur et le curseur de luminosité blanche), présenté comme l'application Tuya. **Onglets Blanc /
+Couleur** : ils suivent le mode que l'appareil signale (`dp_mode`, 21 : `white` ou `colour` ; pas
+d'affichage optimiste) ; un onglet envoie le mode (`TuyaSend <appareil>,21,white|colour`) ; un autre
+mode (scène, musique) ou aucun connu ne sélectionne aucun onglet et montre le contenu blanc. **Blanc** :
+curseur de luminosité sur `dp_bri` (de `bri_min` à `bri_max`, affiché en %), plus un curseur de
+température de couleur seulement si la liaison porte elle-même `dp_ct` (une `light3` comme les lampes
+`Pergola` n'a pas de DP 23 : pas de contrôle qui ne fait rien). **Couleur** : une **roue de teinte**
+(teinte 0 à 3 heures, sens inverse des aiguilles comme dans l'application Tuya ; le repère suit le
+pointeur, la couleur part au relâchement ; les flèches le déplacent de 5 degrés) et deux curseurs,
+luminosité (la valeur de la couleur, 10 à 1000) et saturation (0 à 1000). La couleur est `dp_colour` (24),
+`colour_data_v2` = `hhhhssssvvvv` en hexadécimal (teinte 0 à 360, saturation et valeur 0 à 1000) ;
+chaque changement envoie d'abord le mode (quand l'appareil en signale un et n'est pas en mode couleur)
+puis la couleur entière en chaîne JSON (`TuyaSend <appareil>,24,"hhhhssssvvvv"`, entre guillemets car
+une valeur faite uniquement de chiffres serait lue comme un nombre). Les valeurs affichées demandent
+`"keep": [21, 22, 24]` dans `tuya.json` quand la liaison est désactivée (voir plus bas).
+Pas proposés : scènes (`scene_data_v2`, DP 25), minuteries, ne pas déranger, modes réveil et sommeil.
 
 **Noms avec une virgule** : `TuyaSend` coupe son argument aux deux premières virgules
 (`string.split(payload, ",", 2)` dans le pilote), un tel nom ne peut donc pas être donné. Le pilote
@@ -669,6 +679,6 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] v0.2 (11 novembre 2026) : mémoire avec l'API des règles chargée (`tf_rules.be` est compilé avec le serveur d'API), après `tasmota.gc()` : au repos 75-76 Ko libres / Berry 39 Ko (8 à 9 Ko), interface ouverte 52 Ko / 55 Ko (32 Ko), 5 minutes après la fermeture 70 Ko / 39 Ko (14 Ko, budget 15 Ko)
 - [x] v0.2 : URL longues (version de test avec l'analyseur à base de chaînes, `.tapp` réinstallé, `Restart 1`) : `http://<passerelle>:8384/api/status?t=<jeton>&p=<a répété 130 fois>`, puis 90 et 50, renvoient l'état ; des lignes de requête de 190 et 512 caractères répondent aussi ; une de 900 caractères renvoie `{"error":"uri_too_long"}` ; la passerelle ne redémarre jamais (`Status 1` : `RestartReason` inchangée, la durée de fonctionnement continue d'augmenter) ; l'interface marche toujours (appareils, console, écran Règles : enregistrer et restaurer)
 - [ ] v0.1 (12 novembre 2026, `.tapp` réinstallée, interface légère modifiée) : un appareil Tuya dont le nom contient une virgule (Wi-Fi ou passerelle, listé par `TuyaConfig` avec son `id`) se commande depuis sa carte dans les deux interfaces (`TuyaSend <id>,<dp>,toggle` dans le journal) et apparaît dans les sélecteurs de règles sous son nom ; un sous-appareil de passerelle dont le nom contient une virgule montre ses mesures sans contrôle
-- [ ] v0.1 (12 novembre 2026, version de test) : la carte d'une `light3` de l'interface complète montre un sélecteur de couleur (pas l'interface légère) ; choisir une couleur change la lampe et le sélecteur suit l'état renvoyé ; le variateur marche toujours en mode blanc
+- [ ] v0.1 (12 novembre 2026, version de test) : la carte d'une `light3` de l'interface complète (version de test, pas de `.tapp` à réinstaller pour cela) montre les onglets Blanc / Couleur (pas l'interface légère) ; l'onglet sélectionné suit le mode réglé depuis l'application Tuya ; la roue de teinte et les curseurs de saturation et de luminosité changent la lampe et la carte suit l'état renvoyé ; en Blanc, le curseur de luminosité correspond à celui de l'application Tuya ; une lampe sans `dp_ct` n'affiche pas de température de couleur
 - [ ] v0.1 : vérifier que `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)
 - [x] v0.1 : ce qui reste alloué après la première ouverture (6 Ko de mémoire libre, 4 Ko de Berry) : pas poursuivi, abandonné à la demande de Guillaume (12 novembre 2026)

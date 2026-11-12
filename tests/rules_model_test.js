@@ -19,7 +19,7 @@ globalThis.document = { documentElement: {} };
 globalThis.window = {};
 const m = { exports: {} };
 new Function('module', 'exports', out)(m, m.exports);
-const { controlsFor, sendName, colourControls, colourToRgb, rgbToColour, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
+const { controlsFor, sendName, light3Controls, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
 
 let n = 0;
 const ok = (name, f) => { f(); n++; };
@@ -168,30 +168,36 @@ ok('Tuya actions: a name with a comma goes by its id, none without one', () => {
   assert.strictEqual(describeCommand('TuyaSend abc123,20,true', devs, lab, tuya), 'allumer Salon, TV (DP 20)');
   assert.strictEqual(describeCommand('TuyaSend abc123,20,true', devs, lab), 'allumer abc123 (DP 20)');
 });
-ok('Tuya colour: light3 control and colour_data_v2 conversion', () => {
-  const col = colourControls({ matter: [{ ep: 'Guirlande', type: 'light3', dp: 20, dp_mode: 21, dp_bri: 22, dp_colour: 24 }] })[0];
-  assert.deepStrictEqual([col.kind, col.dp, col.modeDp], ['colour', '24', '21']);
-  assert.strictEqual(colourControls({ matter: [{ type: 'light3' }] })[0].dp, '24');
-  assert.deepStrictEqual(colourControls({ matter: [{ type: 'light2' }] }), []);
-  assert.deepStrictEqual(colourControls(null), []);
-  assert.ok(!controlsFor({ dps: {} }, { matter: [{ type: 'light3' }] }).some(x => x.kind === 'colour'));   // not in the shared model
-  assert.strictEqual(colourToRgb('000003e803e8'), '#ff0000');
-  assert.strictEqual(colourToRgb('007803e803e8'), '#00ff00');
-  assert.strictEqual(colourToRgb('00f003e803e8'), '#0000ff');
-  assert.strictEqual(colourToRgb('000000000000'), '#000000');
-  assert.strictEqual(colourToRgb('0000000003e8'), '#ffffff');
-  assert.strictEqual(colourToRgb('nope'), null);
-  assert.strictEqual(colourToRgb(60), null);
-  assert.strictEqual(rgbToColour('#ff0000'), '000003e803e8');
-  assert.strictEqual(rgbToColour('#00ff00'), '007803e803e8');
-  assert.strictEqual(rgbToColour('#0000ff'), '00f003e803e8');
-  assert.strictEqual(rgbToColour('#ffffff'), '0000000003e8');
-  assert.strictEqual(rgbToColour('#000000'), '000000000000');
-  for (const rgb of ['#3a7bd5', '#ff8800', '#12ab34']) {    // back and forth stays within rounding
-    const back = colourToRgb(rgbToColour(rgb));
-    for (let i = 1; i < 7; i += 2) assert.ok(Math.abs(parseInt(rgb.slice(i, i + 2), 16) - parseInt(back.slice(i, i + 2), 16)) <= 2, rgb + ' ' + back);
+ok('Tuya light3: one panel per binding replaces the shared dimmer; colour_data_v2 helpers', () => {
+  const entry = { matter: [{ ep: 'Guirlande', type: 'light3', dp: 20, dp_mode: 21, dp_bri: 22, dp_colour: 24, bri_min: 10, bri_max: 1000 }] };
+  const base = controlsFor({ dps: {} }, entry);
+  assert.ok(base.some(x => x.kind === 'range' && x.dp === '22'));                  // the shared (light) dimmer
+  const cs = light3Controls(base, entry);
+  assert.ok(!cs.some(x => x.kind === 'range'));
+  const p = cs.find(x => x.kind === 'light3');
+  assert.deepStrictEqual([p.dp, p.modeDp, p.briDp, p.bmin, p.bmax, p.ctDp], ['24', '21', '22', 10, 1000, null]);
+  assert.strictEqual(typeof p.render, 'function');
+  assert.strictEqual(light3Controls(controlsFor({ dps: {} }, { matter: [{ type: 'light3' }] }), { matter: [{ type: 'light3' }] }).find(x => x.kind === 'light3').dp, '24');
+  assert.strictEqual(light3Controls(controlsFor({ dps: {} }, { matter: [{ type: 'light3', dp_ct: 23 }] }), { matter: [{ type: 'light3', dp_ct: 23 }] }).find(x => x.kind === 'light3').ctDp, '23');
+  const l2 = { matter: [{ type: 'light2' }] };
+  assert.deepStrictEqual(light3Controls(controlsFor({ dps: {} }, l2), l2), controlsFor({ dps: {} }, l2));   // light2: untouched
+  assert.deepStrictEqual(light3Controls([], null), []);
+  assert.deepStrictEqual(parseColour('00f003e803e8'), { h: 240, s: 1000, v: 1000 });
+  assert.deepStrictEqual(parseColour('0000000003e8'), { h: 0, s: 0, v: 1000 });
+  assert.strictEqual(parseColour('nope'), null);
+  assert.strictEqual(parseColour(60), null);
+  assert.strictEqual(formatColour(0, 1000, 1000), '000003e803e8');
+  assert.strictEqual(formatColour(240, 500, 10), '00f0' + '01f4' + '000a');
+  assert.strictEqual(formatColour(400, -5, 2000), '0168' + '0000' + '03e8');       // clamped
+  for (const str of ['000003e803e8', '007803e803e8', '0168000003e8', '00b401f4012c']) {
+    const c = parseColour(str);
+    assert.strictEqual(formatColour(c.h, c.s, c.v), str);
   }
-  assert.ok(/^[0-9a-f]{12}$/.test(rgbToColour('#fef001')));
+  assert.strictEqual(colourToRgb({ h: 0, s: 1000, v: 1000 }), '#ff0000');
+  assert.strictEqual(colourToRgb({ h: 120, s: 1000, v: 1000 }), '#00ff00');
+  assert.strictEqual(colourToRgb({ h: 240, s: 1000, v: 1000 }), '#0000ff');
+  assert.strictEqual(colourToRgb({ h: 0, s: 0, v: 1000 }), '#ffffff');
+  assert.strictEqual(colourToRgb({ h: 90, s: 1000, v: 0 }), '#000000');
 });
 ok('plain-language names', () => {
   assert.strictEqual(describeSubject('ZbReceived#0x1A2B#Click', devs, false), 'Bouton · Click');

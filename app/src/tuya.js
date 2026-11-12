@@ -10,7 +10,7 @@ import { controlsFor, sendName } from './tuya_model.js';
 // the driver's answer to the last command of each device, when it was not "Done": { name: text }
 const M = createStore({});
 
-// controls only the full interface knows (tuya_colour.js sets `more`): { ..., render: Component }
+// the full interface may reshape the controls (tuya_colour.js sets `refine`); one with `render` is a component
 export const EXTRA = {};
 
 function Control({ c, node, send }) {
@@ -41,7 +41,8 @@ export function TuyaCard({ name, node, entry }) {
     setMsg(x === 'Done' ? null : typeof x === 'string' ? x : JSON.stringify(x));
   }).catch(e => setMsg(e.message));
   // a name with a comma and no known id (sub-device, or TuyaConfig not read): read only
-  const cs = controlsFor(node, entry).concat(EXTRA.more ? EXTRA.more(entry) : []).filter(c => addr || c.kind === 'read');
+  const base = controlsFor(node, entry);
+  const cs = (EXTRA.refine ? EXTRA.refine(base, entry) : base).filter(c => addr || c.kind === 'read');
   const reads = cs.filter(c => c.kind === 'read');
   const acts = cs.filter(c => c.kind !== 'read');
   return html`<article class="card">

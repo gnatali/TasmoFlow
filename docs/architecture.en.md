@@ -420,13 +420,22 @@ Controls come from the Matter bindings of `tuya.json` (`controlsFor` in `app/src
 `TuyaSend <device>,<dp>,toggle` flips a switch; sliders send the raw value. The state shown is
 the one reported back by the device (no optimistic display).
 
-**Colour of `light3`** (full interface only, `app/src/tuya_colour.js`, plugged into the cards
-through `EXTRA.more` of `tuya.js`; the light interface does not carry it, to keep its size): a colour
-picker on `dp_colour` (24). Choosing a colour sends the mode first (`TuyaSend <device>,21,colour`,
-only if the device reports a mode DP) and then the colour as a JSON string
-(`TuyaSend <device>,24,"hhhhssssvvvv"`: hue 0 to 360, saturation and value 0 to 1000, in
-hexadecimal; quoted because a value of digits only would be read as a number). The dimmer of a
-`light3` acts in white mode; in colour mode the brightness is the colour's value.
+**`light3` panel** (full interface only, `app/src/tuya_colour.js`, plugged into the cards through
+`EXTRA.refine` of `tuya.js`; the light interface does not carry it, to keep its size, and keeps the
+switch and the white brightness slider), laid out like the Tuya app. **Tabs White / Colour** follow the
+mode the device reports (`dp_mode`, 21: `white` or `colour`; no optimistic display); a tab sends the
+mode (`TuyaSend <device>,21,white|colour`); another mode (scene, music) or none known selects no tab and
+shows the white content. **White**: brightness slider on `dp_bri` (`bri_min` to `bri_max`, shown in %),
+plus a colour temperature slider only if the binding itself has `dp_ct` (a `light3` such as the
+`Pergola` lamps has no DP 23: no control that does nothing). **Colour**: a **hue wheel** (hue 0 at 3
+o'clock, counter-clockwise like the Tuya app; the knob follows the pointer, the colour goes out on
+release; arrows move it by 5 degrees) and two sliders, brightness (the colour's value, 10 to 1000) and
+saturation (0 to 1000). The colour is `dp_colour` (24), `colour_data_v2` = `hhhhssssvvvv` in hexadecimal
+(hue 0 to 360, saturation and value 0 to 1000); each change sends the mode first (when the device
+reports one and is not in colour mode) then the whole colour as a JSON string
+(`TuyaSend <device>,24,"hhhhssssvvvv"`, quoted because a value of digits only would be read as a number).
+The values shown need `"keep": [21, 22, 24]` in `tuya.json` when the binding is disabled (see below).
+Not offered: scenes (`scene_data_v2`, DP 25), timers, do-not-disturb, wake-up and sleep modes.
 
 **Names with a comma**: `TuyaSend` cuts its argument at the first two commas (`string.split(payload,
 ",", 2)` in the driver), so such a name cannot be given. The driver also takes a **device id**
@@ -635,6 +644,6 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] v0.2 (11 November 2026): memory with the rule API loaded (`tf_rules.be` is compiled with the API server), after `tasmota.gc()`: at rest 75-76 KB free / Berry 39 KB (8 to 9 KB), interface open 52 KB / 55 KB (32 KB), 5 minutes after closing 70 KB / 39 KB (14 KB, budget 15 KB)
 - [x] v0.2: long URLs (test build with the string parser, `.tapp` installed again, `Restart 1`): `http://<gateway>:8384/api/status?t=<token>&p=<a repeated 130 times>`, then 90 and 50, answer the status; request lines of 190 and 512 characters answer too; one of 900 characters answers `{"error":"uri_too_long"}`; the gateway never restarts (`Status 1`: `RestartReason` unchanged, uptime keeps growing); the interface still works (devices, console, Rules screen: save and restore)
 - [ ] v0.1 (12 November 2026, `.tapp` installed again, light interface changed): a Tuya device whose name has a comma (Wi-Fi or gateway, listed by `TuyaConfig` with its `id`) switches from its card in both interfaces (`TuyaSend <id>,<dp>,toggle` in the log) and appears in the rule pickers under its name; a sub-device of a gateway with a comma shows its readings without a control
-- [ ] v0.1 (12 November 2026, test build): a `light3` card of the full interface shows a colour picker (not the light interface); choosing a colour changes the lamp and the picker follows the state sent back; the dimmer still works in white mode
+- [ ] v0.1 (12 November 2026, test build): a `light3` card of the full interface (test build, no `.tapp` to install again for this) shows the tabs White / Colour (not the light interface); the selected tab follows the mode set from the Tuya app; the hue wheel, saturation and brightness sliders change the lamp and the card follows the state sent back; in White the brightness slider matches the Tuya app's; a lamp without `dp_ct` shows no colour temperature
 - [ ] v0.1: check that `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)
 - [x] v0.1: what stays allocated after the first opening (6 KB free heap, 4 KB Berry): not pursued, dropped at Guillaume's request (12 November 2026)

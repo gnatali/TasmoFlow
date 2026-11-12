@@ -63,7 +63,7 @@ Specification (French, outside the repository):
 | 9 Nov | v0.1: **option B decided**: full interface on GitHub Pages only (pinned, SRI), light interface (13.7 KB gzipped, devices + console + diagnostics) in the `.tapp`; second esbuild entry point of the same sources. Reason: `UfsFree` 148 KB of 320 KB and a full interface that will grow |
 | 12 Nov | **Drivers detected at opening** (asked by Guillaume): `S.drivers` (`zigbee`, `tuya`: running, starting, disabled, absent), `zigbee_state` added to `/api/status`; a driver that is not running has its functions off with a note. Full interface: looks again every 5 s while a driver starts (2 minutes at most) and turns it on by itself; light interface: off in every case, asks to reload the page, no loop. `.tapp` 41,352 B (budget 41,534). 24 end-to-end tests. **The `.tapp` must be installed again** (`extension/` and light interface changed); to try on the gateway (test plan item "drivers at opening") |
 | 12 Nov | Test builds (`--dev`): Berry minified as in a release, but no size budget (the release build of each commit is still checked by CI). Tried for one build: test `.tapp` with the sources as they are (77 KB), dropped at Guillaume's request |
-| 12 Nov | v0.1 leftovers written: colour of the `light3` bindings (colour picker, full interface only, `tuya_colour.js` plugged in through `EXTRA.more`) and Tuya devices whose name has a comma (addressed by their `id`, `sendName`). Simulated gateway: a `light3`, two devices with a comma. 24 end-to-end tests, 24 unit checks. The `.tapp` must be installed again; two new items in the test plan |
+| 12 Nov | v0.1 leftovers written: colour of the `light3` bindings (full interface only, `tuya_colour.js` plugged in through `EXTRA.refine`; redone in the Tuya app's layout: tabs White / Colour following the device's mode, hue wheel, saturation and brightness sliders, brightness in White, no colour temperature without `dp_ct`) and Tuya devices whose name has a comma (addressed by their `id`, `sendName`). Simulated gateway: a `light3`, two devices with a comma. 24 end-to-end tests, 24 unit checks. The `.tapp` must be installed again; two new items in the test plan |
 | 12 Nov | **Checked on the gateway** (Guillaume): update room check, drivers at opening, long URLs, port 8384 closed and listened to again. The 6 KB of heap not given back after the first opening: dropped, no more investigation |
 | 12 Nov | **`VERSION` file removed, the git tag is the only source of the version** (the `release` job kept failing on a tag that differed from the file). `tools/version.py` resolves it (`TF_VERSION`, release tag, latest tag, `0.0.0`); the workflow fetches the tags and rebuilds `dist/` after the tests, which use a fixed version; no `.tapp` to install again (`extension/` unchanged) |
 | 12 Nov | Halved `.tapp` checked on the gateway (Guillaume). The room check of the update did not follow the real sizes (two new copies plus 20 KB): now `/api/update_check?size=` (size from `latest.json`) before the download, and on the first piece, counts the free space, the `.bak` and a leftover `.new` against the new size plus 20 KB; the `.bak` is deleted only when needed. `.tapp` 40,920 B. 21 end-to-end tests |
@@ -104,8 +104,8 @@ After `tasmota.gc()`, gateway running the Tuya driver (9 November 2026):
 
 The budget of 15 KB holds with the rule API: **8 to 9 KB at rest, 14 KB five minutes after the interface was closed** (15 KB in v0.1). With an interface open the cost is 32 KB (25 KB in v0.1): `tf_rules.be` and the POST body add 7 KB while the server runs. The Tuya driver needs 45 KB free to start: 52 KB leaves 7 KB. Berry `HeapUsed` is back at 39 KB after closing, as in v0.1. About 6 KB of free heap are still not given back after the first opening (75 to 70 KB, same as v0.1: 75 to 69 KB), cause unknown and **not pursued** (decision of 12 November 2026).
 
-Target: 15 KB. Sizes (12 November 2026): `TasmoFlow.tapp` 41.4 KB (41,448 B, budget 41.5 KB, half of
-v0.2.0's 83 KB: **86 B left**), `lite.js.gz` 14.1 KB (budget 14 KB), `app.js.gz` 27.4 KB (budget 120 KB).
+Target: 15 KB. Sizes (12 November 2026): `TasmoFlow.tapp` 41.4 KB (41,444 B, budget 41.5 KB, half of
+v0.2.0's 83 KB: **90 B left**), `lite.js.gz` 14.1 KB (budget 14 KB), `app.js.gz` 28.6 KB (budget 120 KB).
 
 ## Decisions still open
 
@@ -132,7 +132,7 @@ Done in the code and the simulated gateway (see the [architecture](architecture.
 
 Left for v0.1 (small):
 
-- **Colour of `light3`** bindings (`colour_data_v2`): **written** (12 November 2026), full interface only (`tuya_colour.js`), to try on the gateway.
+- **`light3` panel** (`colour_data_v2`): **written** (12 November 2026) like the Tuya app (tabs White / Colour, hue wheel, saturation and brightness), full interface only (`tuya_colour.js`), to try on the gateway (no `.tapp` to install again for it).
 - **Tuya names with a comma**: **written** (12 November 2026): such a device goes by its `id` (Wi-Fi devices and Tuya gateways); a sub-device of a gateway has none and shows its readings only. To try on the gateway. The `.tapp` must be installed again (`tuya.js` and `tuya_model.js` are in the light interface).
 - **The version is the git tag** (12 November 2026, no more `VERSION` file): nothing to bump before tagging.
 - **Checks on the gateway**: the `[ ]` items marked v0.1 in the test plan (the port 8384
