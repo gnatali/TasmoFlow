@@ -47,12 +47,10 @@ export function TuyaCard({ name, node, entry }) {
   </article>`;
 }
 
+// the heading and the state of the driver, when it is not running, are in views.js (DriverNote)
 export function TuyaSection({ tuya }) {
-  if (!tuya || tuya.state === 'absent' || tuya.state === 'disabled') return null;
-  if (tuya.state !== 'running') return html`<h2>Tuya</h2><p class="q">${t('tuyaWaiting') + ' ' + tuya.detail}</p>`;
   const names = Object.keys(tuya.nodes).sort((a, b) => a.localeCompare(b));
-  return html`<h2>Tuya</h2>
-    ${tuya.lowMem ? html`<p class="q">${t('tuyaLowMem')}</p>` : null}
+  return html`${tuya.lowMem ? html`<p class="q">${t('tuyaLowMem')}</p>` : null}
     ${names.length ? html`<div class="grid">${names.map(n =>
       html`<${TuyaCard} key=${n} name=${n} node=${tuya.nodes[n]} entry=${tuya.conf && tuya.conf[n]}/>`)}</div>` : html`<p>${t('noDevice')}</p>`}`;
 }

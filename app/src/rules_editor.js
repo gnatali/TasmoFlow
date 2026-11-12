@@ -180,7 +180,8 @@ export function SentenceEditor({ text, setText }) {
   const commit = list => { setBlocks(list); setText(serializeRuleSet(list)); };
   const change = (i, patch) => commit(blocks.map((b, k) => k === i ? edited(b, patch) : b));
   const cur = open >= 0 ? blocks[open] : null;
-  return html`<div class="tiles">
+  const off = Object.keys(s.drivers).some(k => k !== 'tuyaWhy' && s.drivers[k] && s.drivers[k] !== 'running' && s.drivers[k] !== 'absent');
+  return html`${off ? html`<p class="q" role="status">${t('rule_driverNote')}</p>` : null}<div class="tiles">
     ${blocks.map((b, i) => html`<${Tile} key=${i} b=${b} s=${s} onEdit=${() => setOpen(i)} onDelete=${() => { commit(blocks.filter((_, k) => k !== i)); setOpen(-1); }}/>`)}
     <button class="tile add" onClick=${() => { commit([...blocks, newBlock()]); setOpen(blocks.length); }}>＋ ${t('rule_addBlock')}</button>
     ${cur && cur.kind === 'sentence' ? html`<${Modal} title=${t('rule_editTitle')} onClose=${() => setOpen(-1)}>

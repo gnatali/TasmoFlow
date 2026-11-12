@@ -8,6 +8,7 @@ import cfg from './config.js';
 import { indexConfig, MIN_HEAP_KB } from './tuya_model.js';
 
 const T0 = performance.now();
+export const RECHECK_MAX = 24;                      // x 5 s: the full interface gives up after 2 minutes
 export const LOCAL = { id: 'local', name: '', api: cfg.api, token: cfg.token };
 
 export const S = createStore({
@@ -19,6 +20,8 @@ export const S = createStore({
   zbNames: false,           // SetOption83: Zigbee rule triggers carry the friendly name, not the address
   rules: null,              // { rules: [{ n, on, once, stop, len, free, text, bak }], berry: [{ rule, id }] }
   tuya: null,               // { state, detail, nodes: { name: { connected, ip, version, dps } }, conf, lowMem }
+  drivers: {},              // detected at opening, see detect(): { zigbee, tuya: running|starting|disabled|absent, tuyaWhy }
+  recheck: 0,               // full interface: detections made again while a driver starts (drivers_full.js)
   events: [],
   live: false,
   error: null,
@@ -81,6 +84,23 @@ export async function loadTuya() {
     if (heap == null || heap >= MIN_HEAP_KB) conf = indexConfig((await a.cmd('TuyaConfig')).TuyaConfig);
     set({ state: 'running', nodes, conf, lowMem: !conf });
   } catch (err) { fail(gw, err); }
+}
+
+// State of the drivers the interface relies on, read once the status and the Tuya state are loaded.
+// Zigbee: the extension's `zigbee_state` (an older one only says started or not). Tuya: from
+// TuyaEnable, `waiting` (the driver waits for Zigbee, the network, memory...) is `starting`.
+// The light interface keeps what it read when it opened: it asks to reload the page, it never
+// looks again (drivers_full.js does, in the full one).
+export function detect() {
+  S.set(s => {
+    const st = s.status;
+    const ty = s.tuya;
+    return { drivers: {
+      zigbee: st ? st.zigbee_state || (st.zigbee ? 'running' : 'starting') : null,
+      tuya: ty ? (ty.state === 'waiting' ? 'starting' : ty.state) : null,
+      tuyaWhy: ty && ty.detail
+    } };
+  });
 }
 
 // A gateway's API server only runs while an interface is open (memory): the main server's
@@ -156,7 +176,7 @@ function start() {
     S.set({ startMs: performance.now() - T0 });
     connectEvents();
     if (S.get().tab !== 'diag') load(S.get().tab);   // diagnostics: the status was just read
-    return loadTuya();
+    return loadTuya().then(detect);
   }).catch(e => fail(gw, e));
 }
 
@@ -166,7 +186,7 @@ export function selectGateway(id) {
   closeEvents();
   api = client(gw);
   lastSeq = 0;
-  S.set({ gw, status: null, devices: null, tuya: null, rules: null, events: [], live: false, error: null });
+  S.set({ gw, status: null, devices: null, tuya: null, drivers: {}, recheck: 0, rules: null, events: [], live: false, error: null });
   start();
 }
 

@@ -392,6 +392,7 @@ class tasmoflow
       'ufs_free_kb': self.cmdv('UfsFree', 'UfsFree'),
       'uptime_s': tasmota.millis() / 1000,
       'zigbee': zb_started,
+      'zigbee_state': zb_started ? 'running' : (zb != nil ? 'starting' : 'absent'),
       'zigbee_devices': zb_started ? zb.size() : 0,
       'events_seq': self.seq,
       'feeds': size(self.feeds),

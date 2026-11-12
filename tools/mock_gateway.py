@@ -94,6 +94,16 @@ def push_tuya(name, dps):
         del events[:-50]
 
 
+T_FIRST = []
+
+
+def since_first_call():
+    """Seconds since the first API request (the delays of --zb-delay and --tuya-delay start then)."""
+    if not T_FIRST:
+        T_FIRST.append(time.monotonic())
+    return time.monotonic() - T_FIRST[0]
+
+
 def tuya_command(c):
     """Response to a Tuya* command (None: not one)."""
     word, _, arg = c.partition(" ")
@@ -385,13 +395,14 @@ class Api(BaseHTTPRequestHandler):
             self.json(403, {"error": "token"})
             return
         if u.path == "/api/status":
+            zb_up = since_first_call() >= self.server.zb_delay
             self.json(200, {"tasmoflow": version(), "device_name": self.server.name,
                             "firmware": {"Version": "16.0.0.2(zbgw03-matter)"}, "memory": {"heap_free": 62},
                             "ufs_size_kb": 320, "ufs_free_kb": FS["free"] // 1024, "uptime_s": int(time.monotonic()),
-                            "zigbee": True, "zigbee_devices": len(DEVICES), "events_seq": seq, "feeds": 1,
+                            "zigbee": zb_up, "zigbee_state": "running" if zb_up else "starting", "zigbee_devices": len(DEVICES), "events_seq": seq, "feeds": 1,
                             "wd": "/.extensions/TasmoFlow.tapp#"})
         elif u.path == "/api/devices":
-            self.json(200, list(DEVICES.values()))
+            self.json(200, list(DEVICES.values()) if since_first_call() >= self.server.zb_delay else [])
         elif u.path.startswith("/api/update"):
             code, obj = update_route(u.path, q, body)
             self.json(code, obj)
@@ -442,6 +453,12 @@ class Api(BaseHTTPRequestHandler):
                 self.json(200, rr)
                 return
             tr = tuya_command(c)
+            if c.split(" ")[0] == "TuyaEnable":
+                # --tuya-disabled, --tuya-delay: what the real driver answers while it is off or waiting
+                if self.server.tuya_disabled:
+                    tr = {"TuyaEnable": {"Enabled": False, "State": "disabled"}}
+                elif since_first_call() < self.server.tuya_delay:
+                    tr = {"TuyaEnable": {"Enabled": True, "State": "waiting for Zigbee"}}
             if tr is not None:
                 # Tasmota answers an unknown command with {"Command":"Unknown"}
                 self.json(200, {"Command": "Unknown"} if self.server.no_tuya else tr)
@@ -483,6 +500,9 @@ def main():
     p.add_argument("--full", action="store_true", help="serve the full interface from the API port, as --cdn would")
     p.add_argument("--token", default=TOKEN, help="API token (32 hexadecimal characters)")
     p.add_argument("--no-tuya", action="store_true", help="gateway without the Tuya driver")
+    p.add_argument("--zb-delay", type=float, default=0, help="seconds after start during which Zigbee is starting")
+    p.add_argument("--tuya-delay", type=float, default=0, help="seconds after start during which the Tuya driver waits")
+    p.add_argument("--tuya-disabled", action="store_true", help="Tuya driver present but disabled (TuyaEnable 0)")
     p.add_argument("--zb-names", action="store_true", help="SetOption83 ON: Zigbee rule triggers carry the friendly name")
     p.add_argument("--name", default="ZB-GW03 (simulated)", help="DeviceName reported by /api/status")
     p.add_argument("--version", default="", help="installed version, instead of the VERSION file (update tests)")
@@ -497,6 +517,7 @@ def main():
     web.api_port, web.cdn, web.sri, web.token, web.upd = a.api, a.cdn, a.sri, a.token, a.upd
     api = ThreadingHTTPServer(("127.0.0.1", a.api), Api)
     api.name, api.token, api.no_tuya, api.zb_names = a.name, a.token, a.no_tuya, a.zb_names
+    api.zb_delay, api.tuya_delay, api.tuya_disabled = a.zb_delay, a.tuya_delay, a.tuya_disabled
     api.daemon_threads = True
     threading.Thread(target=simulator, daemon=True).start()
     threading.Thread(target=api.serve_forever, daemon=True).start()

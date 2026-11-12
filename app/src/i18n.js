@@ -6,7 +6,7 @@ import { createStore } from './store.js';
 const TEXTS = {
   fr: {
     devices: 'Appareils', noConfig: 'Ouvrez TasmoFlow depuis la passerelle : http://<adresse de la passerelle>/tf',
-    loading: 'Chargement…', noDevice: 'Aucun appareil.', zigbeeOff: "Zigbee n'est pas démarré.", live: 'en direct',
+    loading: 'Chargement…', noDevice: 'Aucun appareil.', live: 'en direct',
     reconnecting: 'reconnexion…', toggle: 'Basculer', pair: 'Appairer (60 s)', lastSeen: 'vu', battery: 'batterie',
     unreachable: 'injoignable', ago: 'il y a', s: 's', min: 'min', h: 'h', d: 'j', error: 'Erreur',
     refresh: 'Actualiser', router: 'routeur', endDevice: 'sur batterie ou terminal', connected: 'connecté',
@@ -27,12 +27,14 @@ const TEXTS = {
     update_format: "Le fichier n'est pas une extension Tasmota.",
     update_install: "Installation impossible : l'ancienne version est conservée.",
     update_incomplete: 'Transfert incomplet, réessayez.',
-    update_path: "Chemin de l'extension inconnu : mettez à jour à la main.", tuyaWaiting: 'Pilote Tuya en attente :',
+    update_path: "Chemin de l'extension inconnu : mettez à jour à la main.",
+    driverLite: "{d} n'est pas prêt : ses fonctions sont désactivées. Rechargez la page quand il est démarré.",
+    reload: 'Recharger',
     tuyaLowMem: 'Mémoire libre insuffisante pour lire la configuration Tuya : seuls les états booléens sont proposés.'
   },
   en: {
     devices: 'Devices', noConfig: 'Open TasmoFlow from the gateway: http://<gateway address>/tf', loading: 'Loading…',
-    noDevice: 'No device.', zigbeeOff: 'Zigbee is not started.', live: 'live', reconnecting: 'reconnecting…',
+    noDevice: 'No device.', live: 'live', reconnecting: 'reconnecting…',
     toggle: 'Toggle', pair: 'Pair (60 s)', lastSeen: 'seen', battery: 'battery', unreachable: 'unreachable', ago: '',
     s: 's ago', min: 'min ago', h: 'h ago', d: 'd ago', error: 'Error', refresh: 'Refresh', router: 'router',
     endDevice: 'battery or end device', connected: 'connected', disconnected: 'disconnected', on: 'on', off: 'off',
@@ -50,7 +52,8 @@ const TEXTS = {
     update_size: 'File size refused.', update_format: 'The file is not a Tasmota extension.',
     update_install: 'Installation failed: the old version is kept.',
     update_incomplete: 'Transfer incomplete, try again.', update_path: "Extension path unknown: update by hand.",
-    tuyaWaiting: 'Tuya driver waiting:',
+    driverLite: '{d} is not ready: its functions are turned off. Reload the page once it has started.',
+    reload: 'Reload',
     tuyaLowMem: 'Not enough free memory to read the Tuya configuration: only boolean states are offered.'
   }
 };

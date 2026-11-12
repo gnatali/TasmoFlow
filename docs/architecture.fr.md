@@ -248,7 +248,7 @@ Pourquoi :
 | Route | Réponse |
 | --- | --- |
 | `GET /lite.js` | Interface légère (gzip), envoyée par blocs de 1 Ko |
-| `GET /api/status?t=` | Versions, mémoire libre, système de fichiers, état de Zigbee, nombre d'appareils |
+| `GET /api/status?t=` | Versions, mémoire libre, système de fichiers, état de Zigbee (`zigbee`, et `zigbee_state` : `absent`, `starting` ou `running`), nombre d'appareils |
 | `GET /api/devices?t=` | Appareils Zigbee : adresse, nom, modèle, fabricant, LQI, batterie, dernier message, derniers attributs |
 | `POST /api/cmd?t=` | Exécute la commande Tasmota du corps et renvoie sa réponse JSON (`GET /api/cmd?t=&c=` marche encore pour une commande courte) |
 | `GET /api/rules?t=` | Les trois jeux de règles Tasmota (état, options, texte, place libre, copie précédente) et les règles Berry (`tf_rules.be`) |
@@ -414,8 +414,9 @@ créera un avec un éditeur de correspondance, puis le chargera (`ZbLoad`).
 données du pilote) :
 
 1. `TuyaEnable` : pas de clé `TuyaEnable` dans la réponse (`{"Command":"Unknown"}`) = pas de
-   pilote ; `Enabled: false` = désactivé ; un `State` autre que `running` s'affiche comme une
-   attente. Dans les deux premiers cas, **aucun écran Tuya n'est affiché**.
+   pilote ; `Enabled: false` = désactivé ; un `State` autre que `running` = le pilote démarre
+   (voir [Pilotes à l'ouverture](#pilotes-à-louverture)). Sans pilote, **aucun écran Tuya n'est
+   affiché**.
 2. `TuyaStatus` : chaque appareil et sous-appareil (nom, `Connected`, `Ip`, `Version`, `Dps`).
 3. `/api/status`, puis `TuyaConfig` **seulement si au moins 32 Ko sont libres** (le pilote
    refuse sous 30 Ko, et `TuyaConfig` charge tout `tuya.json`). Sinon les cartes retombent sur
@@ -451,6 +452,29 @@ Conséquence : le pilote ne garde alors aucune valeur pour les DP d'une liaison 
 gardé que les DP 20 et 34 du `light3`), donc un curseur dont la valeur est inconnue est marqué `?`
 jusqu'à ce que l'appareil signale un changement ; `"keep": [21, 22, 24]` dans `tuya.json` les
 conserve.
+
+### Pilotes à l'ouverture
+
+Une fois l'état et celui de Tuya lus, `detect()` (`app/src/state.js`) remplit `S.drivers` : `zigbee`
+et `tuya` valent `running`, `starting`, `disabled` ou `absent` (plus `tuyaWhy`, le `State` du
+pilote, par ex. `waiting for Zigbee`). Zigbee vient de `zigbee_state` dans `/api/status` (`absent` :
+pas de global `zigbee`, `starting` : présent mais `started()` est faux ; Tasmota ne permet pas de
+distinguer un Zigbee désactivé d'un Zigbee en cours de démarrage ; une ancienne `.tapp` n'envoie que
+le booléen `zigbee`, lu comme running ou starting). Tuya vient de `TuyaEnable` (`waiting` vaut
+`starting`).
+
+Un pilote qui n'est pas `running` a ses fonctions désactivées (appairage, ses appareils, les
+sélecteurs de l'éditeur de phrases) et l'écran Appareils dit pourquoi (`DriverNote`, `views.js`).
+Un pilote `absent` n'est simplement pas affiché. Les deux interfaces diffèrent :
+
+- **Complète** : tant qu'un pilote est `starting`, `drivers_full.js` le relit toutes les 5 secondes
+  (seulement ce qui démarre : l'état pour Zigbee, `TuyaEnable` pour Tuya, jamais `TuyaConfig`),
+  charge les appareils quand Zigbee démarre et active les fonctions sans clic. Elle abandonne au
+  bout de 2 minutes (un Zigbee qui ne démarre jamais) et propose « Réessayer ». Un pilote
+  `disabled` n'est pas relu ; « Actualiser » relit tout.
+- **Légère** : l'état lu à l'ouverture est gardé ; quelle que soit la raison (`starting` ou
+  `disabled`), les fonctions sont désactivées et la page demande à être rechargée. Rien n'est relu,
+  le lot léger ne porte aucune boucle (budget).
 
 ### Mémoire
 
@@ -492,7 +516,7 @@ est de 15 Ko, pile sur la cible. `UfsFree` valait 148 Ko sur 320 Ko sur la même
 - Afficher, stocker ou transmettre une clé locale ou les identifiants du cloud Tuya : leur
   saisie reste sur la page du pilote (`/tuya`).
 - Fonctionner sans le pilote : sur un Tasmota sans pilote Tuya, ou pilote désactivé
-  (`TuyaEnable 0`), les écrans Tuya sont masqués.
+  (`TuyaEnable 0`), les cartes Tuya ne sont pas affichées (un pilote absent ne laisse aucune trace, un pilote désactivé une note : voir [Pilotes à l'ouverture](#pilotes-à-louverture)).
 
 ## Règles
 
@@ -613,7 +637,8 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] v0.1 : après un redémarrage, le port 8384 ne répond pas tant que `/tf` n'est pas ouverte ; le journal affiche `TFL: API server started on port 8384`, puis `TFL: API server stopped` 5 minutes après la fermeture du dernier onglet, et `/tf` le redémarre (le port peut être de nouveau écouté)
 - [ ] v0.1 : `curl "http://<passerelle>/tf?w=1"` répond `ok` sans mot de passe et démarre le serveur
 - [ ] v0.1 : les cartes Tuya correspondent à `TuyaStatus` ; un interrupteur, un variateur et une vitesse de ventilateur agissent sur les vrais appareils ; un changement fait sur un appareil (bouton, Smart Life) arrive dans l'interface en moins de 2 s
-- [ ] v0.1 : avec le pilote Tuya désactivé (`TuyaEnable 0`) ou absent, la section Tuya est masquée
+- [ ] v0.1 : avec le pilote Tuya absent, la section Tuya est masquée ; désactivé (`TuyaEnable 0`), elle affiche « Tuya est désactivé » (changé le 12 novembre 2026, voir l'élément suivant)
+- [ ] v0.2, pilotes à l'ouverture (12 novembre 2026, version de test, `.tapp` réinstallé, `Restart 1`) : ouvrir `/tf` juste après un redémarrage : l'interface complète dit « Zigbee démarre » avec l'appairage désactivé, puis « Tuya démarre (waiting for Zigbee) », et active chacun toute seule dans les 5 secondes qui suivent son démarrage, sans recharger ; l'interface légère (GitHub bloqué) dit « Zigbee n'est pas prêt » / « Tuya n'est pas prêt », garde l'appairage et les cartes Tuya désactivés et ne fait rien avant « Recharger » ; `TuyaEnable 0` : l'interface complète dit que Tuya est désactivé, la légère qu'il n'est pas prêt, aucune n'affiche de carte
 - [x] v0.1 : mémoire au repos après `tasmota.gc()` : 75 Ko libres, Berry 35 Ko, soit 9 Ko (cible : 15 Ko) ; interface ouverte 63 Ko / 48 Ko (`import` en cache, voir [Mémoire](#mémoire))
 - [x] v0.1 : avec le chargement sans cache, la mémoire revient en partie 5 minutes après la fermeture du dernier onglet : 59 Ko libres / Berry 48 Ko interface ouverte, 69 Ko / 39 Ko après (75 Ko / 35 Ko avant la première ouverture)
 - [x] v0.2 (11 novembre 2026, deux mises à jour de suite, `dev.1688247` puis `dev.e00d0d6` puis `dev.f34f8c7`) : mise à jour (`.tapp` du build de test précédent installée, puis relancer `Build`) : `/tf` affiche l'interface légère avec le bandeau et **Mettre à jour** ; le bouton envoie le fichier, la page attend puis se recharge sur le nouveau build (`dev.<commit>` dans l'en-tête), `TasmoFlow.tapp.bak` existe à côté de `TasmoFlow.tapp`, aucun `.new` ne reste, aucune `.tapp` dans `/` et `/.extensions/` à la fois ; **Plus tard** ouvre l'interface habituelle ; mémoire au repos et interface ouverte inchangées (`tf_update.be` n'est compilé que lorsqu'on s'en sert)
