@@ -36,6 +36,8 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import version as tf_version
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TOKEN = "0123456789abcdef0123456789abcdef"
 
@@ -190,7 +192,7 @@ def rule_apply(n, text):
 
 # The gateway's identity and the update, shared by the web and API servers. A restart is a
 # period during which every connection is cut; the new version comes out of the installed .tapp.
-STATE = {"version": (ROOT / "VERSION").read_text().strip(), "down_until": 0.0, "next_version": None,
+STATE = {"version": tf_version.resolve(), "down_until": 0.0, "next_version": None,
          "restart_s": 2.0, "never": False, "new": b"", "total": 0}
 # its file system, for the room check of an update (bytes): free space, the installed .tapp, its .bak
 FS_DEFAULT = {"free": 180 * 1024, "tapp": 83069, "bak": 0}
@@ -358,7 +360,7 @@ class Api(BaseHTTPRequestHandler):
             return
         if self.path.startswith("/__test/reset"):     # test hook: ?version=&restart=&never=1&free=&tapp=&bak=
             q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))
-            STATE.update(version=q.get("version", (ROOT / "VERSION").read_text().strip()), next_version=None,
+            STATE.update(version=q.get("version", tf_version.resolve()), next_version=None,
                          down_until=0.0, restart_s=float(q.get("restart", "2")), never=q.get("never") == "1",
                          new=b"", total=0)
             FS.update({k: int(q.get(k, v)) for k, v in FS_DEFAULT.items()})
