@@ -164,6 +164,13 @@ conflicts) are written and tried on the gateway in part, see the test plan.
 - Writing a DP of a Tuya Zigbee device (TS0601, `EF00` cluster) with `ZbSend`: to try on a real
   device (needed for v0.3).
 
+- **Bug analysis of 15 November 2026**
+  ([investigations/bug-analysis-2026-11.md](investigations/bug-analysis-2026-11.md)): 12 findings
+  sorted by priority and 10 improvement ideas, nothing fixed yet. First to handle: T1 (after a
+  gateway restart an open interface shows "live" but ignores the events, reproduced with the
+  simulated gateway), then T2 to T4 (API handlers that can leave a request unanswered, event
+  buffers and answers without a size limit).
+
 ## Links
 
 | What | Where |

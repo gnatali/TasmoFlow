@@ -173,6 +173,14 @@ en partie essayées sur la passerelle, voir le plan de test.
 - Écriture d'un DP d'un appareil Tuya Zigbee (TS0601, cluster `EF00`) avec `ZbSend` : à essayer
   sur un appareil réel (nécessaire pour la v0.3).
 
+- **Analyse de bugs du 15 novembre 2026**
+  ([investigations/bug-analysis-2026-11.md](investigations/bug-analysis-2026-11.md), en anglais) :
+  12 constats classés par priorité et 10 pistes d'amélioration, rien n'est encore corrigé. À
+  traiter en premier : T1 (après un redémarrage de la passerelle, une interface ouverte affiche
+  « en direct » mais ignore les événements, reproduit avec la fausse passerelle), puis T2 à T4
+  (gestionnaires de l'API qui peuvent laisser une requête sans réponse, tampons d'événements et
+  réponses sans limite de taille).
+
 ## Liens
 
 | Quoi | Où |
