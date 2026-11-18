@@ -96,11 +96,14 @@ def push_event(addr, attrs):
         del events[:-50]
 
 
-def push_tuya(name, dps):
+def push_tuya(name, dps=None, connected=None):
+    """A Tuya event: DP changes, or a connection change (the driver's TuyaConnected and
+    TuyaDisconnected, relayed by tasmoflow.be since 18 November 2026)."""
     global seq
     with events_lock:
         seq += 1
-        payload = {"seq": seq, "type": "tuya", "ts": int(time.time()), "name": name, "dps": dps}
+        payload = {"seq": seq, "type": "tuya", "ts": int(time.time()), "name": name}
+        payload.update({"dps": dps} if connected is None else {"connected": connected})
         events.append((seq, f"id: {seq}\ndata: {json.dumps(payload)}\n\n"))
         del events[:-50]
 
@@ -399,12 +402,18 @@ class Api(BaseHTTPRequestHandler):
             self.close_connection = True
             self.connection.close()
             return
-        if self.path.startswith("/__test/reset"):     # test hook: ?version=&restart=&never=1&free=&tapp=&bak=
+        if self.path.startswith("/__test/reset"):     # test hook: ?version=&restart=&never=1&free=&tapp=&bak=&fail=
             q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))
             STATE.update(version=q.get("version", tf_version.resolve()), next_version=None,
                          down_until=0.0, restart_s=float(q.get("restart", "2")), never=q.get("never") == "1",
-                         new=b"", total=0, boot=time.monotonic())
+                         new=b"", total=0, boot=time.monotonic(), fail=q.get("fail", ""))
             FS.update({k: int(q.get(k, v)) for k, v in FS_DEFAULT.items()})
+            self.json(200, {"ok": True})
+            return
+        if self.path.startswith("/__test/tuyaconn"):     # test hook: ?name=&on=0|1, a Tuya device lost or back
+            q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))
+            TUYA[q["name"]]["Connected"] = q.get("on") == "1"
+            push_tuya(q["name"], connected=q.get("on") == "1")
             self.json(200, {"ok": True})
             return
         if self.path.startswith("/__test/tuyaconfig"):   # test hook: TuyaConfig requests so far
@@ -516,6 +525,13 @@ class Api(BaseHTTPRequestHandler):
             if tr is not None:
                 # Tasmota answers an unknown command with {"Command":"Unknown"}
                 self.json(200, {"Command": "Unknown"} if self.server.no_tuya else tr)
+                return
+            word = c.split(" ")[0]
+            if word == STATE.get("fail"):       # /__test/reset?fail=<command>: what Tasmota answers a refused command
+                self.json(200, {word: "Unknown device"})
+                return
+            if word == "ZbPermitJoin":
+                self.json(200, {"ZbPermitJoin": "Done"})
                 return
             m = re.match(r'ZbSend \{"device":"(0x[0-9A-F]{4})","send":\{"Power":"Toggle"\}\}', c)
             if m and m.group(1) in DEVICES:

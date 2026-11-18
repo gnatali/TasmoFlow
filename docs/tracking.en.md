@@ -49,6 +49,7 @@ Specification (French, outside the repository):
 
 | Date | Step |
 | --- | --- |
+| 18 Nov | **T5, T8, T11 fixed** (bug analysis): the Tuya cards follow the driver's `TuyaConnected` / `TuyaDisconnected` (sub-devices follow their gateway), no Refresh needed; the light interface is loaded as `/lite.js?v=<version>`, so a browser cache never runs the previous one after an update; Zigbee Toggle and Pair show Tasmota's answer when it is not `Done`, like the Tuya cards. Robustness and restart items of the test plan checked by Guillaume (13 KB with the interface open). `.tapp` 42,369 B (131 B left). **The `.tapp` must be installed again** (`extension/`, the loader and the light interface) |
 | 18 Nov | **Tuya configuration device by device** (end of T4): with the firmware of the same day (`TuyaConfig <device>` read entry by entry, sub-devices found), the interface asks `TuyaConfig <name>` for each device not known yet; never the whole `tuya.json`, no memory threshold any more. Older firmware: whole configuration read once for the sub-devices. `.tapp` 41,988 B. **The `.tapp` must be installed again**, and the firmware flashed (firmware repository, branch `claude/awesome-planck-mow2gg`) |
 | 18 Nov | **T2 to T4 fixed** (bug analysis; T4 in part): an API handler that raises now gets a 500 answer (guard in `tf_http.be`, `cmdv()` safe), the interface gives up a request after 15 s; an event stream with more than 6 KB unsent is closed and the history is limited to 4 KB; `/api/devices` is streamed one device at a time; `TuyaConfig` is read once per gateway (then device by device, next entry). `lite.js.gz` compressed with Zopfli (`pip install -r tools/requirements.txt`), tighter Berry minifier; **`.tapp` budget raised to 42,500 B by Guillaume** (41,962 B). **The `.tapp` must be installed again** (`extension/` and the light interface). To check and measure on the gateway (test plan) |
 | 18 Nov | **T1 fixed** (bug analysis): after a gateway restart an open interface no longer ignores the events. When the event stream comes back after a cut, the interface reads everything again, and starts over from event 0 when the gateway's counter went back. Simulated gateway: a restart numbers events from 1 again. 30 end-to-end tests. `.tapp` 41,526 B (8 B left); **the `.tapp` must be installed again** (`state.js` is in the light interface). To check on the gateway (test plan) |
@@ -111,8 +112,8 @@ After `tasmota.gc()`, gateway running the Tuya driver (9 November 2026):
 
 The budget of 15 KB holds with the rule API: **8 to 9 KB at rest, 14 KB five minutes after the interface was closed** (15 KB in v0.1). With an interface open the cost is 32 KB (25 KB in v0.1): `tf_rules.be` and the POST body add 7 KB while the server runs. The Tuya driver needs 45 KB free to start: 52 KB leaves 7 KB. Berry `HeapUsed` is back at 39 KB after closing, as in v0.1. About 6 KB of free heap are still not given back after the first opening (75 to 70 KB, same as v0.1: 75 to 69 KB), cause unknown and **not pursued** (decision of 12 November 2026).
 
-Target: 15 KB. Sizes (18 November 2026, after T2 to T4): `TasmoFlow.tapp` 41.0 KB (41,988 B, budget **42,500 B**, raised
-by Guillaume on 18 November from 41,534, half of v0.2.0's 83 KB: 512 B left), `lite.js.gz` 13.5 KB (13,851 B with Zopfli, budget 14 KB = 14,336 B), `app.js.gz` 34.3 KB (budget 120 KB). Ways to save more: [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md).
+Target: 15 KB. Sizes (18 November 2026, after T5, T8, T11): `TasmoFlow.tapp` 41.4 KB (42,369 B, budget **42,500 B**, raised
+by Guillaume on 18 November from 41,534, half of v0.2.0's 83 KB: 131 B left), `lite.js.gz` 13.6 KB (13,952 B with Zopfli, budget 14 KB = 14,336 B), `app.js.gz` 34.4 KB (budget 120 KB). Ways to save more: [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md).
 
 ## Decisions still open
 
@@ -172,8 +173,10 @@ conflicts) are written and tried on the gateway in part, see the test plan.
 - **Bug analysis of 15 November 2026**
   ([investigations/bug-analysis-2026-11.md](investigations/bug-analysis-2026-11.md)): 12 findings
   sorted by priority and 10 improvement ideas. **T1 to T4 fixed** on 18 November 2026 (T4 with
-  the firmware of the same day: `TuyaConfig <device>` read entry by entry), to check on the
-  gateway. Next: T5 to T12.
+  the firmware of the same day: `TuyaConfig <device>` read entry by entry), checked on the
+  gateway by Guillaume; **T5, T8, T11 fixed** the same evening, to check. Next: T6, T9, then T7,
+  T10, T12; with 131 B left in the `.tapp`, options 2 and 3 of
+  [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md) come first.
 
 - **Reducing the `.tapp`** (18 November 2026):
   [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md) lists the options

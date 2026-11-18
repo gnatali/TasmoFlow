@@ -54,6 +54,7 @@ Cahier des charges (en français, hors du dépôt) :
 
 | Date | Étape |
 | --- | --- |
+| 18 nov. | **T5, T8, T11 corrigés** (analyse de bugs) : les cartes Tuya suivent `TuyaConnected` / `TuyaDisconnected` du pilote (les sous-appareils suivent leur passerelle), sans « Actualiser » ; l'interface légère est chargée en `/lite.js?v=<version>`, donc le cache du navigateur ne lance jamais l'ancienne après une mise à jour ; « Basculer » et « Appairer » (Zigbee) affichent la réponse de Tasmota quand elle n'est pas `Done`, comme les cartes Tuya. Points robustesse et redémarrage du plan de test vérifiés par Guillaume (13 Ko avec l'interface ouverte). `.tapp` 42 369 octets (131 octets de marge). **La `.tapp` doit être réinstallée** (`extension/`, le chargeur et l'interface légère) |
 | 18 nov. | **Configuration Tuya appareil par appareil** (fin de T4) : avec le firmware du même jour (`TuyaConfig <appareil>` lu entrée par entrée, sous-appareils trouvés), l'interface demande `TuyaConfig <nom>` pour chaque appareil pas encore connu ; jamais tout `tuya.json`, plus de seuil mémoire. Firmware plus ancien : configuration entière lue une fois pour les sous-appareils. `.tapp` 41 988 octets. **La `.tapp` doit être réinstallée**, et le firmware flashé (dépôt du firmware, branche `claude/awesome-planck-mow2gg`) |
 | 18 nov. | **T2 à T4 corrigés** (analyse de bugs ; T4 en partie) : un gestionnaire de l'API qui lève une exception reçoit maintenant une réponse 500 (garde dans `tf_http.be`, `cmdv()` sûr), l'interface abandonne une requête après 15 s ; un flux d'événements avec plus de 6 Ko non envoyés est fermé et l'historique est limité à 4 Ko ; `/api/devices` est envoyé un appareil à la fois ; `TuyaConfig` est lu une fois par passerelle (puis appareil par appareil, entrée suivante). `lite.js.gz` compressé avec Zopfli (`pip install -r tools/requirements.txt`), minifieur Berry plus serré ; **budget de la `.tapp` relevé à 42 500 octets par Guillaume** (41 962 octets). **La `.tapp` doit être réinstallée** (`extension/` et interface légère). À vérifier et mesurer sur la passerelle (plan de test) |
 | 18 nov. | **T1 corrigé** (analyse de bugs) : après un redémarrage de la passerelle, une interface ouverte n'ignore plus les événements. Quand le flux d'événements revient après une coupure, l'interface relit tout, et repart de l'événement 0 quand le compteur de la passerelle a reculé. Passerelle simulée : un redémarrage renumérote les événements à partir de 1. 30 tests de bout en bout. `.tapp` 41 526 octets (8 octets de marge) ; **la `.tapp` doit être réinstallée** (`state.js` fait partie de l'interface légère). À vérifier sur la passerelle (plan de test) |
@@ -116,8 +117,8 @@ Après `tasmota.gc()`, passerelle avec le pilote Tuya (9 novembre 2026) :
 
 Le budget de 15 Ko est tenu avec l'API des règles : **8 à 9 Ko au repos, 14 Ko cinq minutes après la fermeture de l'interface** (15 Ko en v0.1). Interface ouverte, le coût est de 32 Ko (25 Ko en v0.1) : `tf_rules.be` et le corps POST ajoutent 7 Ko tant que le serveur tourne. Le pilote Tuya demande 45 Ko libres pour démarrer : 52 Ko laissent 7 Ko de marge. `HeapUsed` de Berry revient à 39 Ko après la fermeture, comme en v0.1. Environ 6 Ko de mémoire libre ne sont toujours pas rendus après la première ouverture (75 à 70 Ko, comme en v0.1 : 75 à 69 Ko), cause inconnue et **pas poursuivie** (décision du 12 novembre 2026).
 
-Cible : 15 Ko. Tailles (18 novembre 2026, après T2 à T4) : `TasmoFlow.tapp` 41,0 Ko (41 988 octets, budget **42 500 octets**,
-relevé par Guillaume le 18 novembre depuis 41 534, la moitié des 83 Ko de la v0.2.0 : 512 octets de marge), `lite.js.gz` 13,5 Ko (13 851 octets avec Zopfli, budget 14 Ko = 14 336 octets), `app.js.gz` 34,3 Ko (budget 120 Ko). Pistes pour gagner plus : [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md) (en anglais).
+Cible : 15 Ko. Tailles (18 novembre 2026, après T5, T8, T11) : `TasmoFlow.tapp` 41,4 Ko (42 369 octets, budget **42 500 octets**,
+relevé par Guillaume le 18 novembre depuis 41 534, la moitié des 83 Ko de la v0.2.0 : 131 octets de marge), `lite.js.gz` 13,6 Ko (13 952 octets avec Zopfli, budget 14 Ko = 14 336 octets), `app.js.gz` 34,4 Ko (budget 120 Ko). Pistes pour gagner plus : [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md) (en anglais).
 
 ## Décisions encore ouvertes
 
@@ -182,7 +183,10 @@ en partie essayées sur la passerelle, voir le plan de test.
   ([investigations/bug-analysis-2026-11.md](investigations/bug-analysis-2026-11.md), en anglais) :
   12 constats classés par priorité et 10 pistes d'amélioration. **T1 à T4 corrigés** le 18
   novembre 2026 (T4 avec le firmware du même jour : `TuyaConfig <appareil>` lu entrée par
-  entrée), à vérifier sur la passerelle. Ensuite : T5 à T12.
+  entrée), vérifiés sur la passerelle par Guillaume ; **T5, T8, T11 corrigés** le même soir, à
+  vérifier. Ensuite : T6, T9, puis T7, T10, T12 ; avec 131 octets de marge dans la `.tapp`, les
+  pistes 2 et 3 de [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md)
+  passent d'abord.
 
 - **Réduire le `.tapp`** (18 novembre 2026) :
   [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md) (en anglais) liste

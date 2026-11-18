@@ -3,12 +3,11 @@
 // TasmoFlow never shows, stores or sends a local key: TuyaConfig already masks it.
 import { html } from './html.js';
 import { t } from './i18n.js';
-import { cmd } from './state.js';
-import { createStore } from './store.js';
+import { M, run } from './state.js';
 import { controlsFor, sendName } from './tuya_model.js';
 
-// the driver's answer to the last command of each device, when it was not "Done": { name: text }
-const M = createStore({});
+// what a refused or failed command answered (state.js, run()), under its card or button
+export const Msg = ({ k }) => M.get()[k] ? html`<div class="msg bad" role="alert">${M.get()[k]}</div>` : null;
 
 // the full interface may reshape the controls (tuya_colour.js sets `refine`); one with `render` is a component
 export const EXTRA = {};
@@ -33,13 +32,8 @@ function Control({ c, node, send }) {
 }
 
 export function TuyaCard({ name, node, entry }) {
-  const msg = M.get()[name];
-  const setMsg = text => M.set({ [name]: text });
   const addr = sendName(name, entry);
-  const send = (dp, value) => cmd('TuyaSend ' + addr + ',' + dp + ',' + value).then(r => {
-    const x = r.TuyaSend;
-    setMsg(x === 'Done' ? null : typeof x === 'string' ? x : JSON.stringify(x));
-  }).catch(e => setMsg(e.message));
+  const send = (dp, value) => run(name, 'TuyaSend ' + addr + ',' + dp + ',' + value);
   // a name with a comma and no known id (sub-device, or TuyaConfig not read): read only
   const base = controlsFor(node, entry);
   const cs = (EXTRA.refine ? EXTRA.refine(base, entry) : base).filter(c => addr || c.kind === 'read');
@@ -50,7 +44,7 @@ export function TuyaCard({ name, node, entry }) {
     <div class="q">${'Tuya · ' + node.ip + ' · ' + node.version + ' · ' + (node.connected ? t('connected') : t('disconnected'))}</div>
     ${reads.length ? html`<div class="st">${reads.map(c => html`<${Control} c=${c} node=${node} send=${send}/>`)}</div>` : null}
     ${acts.length ? html`<div class="row tight">${acts.map(c => html`<${Control} c=${c} node=${node} send=${send}/>`)}</div>` : null}
-    ${msg ? html`<div class="msg bad" role="alert">${msg}</div>` : null}
+    <${Msg} k=${name}/>
   </article>`;
 }
 

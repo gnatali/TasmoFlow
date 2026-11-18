@@ -112,6 +112,7 @@ class tasmoflow
   static var DIR = "@@APP_DIR@@"        # folder of app.js there: vX.Y.Z, or "dev" (test build, see below)
   static var SRI = "@@SRI@@"            # SRI hash (sha384) of app.js
   static var PORT = 8384
+  static var TUYA_RULES = ["Tuya", "TuyaConnected", "TuyaDisconnected"]   # rules of the firmware's Tuya driver
   static var IDLE_MS = 300000           # API server stopped after 5 minutes without a client
   static var MAX_EVENTS = 50            # events kept for clients that reconnect...
   static var MAX_EVENTS_B = 4096        # ... and their size in bytes (a Tuya status can be 1 KB)
@@ -307,7 +308,7 @@ class tasmoflow
           's.onload=function(){clearTimeout(t);};s.onerror=onerr;'
           'document.head.appendChild(s);}'
         'function local(){if(fell)return;fell=true;clearTimeout(t);'
-          'add(c.api+"/lite.js","",function(){'
+          'add(c.api+"/lite.js?v="+c.version,"",function(){'
             'box.textContent="TasmoFlow: interface not found (port "+c.port+")";});}'
         'var started=false;'
         'function go(){if(started)return;started=true;'
@@ -384,9 +385,10 @@ class tasmoflow
     end
     var zb = self.zb()
     if zb != nil    zb.add_handler(self)    end
-    # state changes of the firmware's Tuya driver ({"Tuya":{"Name":...,"Dps":{...}}}); the
-    # callback must be a closure, not a method, and the id lets stop_api() remove only ours
-    tasmota.add_rule("Tuya", / v -> self.tuya_event(v), 'tasmoflow')
+    # state changes of the firmware's Tuya driver ({"Tuya":{"Name":...,"Dps":{...}}}) and its
+    # connection changes ({"TuyaConnected":{"Name":...}}, TuyaDisconnected); the callback must be
+    # a closure, not a method, and the id lets stop_api() remove only ours
+    for r: self.TUYA_RULES   self.tuya_rule(r)   end
     log(f"TFL: API server started on port {self.PORT}", 2)
   end
 
@@ -394,7 +396,7 @@ class tasmoflow
     if self.web == nil    return    end
     var zb = self.zb()
     if zb != nil    zb.remove_handler(self)    end
-    tasmota.remove_rule("Tuya", 'tasmoflow')
+    for r: self.TUYA_RULES   tasmota.remove_rule(r, 'tasmoflow')   end
     for f: self.feeds   f.close()   end
     self.feeds = []
     self.events = []
@@ -548,12 +550,23 @@ class tasmoflow
     self.push_event("zigbee", format('"device":"0x%04X","name":%s,"attrs":%s', idx, json.dump(name), str(attr_list)))
   end
 
-  # Tuya driver rule: v is {"Name": device, "Dps": {dp: value}}
-  def tuya_event(v)
+  # a method, so that each closure keeps its own trigger
+  def tuya_rule(r)
+    tasmota.add_rule(r, / v -> self.tuya_event(v, r), 'tasmoflow')
+  end
+
+  # Tuya driver rules: v is {"Name": device, "Dps": {dp: value}} for the trigger `Tuya`, or
+  # {"Name": device} for a connection change
+  def tuya_event(v, r)
     if self.web == nil || !isinstance(v, map)   return   end
+    var n = json.dump(v.find('Name'))
+    if r != "Tuya"
+      self.push_event("tuya", format('"name":%s,"connected":%s', n, str(r == "TuyaConnected")))
+      return
+    end
     var dps = v.find('Dps')
     if !isinstance(dps, map)   return   end
-    self.push_event("tuya", format('"name":%s,"dps":%s', json.dump(v.find('Name')), json.dump(dps)))
+    self.push_event("tuya", format('"name":%s,"dps":%s', n, json.dump(dps)))
   end
 
   def every_second()

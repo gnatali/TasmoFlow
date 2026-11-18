@@ -3,8 +3,8 @@
 import { html } from './html.js';
 import { t } from './i18n.js';
 import cfg from './config.js';
-import { S, cmd, loadStatus, loadDevices, loadTuya, detect, RECHECK_MAX } from './state.js';
-import { TuyaSection } from './tuya.js';
+import { S, run, loadStatus, loadDevices, loadTuya, detect, RECHECK_MAX } from './state.js';
+import { TuyaSection, Msg } from './tuya.js';
 
 function ago(sec) {
   if (sec == null) return '?';
@@ -44,8 +44,9 @@ function ZigbeeCard({ d }) {
       (d.reachable === false ? ' · ' + t('unreachable') : '') +
       ' · ' + (d.router ? t('router') : t('endDevice'))}</div>
     ${hasPower(d) ? html`<div class="row tight">
-      <button class="b" onClick=${() => cmd('ZbSend {"device":"' + d.addr + '","send":{"Power":"Toggle"}}')}>${t('toggle')}</button>
+      <button class="b" onClick=${() => run(d.addr, 'ZbSend {"device":"' + d.addr + '","send":{"Power":"Toggle"}}')}>${t('toggle')}</button>
     </div>` : null}
+    <${Msg} k=${d.addr}/>
   </article>`;
 }
 
@@ -64,9 +65,10 @@ export function DevicesView() {
   };
   return html`
     <div class="row">
-      ${dr.zigbee !== 'absent' ? html`<button class="b" disabled=${!zb} onClick=${() => cmd('ZbPermitJoin 1')}>${t('pair')}</button>` : null}
+      ${dr.zigbee !== 'absent' ? html`<button class="b" disabled=${!zb} onClick=${() => run('pair', 'ZbPermitJoin 1')}>${t('pair')}</button>` : null}
       <button class="b" onClick=${refresh}>${t('refresh')}</button>
     </div>
+    <${Msg} k="pair"/>
     ${tuya ? html`<h2>Zigbee</h2>` : null}
     <${DriverNote} id="zigbee"/>
     ${zb ? (list.length ? html`<div class="grid">${list.map(d => html`<${ZigbeeCard} key=${d.addr} d=${d}/>`)}</div>` : html`<p>${t('noDevice')}</p>`) : null}

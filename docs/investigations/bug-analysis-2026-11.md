@@ -33,13 +33,13 @@ function in a plausible situation; **P3** robustness, rare cases; **P4** minor.
 | T2 | P2 | An exception in `/api/status`, `/api/devices`, `/api/cmd` or `/api/events` leaves the request unanswered for ever; the interface then stays on "loading" | **Fixed** (18 November 2026), to check on the gateway |
 | T3 | P2 | Events pile up without limit in RAM for a client that stopped reading; the event history is limited by count, not by size | **Fixed** (18 November 2026), to measure on the gateway |
 | T4 | P2 | `/api/devices` and `TuyaConfig` build their whole answer in RAM: memory grows with the number of devices | **Fixed** (18 November 2026): devices streamed, `TuyaConfig` read device by device (firmware of the same day) |
-| T5 | P3 | The Tuya cards never learn that a device disconnected | Read in the code |
+| T5 | P3 | The Tuya cards never learn that a device disconnected | **Fixed** (18 November 2026), to check on the gateway |
 | T6 | P3 | A fourth open interface makes the interfaces evict each other every 3 seconds | Read in the code |
 | T7 | P3 | The rule write keeps one text for all clients: two interfaces saving together can store the other's text and report success | Read in the code |
-| T8 | P3 | `lite.js` is cached for a day under an address without a version: after an update a browser can run the previous light interface | Read in the code |
+| T8 | P3 | `lite.js` is cached for a day under an address without a version: after an update a browser can run the previous light interface | **Fixed** (18 November 2026) |
 | T9 | P3 | Port 8384 has no connection limit and no timeout for an incomplete request | Read in the code |
 | T10 | P4 | A power cut between the two renames of an update leaves no `TasmoFlow.tapp` | Read in the code |
-| T11 | P4 | Zigbee toggle and pairing buttons show nothing when the command fails | Read in the code |
+| T11 | P4 | Zigbee toggle and pairing buttons show nothing when the command fails | **Fixed** (18 November 2026) |
 | T12 | P4 | `Content-Length` is only recognised in two spellings; a request without the token still keeps the server awake; every reconnection replays the whole event history | Read in the code |
 
 ## Findings
@@ -188,6 +188,13 @@ them and nothing ever sets it back to false, so a lamp cut at the wall switch ke
 `Device not connected`. Needs the driver to publish connection changes (firmware report, F5);
 until then, a `TuyaStatus` every minute or so while the Devices screen is shown would do.
 
+**Fixed (18 November 2026).** The driver already announced it: `{"TuyaConnected":{"Name":...}}` once
+a device is ready, `TuyaDisconnected` when a ready one is lost (`announce()` in
+`berry/tuya_local.be`). `tasmoflow.be` now registers these two triggers too and sends
+`{"type":"tuya","name":...,"connected":true|false}`; the card follows, and so do the sub-devices of
+a Tuya gateway (the driver announces the gateway only). A name the interface does not know reads
+the Tuya devices again, as before.
+
 ### T6 (P3): more than three interfaces
 
 `api_events` (line 458) closes the oldest stream beyond `MAX_FEEDS = 3`. The evicted
@@ -214,6 +221,8 @@ therefore run the previous light interface against the new extension: when GitHu
 reached, or when another update is offered (the update code itself is in `lite.js`). Fix:
 `add(c.api + "/lite.js?v=" + c.version, ...)`; the server already ignores the query.
 
+**Fixed (18 November 2026)** that way; the end-to-end test checks the address.
+
 ### T9 (P3): no connection limit, no request timeout on port 8384
 
 A connection that sends nothing, or half a request, is kept until the server stops
@@ -230,7 +239,10 @@ timeout for an incomplete request cost little.
   no extension at the next boot, reinstall by hand. The window is a few milliseconds; a line in
   the user guide about renaming `TasmoFlow.tapp.bak` is enough.
 - **T11**: `ZbSend` toggle and `ZbPermitJoin` (`views.js`) ignore the command's answer and have
-  no `.catch`: a refused or failed command shows nothing, unlike the Tuya cards.
+  no `.catch`: a refused or failed command shows nothing, unlike the Tuya cards. **Fixed
+  (18 November 2026)**: the three buttons share `run()` (`state.js`), which keeps an answer other
+  than `Done` (or the request's error) and shows it under the card or the button, until a command
+  that works clears it.
 - **T12**: three small things in the server. `event_http_header` only recognises
   `Content-Length` and `content-length` (header names are case-insensitive: any other spelling
   makes a POST body look empty). `authorized()` calls `touch()` before it checks the token, so

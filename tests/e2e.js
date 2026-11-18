@@ -95,7 +95,10 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
 
   await test('no GitHub: light local copy (device control only: Zigbee and Tuya, no other screen)', async p => {
     await p.route(CDN, r => r.abort());
+    // the light interface's address carries the version: an update never runs a cached old copy
+    const liteReq = p.waitForRequest(r => r.url().includes('/lite.js'));
     await p.goto('http://localhost:8080/tf');
+    if (!(await liteReq).url().endsWith('/lite.js?v=' + encodeURIComponent(VERSION))) throw new Error('lite.js without its version');
     await expectSource(p, 'local');
     await p.getByRole('status').filter({ hasText: 'Version légère' }).waitFor({ timeout: 2000 });
     await p.getByRole('button', { name: 'Réessayer' }).waitFor();
@@ -113,6 +116,17 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
       const c = [...document.querySelectorAll('article.card')].find(a => a.textContent.includes('Lampe salon'));
       return /Power 1/.test(c.innerText.replace(/\n/g, ' ')) === on;
     }, !before, { timeout: 4000 });
+    // a refused command is shown under its card or button, and cleared by the next one that works
+    await fetch('http://localhost:8384/__test/reset?fail=ZbSend');
+    await lamp().getByRole('button', { name: 'Basculer' }).click();
+    await lamp().getByRole('alert').filter({ hasText: 'Unknown device' }).waitFor({ timeout: 4000 });
+    await fetch('http://localhost:8384/__test/reset?fail=ZbPermitJoin');
+    await p.getByRole('button', { name: /^Appairer/ }).click();
+    await p.getByRole('alert').filter({ hasText: 'Unknown device' }).nth(1).waitFor({ timeout: 4000 });
+    await fetch('http://localhost:8384/__test/reset');
+    await lamp().getByRole('button', { name: 'Basculer' }).click();
+    await p.getByRole('button', { name: /^Appairer/ }).click();
+    await p.waitForFunction(() => !document.querySelector('[role=alert]'), null, { timeout: 4000 });
     // Tuya: switch and slider
     const fan = p.locator('article.card', { has: p.getByRole('heading', { name: 'Ventilateur', exact: true }) });
     await fan.getByRole('button', { name: 'Lumière ventilateur · éteint' }).click({ timeout: 6000 });
@@ -156,7 +170,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
   });
   await test('GitHub and local copy missing: message', async p => {
     await p.route(CDN, r => r.abort());
-    await p.route('http://localhost:8385/lite.js', r => r.abort());
+    await p.route('http://localhost:8385/lite.js?*', r => r.abort());
     await p.goto('http://localhost:8081/tf');
     await p.waitForFunction(() => /not found/.test(document.body.textContent), null, { timeout: 4000 });
   });
@@ -657,6 +671,12 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.getByText(/Total puissance\s*592 W/).waitFor({ timeout: 2000 });
     const door = p.locator('article.card', { has: p.getByRole('heading', { name: 'Entrée-Porche' }) });
     await door.getByText('déconnecté').waitFor({ timeout: 2000 });
+    // a device lost, then back: the card follows the driver's connection events, without Refresh
+    await fetch('http://localhost:8384/__test/tuyaconn?name=Ventilateur&on=0');
+    await fan.getByText(/· déconnecté$/).waitFor({ timeout: 4000 });
+    if (!await fan.getByRole('button').first().isDisabled()) throw new Error('controls enabled on a disconnected device');
+    await fetch('http://localhost:8384/__test/tuyaconn?name=Ventilateur&on=1');
+    await fan.getByText(/· connecté$/).waitFor({ timeout: 4000 });
     const lamp = p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe bureau' }) });
     // light2, white only: brightness and colour temperature in one panel (no tabs, no wheel); a change
     // while the lamp is in a scene sends the white mode first

@@ -11,7 +11,7 @@ export function EventsView() {
   if (!events.length) return html`<p>${t('noEvent')}</p>`;
   const lang = L.get().lang;
   return html`<ol class="ev">${events.map(ev => html`<li key=${ev.seq}>
-    <span class="q">${new Date(ev.ts * 1000).toLocaleTimeString(lang)} · </span><b>${ev.name || ev.device || ev.type}</b> ${JSON.stringify(ev.attrs || ev.dps || ev)}
+    <span class="q">${new Date(ev.ts * 1000).toLocaleTimeString(lang)} · </span><b>${ev.name || ev.device || ev.type}</b> ${ev.connected != null ? t(ev.connected ? 'connected' : 'disconnected') : JSON.stringify(ev.attrs || ev.dps || ev)}
   </li>`)}</ol>`;
 }
 

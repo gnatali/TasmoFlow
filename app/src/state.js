@@ -40,6 +40,14 @@ export const post = (path, params, body) => api.post(path, params, body);
 export const current = gw => S.get().gw === gw;
 export const fail = (gw, e) => { if (current(gw)) S.set({ error: e.message }); };
 
+// A card's or a button's command: the answer, when it is not "Done" (refused, failed), is kept to
+// show next to it, { key: text }; a command that succeeds clears it.
+export const M = createStore({});
+export const run = (key, c) => cmd(c).then(r => {
+  const x = r[c.split(' ')[0]];
+  M.set({ [key]: x === 'Done' ? null : typeof x === 'string' ? x : JSON.stringify(x || r) });
+}).catch(e => M.set({ [key]: e.message }));
+
 // what a screen loads when it is shown, { tab: function }: registered by the full interface
 // (diagnostics, rules), so the light one does not carry it
 const loaders = {};
@@ -158,10 +166,16 @@ function connectEvents() {
       const events = [ev, ...s.events].slice(0, 100);
       let devices = s.devices;
       let tuya = s.tuya;
+      // a DP change, or (since 18 November 2026) a connection change: the driver's TuyaConnected and
+      // TuyaDisconnected, which a Tuya gateway's sub-devices follow
       if (ev.type === 'tuya' && tuya && tuya.nodes) {
         const n = tuya.nodes[ev.name];
-        if (n) tuya = { ...tuya, nodes: { ...tuya.nodes, [ev.name]: { ...n, connected: true, dps: { ...n.dps, ...ev.dps } } } };
-        else unknownTuya = true;
+        const on = ev.connected !== false;
+        if (n) {
+          const nodes = { ...tuya.nodes, [ev.name]: { ...n, connected: on, dps: { ...n.dps, ...ev.dps } } };
+          for (const c of ((tuya.conf || {})[ev.name] || {}).children || []) if (nodes[c.name]) nodes[c.name] = { ...nodes[c.name], connected: on };
+          tuya = { ...tuya, nodes };
+        } else unknownTuya = true;
       }
       if (ev.type === 'zigbee' && devices) {
         const d = devices[ev.device];
