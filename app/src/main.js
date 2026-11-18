@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// TasmoFlow, no-code web interface for a Tasmota Zigbee gateway: the full interface, published
-// on GitHub Pages (pinned version, SRI hash). Loaded by the gateway's /tf page, which
-// provides window.TASMOFLOW (see config.js).
+// TasmoFlow, no-code web interface for a Tasmota Zigbee gateway, published on GitHub Pages
+// (pinned version, SRI hash) and saved by the gateway as its local copy if asked (update.js).
+// Loaded by the gateway's /tf page, which provides window.TASMOFLOW (see config.js).
 import { boot } from './boot.js';
 import { addTexts } from './i18n.js';
 import { FULL_TEXTS } from './i18n_full.js';
@@ -16,6 +16,7 @@ import { findConflicts } from './rules_conflicts.js';
 import { watchDrivers } from './drivers_full.js';
 import './tuya_colour.js';
 import { GatewaysView, GatewayPicker, initGateways } from './gateways.js';
+import { UpdateBanner, initUpdate } from './update.js';
 
 addTexts(FULL_TEXTS);
 registerEditor(SentenceEditor, ConflictBanner, findConflicts);
@@ -23,4 +24,5 @@ onTab({ diag: loadStatus, rules: loadRules });
 initGateways();
 watchDrivers();
 boot({ devices: DevicesView, rules: RulesView, events: EventsView, console: ConsoleView, gateways: GatewaysView, diag: DiagView },
-  { css, Picker: GatewayPicker });
+  { css, Picker: GatewayPicker, Banner: UpdateBanner });
+initUpdate();

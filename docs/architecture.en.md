@@ -15,11 +15,11 @@ real ZB-GW03 (see the [test plan](#test-plan-on-the-gateway)).
 | Port | Server | Role |
 | --- | --- | --- |
 | 80 | Tasmota's web server | "TasmoFlow" button in the main menu, `/tf` page protected by the web password |
-| 8384 | `tf_http.be`, Berry asynchronous server | JSON API, event stream, light interface; CORS and `Content-Encoding` headers; [only while an interface is open](#api-server-on-demand) |
+| 8384 | `tf_http.be`, Berry asynchronous server | JSON API, event stream, local copy of the interface; CORS and `Content-Encoding` headers; [only while an interface is open](#api-server-on-demand) |
 
 The `/tf` page gives the interface the API address and a 128-bit token, created at first
 start and kept in `persist`. Every `/api/*` route requires this token (`t` parameter); only
-`/lite.js` is public.
+`/local.js` (the local copy of the interface) is public.
 
 ### API server on demand
 
@@ -66,8 +66,8 @@ Consequences:
 
 - **Several gateways**: an interface opened on gateway A can call gateway B's API, since
   port 8384 sends `Access-Control-Allow-Origin: *`. It needs B's token (see below).
-- **Compressed light interface**: served with `Content-Encoding: gzip`, the browser
-  decompresses it itself.
+- **Compressed local copy**: served with `Content-Encoding: gzip`, the browser decompresses it
+  itself.
 - **Real time**: `/api/events` keeps the connection open and pushes each Zigbee message as
   soon as it arrives, without polling.
 
@@ -90,16 +90,18 @@ The interface's **Gateways** screen (v0.1):
 
 ## Loading the interface
 
-1. The browser opens `http://<gateway>/tf`.
-2. The page loads `https://gnatali.github.io/TasmoFlow/vX.Y.Z/app.js` with the SRI hash
-   computed at build time. An HTTP page may load an HTTPS script.
-3. If GitHub does not answer within 3 s, or if the hash does not match, the page loads
-   `http://<gateway>:8384/lite.js`, the **light interface** held, gzipped, in the `.tapp`. It
-   says so in a banner and offers to retry.
-4. If both fail, the page says so.
+1. The browser opens `http://<gateway>/tf`. The page says whether the gateway has a **local copy**
+   of the interface for its version (`copy`: 0 none, 1 this version's, 2 another version's).
+2. With a copy of this version, the page loads `http://<gateway>:8384/local.js?v=<version>` (the
+   copy, gzipped, next to the `.tapp`; no SRI: the gateway checked its SHA-256 when it was saved).
+   The version in the address keeps a browser cache from running another version's copy.
+3. Otherwise, or if the copy does not load, it loads
+   `https://gnatali.github.io/TasmoFlow/vX.Y.Z/app.js` with the SRI hash computed at build time.
+   An HTTP page may load an HTTPS script. There is no timeout: nothing else is left to try.
+4. If that fails too (no internet and no copy, or a wrong hash), the page says so in one line.
+   Tasmota's own pages and console still work.
 
-The script guards against starting twice: the GitHub copy may arrive after the timeout, when
-the light interface is already running.
+The script guards against starting twice in one page.
 
 ### Test build
 
@@ -109,7 +111,9 @@ on GitHub Pages (`tools/publish_pages.sh`, branch `gh-pages`, shared lock with t
 `?t=<millis>` to the address (never cached) and no `integrity`. The version reads
 `X.Y.Z-dev.<commit>` and the interface header shows its own build (`TF_BUILD`, esbuild `define`).
 Deliberately unpinned: for tests only, the release `.tapp` stays pinned (see "Not unpinned"
-below). Reinstalling the `.tapp` is only needed when `extension/` or the light interface changed.
+below). Reinstalling the `.tapp` is only needed when `extension/` changed. A local copy is only
+accepted by the `.tapp` of the same run (`APP_SHA`), and a gateway that has one keeps running it:
+delete it (Diagnostics) to see a new run's interface.
 
 ### Updating the .tapp
 
@@ -123,13 +127,14 @@ verified and costs the gateway nothing.
    `tapp`) and `vX.Y.Z/TasmoFlow.tapp` (`pack_tapp.py`); a test build publishes `dev/latest.json`
    next to `dev/TasmoFlow.tapp`. A GitHub release asset cannot be fetched by the browser (no CORS,
    redirect), Pages can.
-2. **Detection** (the `/tf` page, `tasmoflow.be`): the loader reads the manifest of its channel
-   (1.5 s at most, no cache) before it adds the GitHub script. *Release*: update if the manifest's
-   version is numerically newer. *Test build* (`X.Y.Z-dev.<commit>`): update if the commit differs
-   (commits are not ordered). If so the **light** interface loads with
-   `window.TASMOFLOW.update = {version, size, sha256, url}`; `/tf?u=0` skips the check for the visit;
-   a manifest that cannot be read changes nothing.
-3. **Room, then transfer** (`app/src/update.js`, light interface only): first
+2. **Detection** (`app/src/update.js`, `initUpdate()`, since 18 November 2026; the loader did it
+   before): the interface reads the manifest of its channel (`cfg.upd`, no cache) once started.
+   *Release*: update if the manifest's version is numerically newer. *Test build*
+   (`X.Y.Z-dev.<commit>`): update if the commit differs (commits are not ordered). If so a banner
+   over every screen offers **Update** (one click: no confirmation, the banner says the gateway
+   will restart) and **Later** (hides it for this visit). It only shows while the page's own
+   gateway is shown; a manifest that cannot be read changes nothing.
+3. **Room, then transfer** (`app/src/update.js`): first
    `/api/update_check?size=` with the size `latest.json` announces; if it does not fit, the page says
    so with the sizes (needed, available, of which the old `.bak`) and downloads nothing. Then download
    of the `.tapp` from Pages, and pieces of 1,500 bytes in base64 (2,000 characters, under
@@ -153,37 +158,59 @@ verified and costs the gateway nothing.
    `tasmoflow` equals the new version, then reloads; after 120 s (`UPDATE_WAIT_MS`) it says the
    restart is taking long and links to Tasmota's home page.
 
-Trust: GitHub Pages, as for the full interface; the gateway checks integrity (the SHA-256 of the
+Trust: GitHub Pages, as for the interface; the gateway checks integrity (the SHA-256 of the
 manifest), not authenticity. The first update to a version that has this function is manual.
 
-### Full interface on GitHub, light interface on the gateway
+### Local copy of the interface
 
-Decision of 9 November 2026 (option B of the analysis; it replaces "the same full copy in both
-places" of v0.0):
+Decision of 18 November 2026 (Guillaume), replacing that of 9 November (below): the `.tapp` carries
+no interface any more. The light interface was 14 KB of its 42 KB and only controlled devices; the
+`.tapp` is now about 29 KB. For a browser without internet access the gateway keeps, if asked, a
+**local copy of the whole interface** next to the `.tapp`.
 
-| | Full interface (`dist/app.js`) | Light interface (`dist/lite.js`) |
-| --- | --- | --- |
-| Where | GitHub Pages only, `vX.Y.Z/`, pinned by the `.tapp` with its SRI hash | In the `.tapp` as `lite.js.gz`, served on port 8384 |
-| Used | Normally | When the browser cannot reach GitHub (no internet, GitHub down, wrong hash), and to offer an update |
-| Content | Everything: devices, rules and sentence editor, events, console, Gateways, diagnostics, and later scenes, administration | Device control (Zigbee and Tuya: switches, sliders, readings, pairing) and the update of the `.tapp`, French and English. One screen, no tab bar |
-| Source | `app/src/main.js` | `app/src/main_lite.js`: same code, one screen (`boot.js`) |
-| Budget (gzipped) | 120 KB | 14 KB |
+- **Publication**: `pack_tapp.py` gzips `app.js` (level 9, fixed date: the same `app.js` always
+  gives the same file) into `vX.Y.Z/app.js.gz` (`dev/app.js.gz` for a test build), and writes its
+  SHA-256 into `tasmoflow.be` (`APP_SHA`), like the SRI hash of `app.js`.
+- **Saving** (Diagnostics screen, *Local copy of the interface*, `CopyPanel` in `update.js`): the
+  browser downloads `app.js.gz` from Pages (next to `cfg.cdn`) and sends it with the update's routes
+  and `f=js` (`tf_update.be`): room check (the file plus 20 KB; the old copy and a stale `.js.new`
+  count as available), `<tapp>.js.new` in pieces, then `update_apply?f=js` checks the gzip header
+  (`1f 8b 08`) and that the SHA-256 is the **`.tapp`'s own `APP_SHA`** (not a hash given by the
+  browser), renames it to `<tapp>.js` and records the hash in `persist` (`tasmoflow_js`). No restart.
+  The name ends in `.js`, never `.tapp`.
+- **Use**: `/tf` gives `copy` (`copy_state()`: 1 if `<tapp>.js` exists and `persist.tasmoflow_js`
+  equals `APP_SHA`, 2 if it exists with another hash, else 0) and the loader loads `/local.js` first
+  (streamed in 1 KB chunks, like any file). `/api/status` gives `copy` too.
+- **After an update of the `.tapp`**: the new `.tapp` has another `APP_SHA`, so the copy is another
+  version's (2): never loaded; the page loads GitHub and, unless another update is on offer, saves
+  this version's copy by itself (`initUpdate()`).
+- **Deleting**: *Delete the copy* (`/api/update_drop`) removes `<tapp>.js` and `.js.new` and clears
+  `persist.tasmoflow_js`.
+- **Room**: about 36 KB of the 320 KB file system (`UfsFree` 248 KB on 18 November 2026), against
+  about 28 KB saved by the smaller `.tapp` and its `.bak`.
+- **Without internet and without a copy** (first opening, a copy deleted, room short), there is no
+  TasmoFlow interface at all, only a line on the page: the accepted cost of the decision. Rules keep
+  running on the gateway; Tasmota's own pages stay the last resort.
 
-**Decision of 11 November 2026** (Guillaume): the `.tapp` must be half its v0.2.0 size (83,069 B):
-the light interface keeps only **device control and the update**; everything else (rules, console,
-diagnostics, events, several gateways) is in the full interface only. It replaces the rules of the
-light interface added in v0.2 (enable, disable, restore). Without GitHub, rules keep running on the
-gateway and Tasmota's own pages stay available (console, `Rule<n>`).
+### Before 18 November 2026: a light interface in the .tapp
 
-How the light bundle stays small, with the same sources:
+Decision of 9 November 2026 (replaced, see above): the full interface on GitHub Pages only, a
+**light** one (`app/src/main_lite.js`, same sources, one screen) kept gzipped in the `.tapp` as
+`lite.js.gz` and served when GitHub could not be reached, or to offer an update. On 11 November 2026
+Guillaume asked for a `.tapp` half its v0.2.0 size (83,069 B): the light interface kept only device
+control and the update. The reasons then (file system short: `UfsFree` 148 KB of 320 KB on
+9 November 2026; GitHub not a single point of failure for controlling the gateway) gave way to the
+`.tapp`'s size: 13.9 KB of its 42.4 KB, with 131 B left in its budget.
 
-- `main_lite.js` imports only `views.js` (devices), `tuya.js` and `update.js`; the full interface's
-  screens are in their own modules (`rules*.js`, `gateways.js`, `tuya_colour.js`, `views_full.js`), with their texts
-  (`i18n_full.js`, added by `addTexts()`) and styles (`style_full.css`). What a screen loads when
-  it opens is registered by `main.js` (`onTab()`), the gateway picker of the header too.
-- No `preact/hooks` in the light bundle: the stores (`store.js`) have no `use()`; after any `set()`
-  the interface renders again from its root (`boot.js`, once per task) and Preact only changes what
-  differs. The full interface's own screens still use hooks for their local state.
+What stays from that decision:
+
+- **Not unpinned**: the interface from GitHub stays pinned to the installed version with its SRI
+  hash, and the local copy to its SHA-256. An unpinned interface would run whatever GitHub serves in
+  a browser holding the gateway's token and full control of Tasmota. Updating it means a new
+  `.tapp`, which the update button does (see [Updating the .tapp](#updating-the-tapp)).
+- The interface cannot be moved to `https://gnatali.github.io` to manage gateways from one place:
+  an HTTPS page calling `http://<gateway>` is blocked (mixed content, Private Network Access). It
+  must stay loaded by the gateway's HTTP page.
 - The Berry files are **minified** by `pack_tapp.py` (`minify_berry()`), in a release `.tapp` and in
   a test one (`--dev`) alike; the size budget only applies to the release build, which CI builds
   from every commit (a test build may go over it). Minified: no comments, no
@@ -191,46 +218,26 @@ How the light bundle stays small, with the same sources:
   that the token sequence equals the source's, and CI compiles the minified copies and runs
   `tests/tf_http_test.be` on the minified `tf_http.be`. The commented sources stay in `extension/`;
   a line number in a gateway error message refers to the minified file.
+- The stores (`store.js`) have no `use()`: after any `set()` the interface renders again from its
+  root (`boot.js`, once per task) and Preact only changes what differs.
 
-| Size (bytes) | v0.2.0 | 12 November 2026 |
-| --- | --- | --- |
-| `tasmoflow.be` | 19,516 | 10,741 |
-| `tf_http.be` | 25,710 | 7,421 |
-| `tf_rules.be` | 9,095 | 4,330 |
-| `tf_update.be` | 6,384 | 3,803 |
-| `lite.js.gz` | 21,086 | 13,630 |
-| **`TasmoFlow.tapp`** | **83,069** | **40,920** (-51 %; budget 41,534) |
+| Size (bytes) | v0.2.0 | 12 November 2026 | 18 November 2026 (no interface) |
+| --- | --- | --- | --- |
+| `tasmoflow.be` | 19,516 | 10,741 | 11,536 |
+| `tf_http.be` | 25,710 | 7,421 | 7,659 |
+| `tf_rules.be` | 9,095 | 4,330 | 4,277 |
+| `tf_update.be` | 6,384 | 3,803 | 4,556 |
+| `lite.js.gz` | 21,086 | 13,630 | none |
+| **`TasmoFlow.tapp`** | **83,069** | **40,920** | **28,927** (budget 42,500) |
 
-Never in the light interface: rules, sentence editor, groups, scenes, Zigbee plugins,
-administration (OTA), console, diagnostics, several gateways.
-
-Why:
-
-- The **browser**, not the gateway, needs internet to load the full interface. Rules and
-  automations run on the gateway: without internet nothing stops, only editing is unavailable.
-  Tasmota's own pages stay the last resort (Zigbee list, console, `/tuya`, Matter).
-- **File system**: `UfsFree` was 148 KB of 320 KB (9 November 2026), and the full interface
-  will grow (rule and sentence editor, scenes, administration). A full local copy would eat the
-  room that rule backups (copy before every write), `tuya.json.bak` and imports need.
-- **Not unpinned**: the full interface stays pinned to the installed version with its SRI hash.
-  An unpinned interface would run whatever GitHub serves in a browser holding the gateway's
-  token and full control of Tasmota. Updating it means a new `.tapp`, which the update button now
-  does (see [Updating the .tapp](#updating-the-tapp)).
-- **Kept local, light**: GitHub (account, Pages, repository) must not be a single point of
-  failure for controlling the gateway.
-- The light interface is another entry point of the same sources, so no second code base:
-  same API client, same Tuya model, same texts (13.6 KB gzipped against 26.4 KB for the full one).
-- The full interface cannot be moved to `https://gnatali.github.io` to manage gateways from
-  one place: an HTTPS page calling `http://<gateway>` is blocked (mixed content, Private
-  Network Access). It must stay loaded by the gateway's HTTP page.
-- Users who want no GitHub at all (`pack_tapp.py --cdn ''`) only get the light interface, so
-  only device control.
+Users who want no GitHub at all (`pack_tapp.py --cdn ''`) have no way to get the interface any more
+(the copy is downloaded from GitHub Pages): the option only stays for tests.
 
 ## Port 8384 API
 
 | Route | Response |
 | --- | --- |
-| `GET /lite.js` | Light interface (gzip), sent in 1 KB chunks |
+| `GET /local.js?v=` | The local copy of the interface (`<tapp>.js`, gzip), sent in 1 KB chunks; 404 without one |
 | `GET /api/status?t=` | Versions, free memory, file system, Zigbee state (`zigbee`, and `zigbee_state`: `absent`, `starting` or `running`), number of devices |
 | `GET /api/devices?t=` | Zigbee devices: address, name, model, manufacturer, LQI, battery, last message, last attributes |
 | `POST /api/cmd?t=` | Runs the Tasmota command in the body and returns its JSON response (`GET /api/cmd?t=&c=` still works for a short command) |
@@ -239,10 +246,12 @@ Why:
 | `POST /api/rule_set?t=&n=` | Sends the new text of rule set `n` (request body) |
 | `GET /api/rule_apply?t=&n=&step=` | Applies it in three requests: `bak` (copy of the current text), `put` (`Rule<n>`), `check` (read back); on failure the interface calls `rule_restore` |
 | `GET /api/autoexec?t=` | `/autoexec.be` as text, read only, at most 6,000 bytes (`{"exists":false}` without it). The one file the API reads: the others (`tuya.json`...) hold keys |
-| `GET /api/update_check?t=&size=` | Room for a `.tapp` of `size` bytes: `{free, tapp, bak, stale, need, room}` in bytes (see [Updating the .tapp](#updating-the-tapp)) |
+| `GET /api/update_check?t=&size=` | Room for a `.tapp` of `size` bytes: `{free, tapp, bak, js, stale, need, room}` in bytes (see [Updating the .tapp](#updating-the-tapp)) |
 | `POST /api/update?t=&off=&size=` | A piece (base64, request body) of the new `.tapp`, written to `<tapp>.new` |
 | `GET /api/update_apply?t=&size=&sha256=` | Checks `<tapp>.new`, installs it (`<tapp>.bak` kept), restarts |
 | `GET /api/update_abort?t=` | Deletes `<tapp>.new` |
+| the same four with `&f=js` | The local copy of the interface: `<tapp>.js.new`, checked against `APP_SHA` and renamed `<tapp>.js`, no restart (see [Local copy](#local-copy-of-the-interface)) |
+| `GET /api/update_drop?t=` | Deletes the local copy |
 | `GET /api/rule_restore?t=&n=` | Puts the previous copy of rule set `n` back |
 
 Events carry a sequence number and a `type`: `zigbee` (`device`, `name`, `attrs`) and `tuya`
@@ -427,8 +436,7 @@ Controls come from the Matter bindings of `tuya.json` (`controlsFor` in `app/src
 the one reported back by the device (no optimistic display).
 
 **`light3` panel** (full interface only, `app/src/tuya_colour.js`, plugged into the cards through
-`EXTRA.refine` of `tuya.js`; the light interface does not carry it, to keep its size, and keeps the
-switch and the white brightness slider), laid out like the Tuya app. **Tabs White / Colour** follow the
+`EXTRA.refine` of `tuya.js`), laid out like the Tuya app. **Tabs White / Colour** follow the
 mode the device reports (`dp_mode`, 21: `white` or `colour`; no optimistic display); a tab sends the
 mode (`TuyaSend <device>,21,white|colour`); another mode (scene, music) or none known selects no tab and
 shows the white content. **White**: brightness slider on `dp_bri` (`bri_min` to `bri_max`, shown in %),
@@ -446,8 +454,7 @@ Not offered: scenes (`scene_data_v2`, DP 25), timers, do-not-disturb, wake-up an
 **Held value and hidden options** (`light2` and `light3` panels): a value just set (hue, saturation,
 brightness, temperature) stays on screen until the device reports it, 3 s at most, so the old value does
 not come back between the command and the device's event (one per DP, a moment later); an earlier event
-of another value does not break the hold. Past 3 s the real state shows again. The mode tabs and the
-light interface's sliders keep showing the device's state only. While the lamp is off (switch DP, 20,
+of another value does not break the hold. Past 3 s the real state shows again. The mode tabs keep showing the device's state only. While the lamp is off (switch DP, 20,
 false) or the device is disconnected, the panel (tabs, wheel, arc, sliders) is hidden and only the card's
 power button stays; an unknown switch state keeps the panel visible.
 
@@ -456,9 +463,9 @@ an **open arc dial** for the colour temperature (`dp_ct`, 23, 0 to 1000 shown in
 the bottom, warm at the bottom left, cool at the bottom right, gradient ring, knob; a click in the gap
 goes to the nearer end; arrows move it by 5 %; sent on release like the hue wheel) and the brightness
 slider (`dp_bri`) under it, no tabs and no hue wheel. A `light3` with `dp_ct` shows the same dial in its
-White tab; the light interface keeps plain sliders. A change while the lamp is in another mode (scene,
+White tab. A change while the lamp is in another mode (scene,
 music) sends `white` on `dp_mode` first. Brightness sliders go from 1 % to 100 % (raw `bri_min` 10 to
-`bri_max` 1000), like the Tuya app, never 0 %: the light interface's dimmer follows the same rule.
+`bri_max` 1000), like the Tuya app, never 0 %: the cards' dimmer follows the same rule.
 
 **Names with a comma**: `TuyaSend` cuts its argument at the first two commas (`string.split(payload,
 ",", 2)` in the driver), so such a name cannot be given. The driver also takes a **device id**
@@ -487,16 +494,12 @@ boolean, read as running or starting). Tuya comes from `TuyaEnable` (`waiting` i
 
 A driver that is not `running` has its functions off (pairing, its devices, the pickers of the
 sentence editor) and the Devices screen says why (`DriverNote`, `views.js`). An `absent` driver is
-simply not shown. The two interfaces differ:
-
-- **Full**: while a driver is `starting`, `drivers_full.js` reads it again every 5 seconds (only
+simply not shown. While a driver is `starting`, `drivers_full.js` reads it again every 5 seconds (only
   what is starting: the status for Zigbee, `TuyaEnable` for Tuya, never `TuyaConfig`), loads the
   devices when Zigbee comes up, and turns the functions on without a click. It gives up after
   2 minutes (a Zigbee that never starts) and offers "Retry". A `disabled` driver is not read
-  again; "Refresh" reads everything again.
-- **Light**: the state read at opening is kept; whatever the reason (`starting` or `disabled`),
-  the functions are off and the page asks to be reloaded. Nothing is read again, the light bundle
-  carries no loop (budget).
+  again; "Refresh" reads everything again. (The light interface, until 18 November 2026, only
+  asked to reload the page.)
 
 ### Memory
 
@@ -579,7 +582,7 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   block is a **tile** (When / If / Then / Else lines); *Edit* opens the form in a **dialog over the
   page** (native `<dialog>`: Escape and the backdrop close it, the *Done* button stays in view on a
   phone), not in place; two dashed tiles add a rule: a **guided** one (below) or a **free-form** one (the form).
-- **Unsaved text and the options** (12 November 2026): on/off, *once only* and *stop on error* act on the gateway at once, then the card is rebuilt from what the gateway holds, which dropped a text not saved yet (a new rule included). With such a text the interface now asks to save it first (then applies the option); if the user refuses, nothing happens and the checkbox is put back as it was; if the text is invalid (or too long) it says so and does nothing. The same question (naming the rule set, one by one) comes before anything else that would drop the text: closing the rule set's section, changing screen or gateway (`guardLeave()` in `state.js`, which the Rules screen registers while it is shown; a refusal or an invalid text keeps the screen as it is, and the gateway picker is drawn again with the right value), and closing or reloading the page (the browser's own `beforeunload` question). The guard is in `state.js`, which the light interface shares: a change there needs the `.tapp` installed again.
+- **Unsaved text and the options** (12 November 2026): on/off, *once only* and *stop on error* act on the gateway at once, then the card is rebuilt from what the gateway holds, which dropped a text not saved yet (a new rule included). With such a text the interface now asks to save it first (then applies the option); if the user refuses, nothing happens and the checkbox is put back as it was; if the text is invalid (or too long) it says so and does nothing. The same question (naming the rule set, one by one) comes before anything else that would drop the text: closing the rule set's section, changing screen or gateway (`guardLeave()` in `state.js`, which the Rules screen registers while it is shown; a refusal or an invalid text keeps the screen as it is, and the gateway picker is drawn again with the right value), and closing or reloading the page (the browser's own `beforeunload` question). The guard is in `state.js`.
 - **Sentence editor** (v0.2 step 2, written; the **Sentences** view of a rule set, full interface
   only: `rules_model.js`, `rules_editor.js`, registered by `main.js` so the light bundle does not
   carry it; no change on the gateway). A block `on <trigger> [if (<cond>)] do <commands> [else
@@ -689,7 +692,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] `http://<gateway>/tf` typed in the address bar (without the button) opens the interface
 - [x] Without internet access, `/tf` loads the local copy (Diagnostics tab: "local"); since v0.1 this copy is the light interface (banner, header "· lite"), to check again
 - [x] `open(tasmota.wd + "app.js.gz", "rb")` reads the file inside the `.tapp`, and the browser decompresses the local copy (`lite.js.gz` since v0.1)
-- [ ] v0.1: with the browser offline (or `gnatali.github.io` blocked), `/tf` shows the light interface: devices with toggles, console and diagnostics work, the Gateways and Events tabs are absent, "Retry" loads the full interface once GitHub answers (console and diagnostics left the light interface on 11 November 2026: see the item below)
+- [ ] (Obsolete since 18 November 2026: no light interface any more, see the local copy item below.) v0.1: with the browser offline (or `gnatali.github.io` blocked), `/tf` shows the light interface: devices with toggles, console and diagnostics work, the Gateways and Events tabs are absent, "Retry" loads the full interface once GitHub answers (console and diagnostics left the light interface on 11 November 2026: see the item below)
 - [ ] v0.2, reduced `.tapp` (11 November 2026, test build, `.tapp` installed again, `Restart 1`): the `.tapp` is about 40 KB; the boot log shows `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` (the minified Berry loads); with GitHub blocked, `/tf` shows the devices only, without a tab bar: a Zigbee toggle, "Pair", a Tuya switch and slider work and their state comes back, the language button works, "Retry" loads the full interface once GitHub answers; with GitHub reachable, the full interface works as before (Rules: save and restore, Berry rules, `autoexec.be`; console; diagnostics; gateways); an update from the light interface still works; memory at rest and with an interface open unchanged or lower (12 November 2026: works on the gateway, Guillaume)
 - [x] v0.2, update room (12 November 2026, checked on the gateway, Guillaume, the `.tapp` with `/api/update_check` installed by hand once): with enough free space the update goes through and the previous `TasmoFlow.tapp.bak` stays until the new file is checked; with free space short but a `.bak`, the `.bak` is deleted and the update goes through; with too little room even without the `.bak`, the banner says so with the sizes (needed, available) before any download, and nothing changes
 - [x] The device list matches `ZbStatus1`
@@ -730,5 +733,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] v0.2, Tuya configuration device by device (18 November 2026, firmware of the same day flashed, `.tapp` installed again): the Tuya cards show their controls (dimmer, colour, speed...), sub-devices of the Tuya gateway included; the gateway's log shows `TuyaConfig <name>` commands and no bare `TuyaConfig`; with less than 30 KB free the controls are still there (no "not enough memory" note)
 - [x] v0.2, robustness (18 November 2026, bugs T2 to T4, `.tapp` installed again; checked by Guillaume the same day: 67 KB free at rest, 54 KB with the full interface open, 13 KB of the 15 KB budget): the interface opens as before and `Status 4` heap, after `Br tasmota.gc()`, at rest and with an interface open is unchanged or lower; the device list is complete (same count as `ZbStatus1`); with an interface open on a phone, turn its Wi-Fi off for 5 minutes while devices send events: the heap does not fall (the stream is closed once 6 KB are waiting), and the page follows again once back; Refresh does not run `TuyaConfig` again (log level 3)
 - [x] v0.2, gateway restart with a page open (18 November 2026, bug T1, `.tapp` installed again): open `/tf` (full and light interface), use it a few minutes so that events come in, then `Restart 1` from Tasmota's console; the badge goes to "reconnecting…", then back to "live"; right after, a Zigbee button press and a Tuya change (button, Smart Life) show up on the cards (and in the Events tab of the full interface) within 2 s, without reloading the page
-- [ ] v0.2, Tuya connection, light interface cache, Zigbee errors (18 November 2026, bugs T5, T8, T11, `.tapp` installed again): with the Devices screen open, cut a Tuya device at the wall: its card says "disconnected" and its controls are greyed within a few seconds (the driver notices the loss), then "connected" again once it is back, without Refresh (a Tuya gateway: its sub-devices follow it); the light interface is requested as `/lite.js?v=<version>` (browser network tab); Toggle on a Zigbee device that does not answer, or Pair while Zigbee refuses it, shows Tasmota's answer under the card or the button
+- [ ] v0.2, Tuya connection, Zigbee errors (18 November 2026, bugs T5, T11, `.tapp` installed again): with the Devices screen open, cut a Tuya device at the wall: its card says "disconnected" and its controls are greyed within a few seconds (the driver notices the loss), then "connected" again once it is back, without Refresh (a Tuya gateway: its sub-devices follow it); Toggle on a Zigbee device that does not answer, or Pair while Zigbee refuses it, shows Tasmota's answer under the card or the button (T8, the light interface's cache, went with it)
+- [ ] v0.2, no interface in the `.tapp`, local copy (18 November 2026, `.tapp` installed again by hand, `Restart 1`): the `.tapp` is about 29 KB; `/tf` loads the interface from GitHub (Diagnostics: source `github`), and the Diagnostics screen says "No copy"; **Save a local copy**: the progress bar runs, then "The gateway has a copy of this version", `TasmoFlow.tapp.js` (about 36 KB) is next to `TasmoFlow.tapp`, and the log shows `TFL: local copy of the interface saved`; reload: source `local`; browser offline (or `gnatali.github.io` blocked): `/tf` still opens the whole interface (Rules, Events, Console...) and devices answer; **Delete the copy**: "No copy", the file is gone, and offline `/tf` only shows the line "GitHub cannot be reached and this gateway has no local copy"; memory at rest and with an interface open (after `Br tasmota.gc()`) unchanged (13 KB with the interface open on 18 November 2026)
+- [ ] v0.2, update with a local copy (the next test build after the item above): the banner offers the update over every screen, **Update** installs it with no confirmation and the page comes back on the new build; the old copy is not loaded (source `github`), and within a few seconds Diagnostics says "The gateway has a copy of this version" again (saved by itself); **Later** hides the banner
 - [x] v0.1: what stays allocated after the first opening (6 KB free heap, 4 KB Berry): not pursued, dropped at Guillaume's request (12 November 2026)

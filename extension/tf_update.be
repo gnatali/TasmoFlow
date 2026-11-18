@@ -1,5 +1,5 @@
 ###################################################################################
-# tf_update.be - update of TasmoFlow.tapp by the interface
+# tf_update.be - update of TasmoFlow.tapp, and the local copy of the interface
 #
 # SPDX-License-Identifier: GPL-3.0-only
 ###################################################################################
@@ -17,6 +17,13 @@
 #   /api/update_apply?size=&sha256=   checks size, zip header and SHA-256 of <tapp>.new, then
 #                              installs it and restarts (see apply())
 #   /api/update_abort          deletes <tapp>.new
+#
+# The same routes with `f=js` write the local copy of the interface instead (app.js.gz of this
+# version, from GitHub Pages): <tapp>.js.new, then <tapp>.js. update_apply checks its gzip header
+# and that its SHA-256 is the one written into the .tapp at packing (tasmoflow.APP_SHA, not one
+# given by the browser), records it (persist `tasmoflow_js`) and does not restart. The /tf page
+# then loads it before GitHub. /api/update_drop deletes it. After an update of the .tapp the copy
+# is another version's: never loaded, the interface saves the new one (update.js).
 #
 # Installing: <tapp> becomes <tapp>.bak, <tapp>.new becomes <tapp>, and if that fails the copy is
 # put back. Never name a copy *.tapp: Tasmota loads every file ending in .tapp at boot, and two
@@ -45,11 +52,21 @@ class tf_update
     self.written = 0
   end
 
-  # the installed .tapp: tasmota.wd saved at load time, without its trailing '#'; or nil
-  def target()
-    var wd = self.tf.wd
-    if wd == nil || size(wd) < 2 || wd[size(wd) - 1] != '#'    return nil    end
-    return wd[0 .. size(wd) - 2]
+  # the installed .tapp, or nil
+  def target()    return self.tf.tapp()    end
+
+  # [file being written, file it becomes, local copy?] for the request's `f`
+  def files(q)
+    var base = self.target()
+    if q.find('f') == 'js'    return [base + ".js.new", base + ".js", true]    end
+    return [base + ".new", base, false]
+  end
+
+  # the local copy is not this version's any more (deleted, or being replaced)
+  static def forget()
+    import persist
+    persist.tasmoflow_js = ""
+    persist.save()
   end
 
   def answer(cnx, ok, extra)
@@ -67,18 +84,20 @@ class tf_update
     return n
   end
 
-  # Room for a new .tapp of `total` bytes, from the real sizes. While it is written the installed
-  # .tapp stays (it then becomes the .bak by a rename, which takes no room), so the new file needs
-  # `total` bytes plus MARGIN_KB of free space. A <tapp>.new left by an interrupted update and the
-  # previous <tapp>.bak can be deleted to make that room. Returns a map, sizes in bytes:
-  #   free (UfsFree, nil if unknown), tapp, bak, stale (.new), need, room (true if it fits)
-  def room(total)
+  # Room for a new file of `total` bytes, from the real sizes. While a .tapp is written the
+  # installed one stays (it then becomes the .bak by a rename, which takes no room), so the new file
+  # needs `total` bytes plus MARGIN_KB of free space. A file left by an interrupted transfer (stale)
+  # can be deleted to make that room, and so can the previous <tapp>.bak for a .tapp, or the old
+  # local copy for a local copy. Returns a map, sizes in bytes:
+  #   free (UfsFree, nil if unknown), tapp, bak, js (the local copy), stale, need, room (true if it fits)
+  def room(total, q)
     var base = self.target()
+    var n = self.files(q)
     var free = tasmota.cmd("UfsFree", true)
     free = isinstance(free, map) ? free.find("UfsFree") : nil
     var r = {'free': free == nil ? nil : int(free) * 1024, 'tapp': self.fsize(base), 'bak': self.fsize(base + ".bak"),
-             'stale': self.fsize(base + ".new"), 'need': total + self.MARGIN_KB * 1024}
-    r['room'] = free == nil || r['free'] + r['stale'] + r['bak'] >= r['need']
+             'js': self.fsize(base + ".js"), 'stale': self.fsize(n[0]), 'need': total + self.MARGIN_KB * 1024}
+    r['room'] = free == nil || r['free'] + r['stale'] + (n[2] ? r['js'] : r['bak']) >= r['need']
     return r
   end
 
@@ -87,7 +106,7 @@ class tf_update
     if self.target() == nil    return self.answer(cnx, false, "path")    end
     var total = int(q.find('size', '0'))
     if total <= 0 || total > self.MAX_SIZE    return self.answer(cnx, false, "size")    end
-    var r = self.room(total)
+    var r = self.room(total, q)
     r['ok'] = true
     cnx.send(200, "application/json", json.dump(r))
     cnx.content_stop()
@@ -97,16 +116,22 @@ class tf_update
   def receive(cnx, q)
     var base = self.target()
     if base == nil    return self.answer(cnx, false, "path")    end
-    var tmp = base + ".new"
+    var n = self.files(q)
+    var tmp = n[0]
     var off = int(q.find('off', '0'))
     var total = int(q.find('size', '0'))
     if off == 0
       if total <= 0 || total > self.MAX_SIZE    return self.answer(cnx, false, "size")    end
-      var r = self.room(total)
+      var r = self.room(total, q)
       if !r['room']    return self.answer(cnx, false, "space")    end
       if r['stale'] > 0    path.remove(tmp)    end
-      # the previous copy only goes if the new file needs its room (the installed one always stays)
-      if r['free'] != nil && r['bak'] > 0 && r['free'] + r['stale'] < r['need']    path.remove(base + ".bak")    end
+      if n[2]
+        # the old local copy goes: it is replaced anyway, and is not loaded until the new one is checked
+        self.forget()
+        if r['js'] > 0    path.remove(n[1])    end
+      elif r['free'] != nil && r['bak'] > 0 && r['free'] + r['stale'] < r['need']
+        path.remove(base + ".bak")      # the previous copy only goes if the new file needs its room
+      end
       self.written = 0
     elif off != self.written
       return self.answer(cnx, false, "offset")          # a piece was lost or repeated: start again
@@ -133,11 +158,12 @@ class tf_update
     return h.out().tohex()
   end
 
-  # checks, installs, restarts
+  # checks, then installs and restarts (.tapp) or records the local copy
   def apply(cnx, q)
     var base = self.target()
     if base == nil    return self.answer(cnx, false, "path")    end
-    var tmp = base + ".new"
+    var n = self.files(q)
+    var tmp = n[0]
     var bak = base + ".bak"
     var total = int(q.find('size', '0'))
     if total <= 0 || self.written != total || !path.exists(tmp)    return self.answer(cnx, false, "incomplete")    end
@@ -146,8 +172,18 @@ class tf_update
     var magic = string.tolower(f.readbytes(4).tohex())          # Tasmota's tohex() is upper case
     f.close()
     if len != total    return self.answer(cnx, false, "size")    end
-    if magic != "504b0304"    return self.answer(cnx, false, "format")    end         # a zip: PK\x03\x04
-    if string.tolower(self.sha256(tmp)) != string.tolower(q.find('sha256', ''))    return self.answer(cnx, false, "hash")    end
+    # a zip (PK\x03\x04), or gzip (1f 8b, then 08: deflate)
+    if magic[0 .. (n[2] ? 5 : 7)] != (n[2] ? "1f8b08" : "504b0304")    return self.answer(cnx, false, "format")    end
+    var want = n[2] ? self.tf.APP_SHA : q.find('sha256', '')
+    if string.tolower(self.sha256(tmp)) != string.tolower(want)    return self.answer(cnx, false, "hash")    end
+    if n[2]
+      if !path.rename(tmp, n[1])    return self.answer(cnx, false, "install")    end
+      import persist
+      persist.tasmoflow_js = want
+      persist.save()
+      log("TFL: local copy of the interface saved", 2)
+      return self.answer(cnx, true)
+    end
     if path.exists(bak)    path.remove(bak)    end
     if !path.rename(base, bak)    return self.answer(cnx, false, "install")    end
     if !path.rename(tmp, base)
@@ -159,10 +195,20 @@ class tf_update
     tasmota.set_timer(1500, def () tasmota.cmd("Restart 1") end)      # after the answer left
   end
 
-  def abort(cnx)
-    var base = self.target()
-    if base != nil && path.exists(base + ".new")    path.remove(base + ".new")    end
+  def abort(cnx, q)
+    if self.target() != nil && path.exists(self.files(q)[0])    path.remove(self.files(q)[0])    end
     self.written = 0
+    self.answer(cnx, true)
+  end
+
+  # deletes the local copy of the interface: GitHub only from then on
+  def drop(cnx)
+    var base = self.target()
+    if base == nil    return self.answer(cnx, false, "path")    end
+    self.forget()
+    for x: [base + ".js", base + ".js.new"]
+      if path.exists(x)    path.remove(x)    end
+    end
     self.answer(cnx, true)
   end
 
@@ -179,7 +225,9 @@ class tf_update
       elif route == "/api/update_apply"
         self.apply(cnx, q)
       elif route == "/api/update_abort"
-        self.abort(cnx)
+        self.abort(cnx, q)
+      elif route == "/api/update_drop"
+        self.drop(cnx)
       else
         self.answer(cnx, false, "route")
       end

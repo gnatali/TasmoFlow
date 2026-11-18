@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Application state: current gateway, devices, event stream. Shared by both interfaces: what only
-// the full one shows (rules, other gateways, diagnostics) is loaded by its own modules, so the
-// light bundle (main_lite.js) does not carry it.
+// Application state: current gateway, devices, event stream. What the other screens show (rules,
+// other gateways, diagnostics) is loaded by their own modules.
 import { createStore } from './store.js';
 import { client } from './api.js';
 import cfg from './config.js';

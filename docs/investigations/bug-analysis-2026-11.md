@@ -221,7 +221,9 @@ therefore run the previous light interface against the new extension: when GitHu
 reached, or when another update is offered (the update code itself is in `lite.js`). Fix:
 `add(c.api + "/lite.js?v=" + c.version, ...)`; the server already ignores the query.
 
-**Fixed (18 November 2026)** that way; the end-to-end test checks the address.
+**Fixed (18 November 2026)** that way; the end-to-end test checks the address. The same evening
+the light interface left the `.tapp`: the local copy that replaces it is loaded as
+`/local.js?v=<version>`, for the same reason.
 
 ### T9 (P3): no connection limit, no request timeout on port 8384
 

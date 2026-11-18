@@ -18,12 +18,12 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
 
 ## Decisions (do not reopen without Guillaume)
 
-- Interface served **by the gateway** (`/tf` page): the **full** interface is loaded from GitHub
-  Pages (pinned version + SRI), a **light** one (device control and the update only, since
-  11 November 2026; same sources, `app/src/main_lite.js`) is kept gzipped in the `.tapp` and served
-  when GitHub is unreachable (decision of 9 November 2026, see `docs/architecture.en.md`). The
-  `.tapp` stays under about half of v0.2.0's size (`pack_tapp.py` budget 42,500 B, raised from 41,534 on 18 November 2026 by Guillaume): anything else goes
-  in the full interface only. **Firmware untouched**:
+- Interface served **by the gateway** (`/tf` page): one interface (`app/src/main.js`), loaded from
+  the gateway's **local copy** when it has one for its version (`<tapp>.js`, saved from the
+  Diagnostics screen, SHA-256 checked against the `.tapp`'s `APP_SHA`), else from GitHub Pages
+  (pinned version + SRI). The `.tapp` carries **no interface** (decision of 18 November 2026 by
+  Guillaume, replacing that of 9 November: the light interface, 14 KB of its 42, is gone; see
+  `docs/architecture.en.md`). Budget `pack_tapp.py` 42,500 B (about 29 KB used). **Firmware untouched**:
   TasmoFlow is a Berry extension (`.tapp`), no `USE_CORS`, no rebuild.
 - Second server on **port 8384** (`extension/tf_http.be`, copy of Tasmota's
   `webserver_async.be`) for the JSON API, CORS, gzip and Server-Sent Events.
@@ -53,15 +53,14 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
 - Tests without a release: Guillaume (or I, with the GitHub `actions_run_trigger` tool) runs the
   `Build` workflow by hand on the branch (`workflow_dispatch`, job `preview`): it publishes the
   full interface at `.../TasmoFlow/dev/app.js` and a test `.tapp` (`dev/TasmoFlow.tapp`, no SRI).
-  **Tell Guillaume when the `.tapp` must be installed again**: any change in `extension/`, in
-  `main_lite.js` or in what the light interface imports (`views.js`, `tuya.js`, `tuya_model.js`,
-  `update.js`, `state.js`, `app.js`, `boot.js`, `i18n.js`, `store.js`, `style.css`...), or in the
-  loader. A change to the full interface's own modules (`*_full.*`, `rules*.js`, `gateways.js`)
-  needs no reinstall.
+  **Tell Guillaume when the `.tapp` must be installed again**: any change in `extension/` (the
+  loader is in `tasmoflow.be`). A change to `app/src/` needs no reinstall, but a gateway with a
+  local copy keeps running its copy: a test build's interface is only seen once the copy is
+  deleted, or saved again with the `.tapp` of the same run (each run writes its own `APP_SHA`).
 - The update button installs a `.tapp` with the code **already installed**: a change to the update
-  code (`tf_update.be`, the loader, `update.js`) needs the new `.tapp` installed by hand once before it
+  code (`tf_update.be`, the loader) needs the new `.tapp` installed by hand once before it
   can be tested by updating (a bug of the zip header check, `tohex()` in upper case, showed this).
-- Before pushing: `npm run build` (interface, `app/src/` to `dist/app.js`), `node --check` on `dist/app.js` and `dist/lite.js`,
+- Before pushing: `npm run build` (interface, `app/src/` to `dist/app.js`), `node --check dist/app.js`,
   `python3 tools/pack_tapp.py` (size budgets), `node tests/rules_model_test.js` (rule model),
   `node tests/e2e.js` (Playwright, simulated
   gateway; it builds first, with a fixed version 9.9.9, so run `npm run build` and `pack_tapp.py` again

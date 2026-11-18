@@ -30,8 +30,8 @@ input[type=range]{min-width:8rem;flex:none;padding:0;vertical-align:middle}
 .rng{display:flex;align-items:center;gap:.5rem}
 button[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
 button:disabled{opacity:.5;cursor:default}
-.lite{margin:0 0 1rem;padding:.5rem .75rem;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:.5rem;background:var(--card);font-size:.9rem}
-.lite button{margin-left:.5rem;padding:.15rem .6rem}
+.note{margin:0 0 1rem;padding:.5rem .75rem;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:.5rem;background:var(--card);font-size:.9rem}
+.note button{margin-left:.5rem;padding:.15rem .6rem}
 button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 p.update,div.update{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}
 .update progress{flex:1 1 12rem;max-width:24rem}

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Devices screen, the one both interfaces have (the others are in views_full.js)
+// Devices screen (the other screens are in views_full.js)
 import { html } from './html.js';
 import { t } from './i18n.js';
-import cfg from './config.js';
 import { S, run, loadStatus, loadDevices, loadTuya, detect, RECHECK_MAX } from './state.js';
 import { TuyaSection, Msg } from './tuya.js';
 
@@ -19,17 +18,16 @@ const MAIN_ATTRS = ['Power', 'Dimmer', 'Temperature', 'Humidity', 'Pressure', 'I
 const hasPower = d => Object.keys(d.attrs).some(k => /^Power\d*$/.test(k));
 
 // A driver that is not running: its functions are off, and this says why. Nothing for an absent
-// one (not in this firmware). The light interface only invites to reload the page, whatever the
-// reason; the full one looks again by itself while the driver starts (drivers_full.js), and says so.
+// one (not in this firmware). The interface looks again by itself while the driver starts
+// (drivers_full.js), and says so.
 function DriverNote({ id }) {
   const s = S.get();
   const st = s.drivers[id];
   if (!st || st === 'running' || st === 'absent') return null;
-  const auto = !cfg.lite && st === 'starting' && s.recheck < RECHECK_MAX;
-  const msg = cfg.lite ? 'driverLite' : auto ? 'driverAuto' : st === 'disabled' ? 'driverDisabled' : 'driverGaveUp';
-  const retry = cfg.lite ? () => location.reload() : () => S.set({ recheck: 0 });
-  return html`<p class="lite" role="status">${t(msg).replace('{d}', id === 'zigbee' ? 'Zigbee' : 'Tuya') + (s.drivers.tuyaWhy && id === 'tuya' && st === 'starting' ? ' (' + s.drivers.tuyaWhy + ')' : '')}
-    ${auto || st === 'disabled' && !cfg.lite ? null : html`<button class="b" onClick=${retry}>${t(cfg.lite ? 'reload' : 'retry')}</button>`}</p>`;
+  const auto = st === 'starting' && s.recheck < RECHECK_MAX;
+  const msg = auto ? 'driverAuto' : st === 'disabled' ? 'driverDisabled' : 'driverGaveUp';
+  return html`<p class="note" role="status">${t(msg).replace('{d}', id === 'zigbee' ? 'Zigbee' : 'Tuya') + (s.drivers.tuyaWhy && id === 'tuya' && st === 'starting' ? ' (' + s.drivers.tuyaWhy + ')' : '')}
+    ${auto || st === 'disabled' ? null : html`<button class="b" onClick=${() => S.set({ recheck: 0 })}>${t('retry')}</button>`}</p>`;
 }
 
 function ZigbeeCard({ d }) {
@@ -57,11 +55,11 @@ export function DevicesView() {
   const zb = dr.zigbee === 'running';
   const list = Object.values(s.devices).sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const tuya = dr.tuya && dr.tuya !== 'absent';
-  // the light interface keeps what it read when it opened: the page is reloaded to look again
   const refresh = async () => {
-    if (!cfg.lite) await loadStatus();
+    await loadStatus();
     await Promise.all([loadDevices(), loadTuya()]);
-    if (!cfg.lite) { detect(); S.set({ recheck: 0 }); }
+    detect();
+    S.set({ recheck: 0 });
   };
   return html`
     <div class="row">

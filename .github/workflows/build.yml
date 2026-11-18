@@ -23,9 +23,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Python modules of the packing tool (Zopfli)
-        run: pip install -r tools/requirements.txt
-
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -44,7 +41,6 @@ jobs:
           npm ci
           npm run build
           node --check dist/app.js
-          node --check dist/lite.js
           node tests/rules_model_test.js
 
       - name: Build the .tapp and check size budgets
@@ -118,9 +114,10 @@ jobs:
       cancel-in-progress: false
 
   # Test build, started by hand (Actions > Build > Run workflow, on any branch): publishes the
-  # full interface at https://gnatali.github.io/TasmoFlow/dev/app.js, replaced at every run, and a
-  # test .tapp (dev/TasmoFlow.tapp) that loads it without SRI pin. No release, no tag. The .tapp
-  # only has to be installed again when extension/ or the light interface changed.
+  # interface at https://gnatali.github.io/TasmoFlow/dev/app.js (and app.js.gz, the local copy),
+  # replaced at every run, and a test .tapp (dev/TasmoFlow.tapp) that loads it without SRI pin. No
+  # release, no tag. The .tapp only has to be installed again when extension/ changed (a local
+  # copy is only accepted by the .tapp of the same run).
   preview:
     if: github.event_name == 'workflow_dispatch'
     needs: build
@@ -138,9 +135,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Python modules of the packing tool (Zopfli)
-        run: pip install -r tools/requirements.txt
 
       - uses: actions/setup-node@v4
         with:

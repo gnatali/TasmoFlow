@@ -1,2 +1,0 @@
-# Python modules of tools/pack_tapp.py (pip install -r tools/requirements.txt)
-zopfli==0.4.3

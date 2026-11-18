@@ -9,8 +9,13 @@ Berry minifier no longer keeps a blank between a string and a sign (`s=""`, -234
 not enough: **Guillaume raised the budget to 42,500 B**. The `.tapp` is then 41,962 B (538 B
 left). The other options stay open.
 
-**Update, same evening (T5, T8, T11):** 42,369 B, **131 B left**: the next change in `extension/`
-or the light interface needs options 2 and 3 first.
+**Update, same evening (T5, T8, T11):** 42,369 B, **131 B left**.
+
+**Update, later the same evening: done another way.** Guillaume decided to take the light interface
+out of the `.tapp` altogether (a local copy of the whole interface, saved by the interface next to
+the `.tapp`, replaces it: `docs/architecture.en.md`, "Local copy of the interface"). The `.tapp` is
+**28,927 B** (13.6 KB left); Zopfli is dropped (it only served `lite.js.gz`). The options below
+stay for the day room is needed again; those about the light interface (4, 6, 8) no longer apply.
 
 ## What is in it
 

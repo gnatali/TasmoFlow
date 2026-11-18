@@ -15,11 +15,11 @@ confirmer sur une vraie ZB-GW03 (voir le [plan de test](#plan-de-test-sur-la-pas
 | Port | Serveur | Rôle |
 | --- | --- | --- |
 | 80 | Serveur web de Tasmota | Bouton « TasmoFlow » du menu principal, page `/tf` protégée par le mot de passe web |
-| 8384 | `tf_http.be`, serveur asynchrone Berry | API JSON, flux d'événements, interface légère ; en-têtes CORS et `Content-Encoding` ; [seulement pendant qu'une interface est ouverte](#serveur-dapi-à-la-demande) |
+| 8384 | `tf_http.be`, serveur asynchrone Berry | API JSON, flux d'événements, copie locale de l'interface ; en-têtes CORS et `Content-Encoding` ; [seulement pendant qu'une interface est ouverte](#serveur-dapi-à-la-demande) |
 
 La page `/tf` transmet à l'interface l'adresse de l'API et un jeton de 128 bits, créé au
 premier démarrage et gardé dans `persist`. Toutes les routes `/api/*` exigent ce jeton
-(paramètre `t`) ; seule `/lite.js` est publique.
+(paramètre `t`) ; seule `/local.js` (la copie locale de l'interface) est publique.
 
 ### Serveur d'API à la demande
 
@@ -68,7 +68,7 @@ Conséquences :
 - **Plusieurs passerelles** : une interface ouverte sur la passerelle A peut appeler l'API
   de la passerelle B, puisque le port 8384 envoie `Access-Control-Allow-Origin: *`. Il lui
   faut le jeton de B (voir ci-dessous).
-- **Interface légère compressée** : servie avec `Content-Encoding: gzip`, le navigateur la
+- **Copie locale compressée** : servie avec `Content-Encoding: gzip`, le navigateur la
   décompresse lui-même.
 - **Temps réel** : `/api/events` garde la connexion ouverte et pousse chaque message Zigbee
   dès sa réception, sans interrogation régulière.
@@ -94,16 +94,21 @@ L'écran **Passerelles** de l'interface (v0.1) :
 
 ## Chargement de l'interface
 
-1. Le navigateur ouvre `http://<passerelle>/tf`.
-2. La page charge `https://gnatali.github.io/TasmoFlow/vX.Y.Z/app.js` avec l'empreinte SRI
-   calculée à l'assemblage. Une page HTTP peut charger un script HTTPS.
-3. Si GitHub ne répond pas en 3 s, ou si l'empreinte ne correspond pas, la page charge
-   `http://<passerelle>:8384/lite.js`, l'**interface légère** contenue, en gzip, dans la
-   `.tapp`. Un bandeau le signale et propose de réessayer.
-4. Si les deux échouent, la page l'affiche.
+1. Le navigateur ouvre `http://<passerelle>/tf`. La page indique si la passerelle a une **copie
+   locale** de l'interface pour sa version (`copy` : 0 aucune, 1 celle de cette version, 2 celle
+   d'une autre version).
+2. Avec une copie de cette version, la page charge `http://<passerelle>:8384/local.js?v=<version>`
+   (la copie, en gzip, à côté de la `.tapp` ; sans SRI : la passerelle a contrôlé son SHA-256 à
+   l'enregistrement). La version dans l'adresse évite qu'un cache du navigateur lance la copie
+   d'une autre version.
+3. Sinon, ou si la copie ne se charge pas, elle charge
+   `https://gnatali.github.io/TasmoFlow/vX.Y.Z/app.js` avec l'empreinte SRI calculée à
+   l'assemblage. Une page HTTP peut charger un script HTTPS. Pas de délai : il ne reste rien
+   d'autre à essayer.
+4. Si cela échoue aussi (ni internet ni copie, ou empreinte fausse), la page le dit en une ligne.
+   Les pages et la console de Tasmota fonctionnent toujours.
 
-Le script se protège d'un double démarrage : la copie GitHub peut arriver après le délai,
-quand l'interface légère tourne déjà.
+Le script se protège d'un double démarrage dans une même page.
 
 ### Version de test
 
@@ -113,8 +118,10 @@ release). `pack_tapp.py --dev` donne à cette `.tapp` `DIR = "dev"` et un `SRI` 
 `/tf` ajoute `?t=<millis>` à l'adresse (jamais en cache) et aucun `integrity`. La version s'écrit
 `X.Y.Z-dev.<commit>` et l'en-tête de l'interface affiche son propre build (`TF_BUILD`, `define`
 d'esbuild). Volontairement non épinglée : pour les essais seulement, la `.tapp` des releases reste
-épinglée (voir « Pas de version libre » plus bas). Réinstaller la `.tapp` n'est utile que si `extension/` ou
-l'interface légère ont changé.
+épinglée (voir « Pas de version libre » plus bas). Réinstaller la `.tapp` n'est utile que si `extension/` a
+changé. Une copie locale n'est acceptée que par la `.tapp` du même lancement (`APP_SHA`), et une
+passerelle qui en a une continue de l'utiliser : la supprimer (Diagnostic) pour voir l'interface
+d'un nouveau lancement.
 
 ### Mise à jour de la .tapp
 
@@ -128,13 +135,15 @@ veut 45) ; la connexion HTTPS du navigateur est vérifiée et ne coûte rien à 
    `tapp`) et `vX.Y.Z/TasmoFlow.tapp` (`pack_tapp.py`) ; un build de test publie `dev/latest.json` à
    côté de `dev/TasmoFlow.tapp`. Une pièce jointe de release GitHub n'est pas lisible par le
    navigateur (pas de CORS, redirection), Pages l'est.
-2. **Détection** (la page `/tf`, `tasmoflow.be`) : le chargeur lit le manifeste de son canal (1,5 s
-   au plus, sans cache) avant d'ajouter le script GitHub. *Version publiée* : mise à jour si la
-   version du manifeste est numériquement plus récente. *Build de test* (`X.Y.Z-dev.<commit>`) :
-   mise à jour si le commit diffère (les commits ne sont pas ordonnés). Dans ce cas l'interface
-   **légère** se charge avec `window.TASMOFLOW.update = {version, size, sha256, url}` ; `/tf?u=0`
-   saute la vérification pour la visite ; un manifeste illisible ne change rien.
-3. **Place, puis transfert** (`app/src/update.js`, interface légère seulement) : d'abord
+2. **Détection** (`app/src/update.js`, `initUpdate()`, depuis le 18 novembre 2026 ; le chargeur
+   le faisait avant) : l'interface lit le manifeste de son canal (`cfg.upd`, sans cache) une fois
+   démarrée. *Version publiée* : mise à jour si la version du manifeste est numériquement plus
+   récente. *Build de test* (`X.Y.Z-dev.<commit>`) : mise à jour si le commit diffère (les commits
+   ne sont pas ordonnés). Dans ce cas un bandeau au-dessus de chaque écran propose **Mettre à
+   jour** (un clic : pas de confirmation, le bandeau dit que la passerelle redémarrera) et **Plus
+   tard** (le masque pour cette visite). Il ne s'affiche que quand la passerelle de la page est
+   affichée ; un manifeste illisible ne change rien.
+3. **Place, puis transfert** (`app/src/update.js`) : d'abord
    `/api/update_check?size=` avec la taille annoncée par `latest.json` ; si elle ne tient pas, la page
    le dit avec les tailles (nécessaire, disponible, dont l'ancienne `.bak`) et ne télécharge rien.
    Puis téléchargement de la `.tapp` sur Pages, et morceaux de 1 500 octets en base64 (2 000
@@ -160,41 +169,65 @@ veut 45) ; la connexion HTTPS du navigateur est vérifiée et ne coûte rien à 
    `/tf?w=1`) jusqu'à ce que `tasmoflow` soit la nouvelle version, puis recharge ; au bout de 120 s
    (`UPDATE_WAIT_MS`) elle dit que le redémarrage est long et renvoie à l'accueil de Tasmota.
 
-Confiance : GitHub Pages, comme pour l'interface complète ; la passerelle contrôle l'intégrité (le
-SHA-256 du manifeste), pas l'authenticité. La première mise à jour vers une version qui a cette
-fonction est manuelle.
+Confiance : GitHub Pages, comme pour l'interface ; la passerelle contrôle l'intégrité (le SHA-256
+du manifeste), pas l'authenticité. La première mise à jour vers une version qui a cette fonction
+est manuelle.
 
-### Interface complète
+### Copie locale de l'interface
 
-Décision du 9 novembre 2026 (option B de l'analyse ; elle remplace « la même copie complète aux
-deux endroits » de la v0.0) :
+Décision du 18 novembre 2026 (Guillaume), qui remplace celle du 9 novembre (plus bas) : la `.tapp`
+ne contient plus d'interface. L'interface légère faisait 14 Ko de ses 42 Ko et ne pilotait que les
+appareils ; la `.tapp` fait maintenant environ 29 Ko. Pour un navigateur sans accès à internet, la
+passerelle garde, si on le demande, une **copie locale de toute l'interface** à côté de la `.tapp`.
 
-| | Interface complète (`dist/app.js`) | Interface légère (`dist/lite.js`) |
-| --- | --- | --- |
-| Où | GitHub Pages seulement, `vX.Y.Z/`, figée par la `.tapp` avec son empreinte SRI | Dans la `.tapp` sous le nom `lite.js.gz`, servie sur le port 8384 |
-| Utilisée | Normalement | Quand le navigateur ne joint pas GitHub (pas d'internet, GitHub en panne, empreinte fausse), et pour proposer une mise à jour |
-| Contenu | Tout : appareils, règles et éditeur en phrases, événements, console, Passerelles, diagnostic, puis scènes, administration | Pilotage des appareils (Zigbee et Tuya : interrupteurs, curseurs, mesures, appairage) et mise à jour de la `.tapp`, français et anglais. Un seul écran, sans barre d'onglets |
-| Source | `app/src/main.js` | `app/src/main_lite.js` : même code, un seul écran (`boot.js`) |
-| Budget (gzip) | 120 Ko | 14 Ko |
+- **Publication** : `pack_tapp.py` compresse `app.js` en gzip (niveau 9, date fixe : le même
+  `app.js` donne toujours le même fichier) dans `vX.Y.Z/app.js.gz` (`dev/app.js.gz` pour un build
+  de test), et écrit son SHA-256 dans `tasmoflow.be` (`APP_SHA`), comme l'empreinte SRI de `app.js`.
+- **Enregistrement** (écran Diagnostic, *Copie locale de l'interface*, `CopyPanel` dans
+  `update.js`) : le navigateur télécharge `app.js.gz` sur Pages (à côté de `cfg.cdn`) et l'envoie
+  par les routes de la mise à jour avec `f=js` (`tf_update.be`) : contrôle de la place (le fichier
+  plus 20 Ko ; l'ancienne copie et un `.js.new` abandonné comptent comme disponibles),
+  `<tapp>.js.new` par morceaux, puis `update_apply?f=js` contrôle l'en-tête gzip (`1f 8b 08`) et que
+  le SHA-256 est **l'`APP_SHA` de la `.tapp` elle-même** (pas une empreinte donnée par le
+  navigateur), le renomme en `<tapp>.js` et note l'empreinte dans `persist` (`tasmoflow_js`). Pas de
+  redémarrage. Le nom finit par `.js`, jamais par `.tapp`.
+- **Utilisation** : `/tf` donne `copy` (`copy_state()` : 1 si `<tapp>.js` existe et que
+  `persist.tasmoflow_js` vaut `APP_SHA`, 2 s'il existe avec une autre empreinte, sinon 0) et le
+  chargeur charge `/local.js` en premier (envoyé par blocs de 1 Ko, comme tout fichier).
+  `/api/status` donne aussi `copy`.
+- **Après une mise à jour de la `.tapp`** : la nouvelle `.tapp` a un autre `APP_SHA`, la copie est
+  donc celle d'une autre version (2) : jamais chargée ; la page charge GitHub et, sauf si une autre
+  mise à jour est proposée, enregistre d'elle-même la copie de cette version (`initUpdate()`).
+- **Suppression** : *Supprimer la copie* (`/api/update_drop`) efface `<tapp>.js` et `.js.new` et
+  vide `persist.tasmoflow_js`.
+- **Place** : environ 36 Ko des 320 Ko du système de fichiers (`UfsFree` 248 Ko le 18 novembre
+  2026), contre environ 28 Ko gagnés par la `.tapp` plus petite et sa `.bak`.
+- **Sans internet et sans copie** (première ouverture, copie supprimée, place insuffisante), il n'y
+  a plus aucune interface TasmoFlow, seulement une ligne sur la page : le coût accepté de la
+  décision. Les règles continuent de tourner sur la passerelle ; les pages de Tasmota restent le
+  dernier recours.
 
-**Décision du 11 novembre 2026** (Guillaume) : la `.tapp` doit faire la moitié de sa taille en
-v0.2.0 (83 069 octets) : l'interface légère ne garde que le **pilotage des appareils et la mise à
-jour** ; tout le reste (règles, console, diagnostic, événements, plusieurs passerelles) n'est que
-dans l'interface complète. Cela remplace les règles de l'interface légère ajoutées en v0.2
-(activer, désactiver, restaurer). Sans GitHub, les règles continuent de tourner sur la passerelle
-et les pages de Tasmota restent disponibles (console, `Rule<n>`).
+### Avant le 18 novembre 2026 : une interface légère dans la .tapp
 
-Comment le paquet léger reste petit, avec les mêmes sources :
+Décision du 9 novembre 2026 (remplacée, voir plus haut) : l'interface complète sur GitHub Pages
+seulement, une **légère** (`app/src/main_lite.js`, mêmes sources, un seul écran) gardée en gzip
+dans la `.tapp` sous `lite.js.gz` et servie quand GitHub était injoignable, ou pour proposer une
+mise à jour. Le 11 novembre 2026, Guillaume a demandé une `.tapp` de la moitié de sa taille en
+v0.2.0 (83 069 octets) : l'interface légère ne gardait que le pilotage des appareils et la mise à
+jour. Les raisons d'alors (système de fichiers juste : `UfsFree` 148 Ko sur 320 Ko le 9 novembre
+2026 ; GitHub pas point de défaillance unique pour piloter la passerelle) ont cédé devant la taille
+de la `.tapp` : 13,9 Ko de ses 42,4 Ko, avec 131 octets de marge dans son budget.
 
-- `main_lite.js` n'importe que `views.js` (appareils), `tuya.js` et `update.js` ; les écrans de
-  l'interface complète sont dans leurs propres modules (`rules*.js`, `gateways.js`,
-  `tuya_colour.js`, `views_full.js`), avec leurs textes (`i18n_full.js`, ajoutés par `addTexts()`) et leurs styles
-  (`style_full.css`). Ce qu'un écran charge à son ouverture est enregistré par `main.js`
-  (`onTab()`), de même que le choix de la passerelle dans l'en-tête.
-- Pas de `preact/hooks` dans le paquet léger : les magasins d'état (`store.js`) n'ont plus de
-  `use()` ; après chaque `set()` l'interface se redessine depuis sa racine (`boot.js`, une fois par
-  tâche) et Preact ne change que ce qui diffère. Les écrans propres à l'interface complète
-  gardent les hooks pour leur état local.
+Ce qui reste de cette décision :
+
+- **Pas de version libre** : l'interface venue de GitHub reste figée à la version installée avec
+  son empreinte SRI, et la copie locale à son SHA-256. Une interface non figée exécuterait ce que
+  GitHub sert, dans un navigateur qui détient le jeton et le contrôle total de Tasmota. La mettre à
+  jour demande une nouvelle `.tapp`, ce que fait le bouton de mise à jour (voir [Mise à jour de la
+  .tapp](#mise-à-jour-de-la-tapp)).
+- L'interface ne peut pas passer sur `https://gnatali.github.io` pour gérer les passerelles depuis
+  un seul endroit : une page HTTPS qui appelle `http://<passerelle>` est bloquée (contenu mixte,
+  Private Network Access). Elle doit rester chargée par la page HTTP de la passerelle.
 - Les fichiers Berry sont **minifiés** par `pack_tapp.py` (`minify_berry()`), dans une `.tapp` de
   release comme de test (`--dev`) ; le budget de taille ne vaut que pour la release, que la CI
   assemble à chaque commit (un build de test peut le dépasser). Minifiés : sans commentaires,
@@ -203,51 +236,26 @@ Comment le paquet léger reste petit, avec les mêmes sources :
   et passe `tests/tf_http_test.be` sur le `tf_http.be` minifié. Les sources commentées restent dans
   `extension/` ; un numéro de ligne dans un message d'erreur de la passerelle désigne le fichier
   minifié.
+- Les magasins d'état (`store.js`) n'ont pas de `use()` : après chaque `set()` l'interface se
+  redessine depuis sa racine (`boot.js`, une fois par tâche) et Preact ne change que ce qui diffère.
 
-| Taille (octets) | v0.2.0 | 12 novembre 2026 |
-| --- | --- | --- |
-| `tasmoflow.be` | 19 516 | 10 741 |
-| `tf_http.be` | 25 710 | 7 421 |
-| `tf_rules.be` | 9 095 | 4 330 |
-| `tf_update.be` | 6 384 | 3 803 |
-| `lite.js.gz` | 21 086 | 13 630 |
-| **`TasmoFlow.tapp`** | **83 069** | **40 920** (-51 % ; budget 41 534) |
+| Taille (octets) | v0.2.0 | 12 novembre 2026 | 18 novembre 2026 (sans interface) |
+| --- | --- | --- | --- |
+| `tasmoflow.be` | 19 516 | 10 741 | 11 536 |
+| `tf_http.be` | 25 710 | 7 421 | 7 659 |
+| `tf_rules.be` | 9 095 | 4 330 | 4 277 |
+| `tf_update.be` | 6 384 | 3 803 | 4 556 |
+| `lite.js.gz` | 21 086 | 13 630 | aucune |
+| **`TasmoFlow.tapp`** | **83 069** | **40 920** | **28 927** (budget 42 500) |
 
-Jamais dans l'interface légère : règles, éditeur de phrases, groupes, scènes, plugins Zigbee,
-administration (OTA), console, diagnostic, plusieurs passerelles.
-
-Pourquoi :
-
-- C'est le **navigateur**, pas la passerelle, qui a besoin d'internet pour charger l'interface
-  complète. Les règles et automatisations tournent sur la passerelle : sans internet rien ne
-  s'arrête, seule l'édition est indisponible. Les pages de Tasmota restent le dernier recours
-  (liste Zigbee, console, `/tuya`, Matter).
-- **Système de fichiers** : `UfsFree` valait 148 Ko sur 320 Ko (9 novembre 2026), et l'interface
-  complète va grossir (éditeur de règles et de phrases, scènes, administration). Une copie
-  complète locale mangerait la place dont ont besoin les copies de règles (avant chaque
-  écriture), `tuya.json.bak` et les imports.
-- **Pas de version libre** : l'interface complète reste figée à la version installée avec son
-  empreinte SRI. Une interface non figée exécuterait ce que GitHub sert, dans un navigateur qui
-  détient le jeton et le contrôle total de Tasmota. La mettre à jour demande une nouvelle
-  `.tapp`, ce que fait maintenant le bouton de mise à jour (voir [Mise à jour de la
-  .tapp](#mise-à-jour-de-la-tapp)).
-- **Gardé en local, léger** : GitHub (compte, Pages, dépôt) ne doit pas être un point de
-  défaillance unique pour piloter la passerelle.
-- L'interface légère est un autre point d'entrée des mêmes sources : pas de seconde base de
-  code, même client d'API, même modèle Tuya, mêmes textes (13,6 Ko gzip contre 26,4 Ko pour la
-  complète).
-- L'interface complète ne peut pas passer sur `https://gnatali.github.io` pour gérer les
-  passerelles depuis un seul endroit : une page HTTPS qui appelle `http://<passerelle>` est
-  bloquée (contenu mixte, Private Network Access). Elle doit rester chargée par la page HTTP de
-  la passerelle.
-- Qui ne veut aucun GitHub (`pack_tapp.py --cdn ''`) n'a que l'interface légère, donc
-  seulement le pilotage des appareils.
+Qui ne veut aucun GitHub (`pack_tapp.py --cdn ''`) n'a plus aucun moyen d'obtenir l'interface (la
+copie se télécharge sur GitHub Pages) : l'option ne reste que pour les essais.
 
 ## API du port 8384
 
 | Route | Réponse |
 | --- | --- |
-| `GET /lite.js` | Interface légère (gzip), envoyée par blocs de 1 Ko |
+| `GET /local.js?v=` | La copie locale de l'interface (`<tapp>.js`, gzip), envoyée par blocs de 1 Ko ; 404 sans elle |
 | `GET /api/status?t=` | Versions, mémoire libre, système de fichiers, état de Zigbee (`zigbee`, et `zigbee_state` : `absent`, `starting` ou `running`), nombre d'appareils |
 | `GET /api/devices?t=` | Appareils Zigbee : adresse, nom, modèle, fabricant, LQI, batterie, dernier message, derniers attributs |
 | `POST /api/cmd?t=` | Exécute la commande Tasmota du corps et renvoie sa réponse JSON (`GET /api/cmd?t=&c=` marche encore pour une commande courte) |
@@ -255,10 +263,12 @@ Pourquoi :
 | `POST /api/rule_set?t=&n=` | Envoie le nouveau texte du jeu `n` (corps de la requête) |
 | `GET /api/rule_apply?t=&n=&step=` | L'applique en trois requêtes : `bak` (copie du texte actuel), `put` (`Rule<n>`), `check` (relecture) ; en cas d'échec l'interface appelle `rule_restore` |
 | `GET /api/autoexec?t=` | `/autoexec.be` en texte, en lecture seule, 6 000 octets au plus (`{"exists":false}` sans lui). Le seul fichier que l'API lit : les autres (`tuya.json`…) contiennent des clés |
-| `GET /api/update_check?t=&size=` | Place pour une `.tapp` de `size` octets : `{free, tapp, bak, stale, need, room}` en octets (voir [Mise à jour de la .tapp](#mise-à-jour-de-la-tapp)) |
+| `GET /api/update_check?t=&size=` | Place pour une `.tapp` de `size` octets : `{free, tapp, bak, js, stale, need, room}` en octets (voir [Mise à jour de la .tapp](#mise-à-jour-de-la-tapp)) |
 | `POST /api/update?t=&off=&size=` | Un morceau (base64, corps de la requête) de la nouvelle `.tapp`, écrit dans `<tapp>.new` |
 | `GET /api/update_apply?t=&size=&sha256=` | Contrôle `<tapp>.new`, l'installe (`<tapp>.bak` gardé), redémarre |
 | `GET /api/update_abort?t=` | Supprime `<tapp>.new` |
+| les quatre mêmes avec `&f=js` | La copie locale de l'interface : `<tapp>.js.new`, contrôlée avec `APP_SHA` et renommée `<tapp>.js`, sans redémarrage (voir [Copie locale](#copie-locale-de-linterface)) |
+| `GET /api/update_drop?t=` | Supprime la copie locale |
 | `GET /api/rule_restore?t=&n=` | Remet la copie précédente du jeu `n` |
 | `GET /api/events?t=&since=` | Flux SSE ; renvoie d'abord les événements gardés après `since` (50 au plus) |
 
@@ -449,8 +459,7 @@ Les contrôles viennent des liaisons Matter de `tuya.json` (`controlsFor` dans
 brute. L'état affiché est celui que l'appareil renvoie (pas d'affichage optimiste).
 
 **Panneau `light3`** (interface complète seulement, `app/src/tuya_colour.js`, branché sur les cartes par
-`EXTRA.refine` de `tuya.js` ; l'interface légère ne l'embarque pas, pour garder sa taille, et garde
-l'interrupteur et le curseur de luminosité blanche), présenté comme l'application Tuya. **Onglets Blanc /
+`EXTRA.refine` de `tuya.js`), présenté comme l'application Tuya. **Onglets Blanc /
 Couleur** : ils suivent le mode que l'appareil signale (`dp_mode`, 21 : `white` ou `colour` ; pas
 d'affichage optimiste) ; un onglet envoie le mode (`TuyaSend <appareil>,21,white|colour`) ; un autre
 mode (scène, musique) ou aucun connu ne sélectionne aucun onglet et montre le contenu blanc. **Blanc** :
@@ -471,8 +480,7 @@ Pas proposés : scènes (`scene_data_v2`, DP 25), minuteries, ne pas déranger, 
 (teinte, saturation, luminosité, température) reste affichée jusqu'à ce que l'appareil la signale, 3 s au
 plus, pour que l'ancienne valeur ne revienne pas entre la commande et l'événement de l'appareil (un par
 DP, un instant plus tard) ; un événement plus ancien d'une autre valeur ne casse pas la tenue. Après 3 s,
-l'état réel s'affiche de nouveau. Les onglets de mode et les curseurs de l'interface légère montrent
-toujours l'état de l'appareil seul. Tant que la lampe est éteinte (DP d'interrupteur, 20, à faux) ou
+l'état réel s'affiche de nouveau. Les onglets de mode montrent toujours l'état de l'appareil seul. Tant que la lampe est éteinte (DP d'interrupteur, 20, à faux) ou
 l'appareil déconnecté, le panneau (onglets, roue, arc, curseurs) est masqué et seul le bouton
 d'alimentation de la carte reste ; un état d'interrupteur inconnu laisse le panneau visible.
 
@@ -481,11 +489,10 @@ seul panneau avec un **cadran en arc ouvert** pour la température de couleur (`
 affiché en % : 270 degrés ouverts en bas, chaud en bas à gauche, froid en bas à droite, anneau dégradé,
 repère ; un clic dans l'ouverture va à l'extrémité la plus proche ; les flèches le déplacent de 5 % ;
 envoyé au relâchement comme la roue de teinte) et le curseur de luminosité (`dp_bri`) dessous, sans
-onglets ni roue de teinte. Une `light3` avec `dp_ct` montre le même cadran dans son onglet Blanc ;
-l'interface légère garde des curseurs simples. Un changement quand la lampe est
+onglets ni roue de teinte. Une `light3` avec `dp_ct` montre le même cadran dans son onglet Blanc. Un changement quand la lampe est
 dans un autre mode (scène, musique) envoie d'abord `white` sur `dp_mode`. Les curseurs de luminosité
 vont de 1 % à 100 % (brut `bri_min` 10 à `bri_max` 1000), comme l'application Tuya, jamais 0 % : le
-variateur de l'interface légère suit la même règle.
+variateur des cartes suit la même règle.
 
 **Noms avec une virgule** : `TuyaSend` coupe son argument aux deux premières virgules
 (`string.split(payload, ",", 2)` dans le pilote), un tel nom ne peut donc pas être donné. Le pilote
@@ -517,16 +524,12 @@ le booléen `zigbee`, lu comme running ou starting). Tuya vient de `TuyaEnable` 
 
 Un pilote qui n'est pas `running` a ses fonctions désactivées (appairage, ses appareils, les
 sélecteurs de l'éditeur de phrases) et l'écran Appareils dit pourquoi (`DriverNote`, `views.js`).
-Un pilote `absent` n'est simplement pas affiché. Les deux interfaces diffèrent :
-
-- **Complète** : tant qu'un pilote est `starting`, `drivers_full.js` le relit toutes les 5 secondes
+Un pilote `absent` n'est simplement pas affiché. Tant qu'un pilote est `starting`, `drivers_full.js` le relit toutes les 5 secondes
   (seulement ce qui démarre : l'état pour Zigbee, `TuyaEnable` pour Tuya, jamais `TuyaConfig`),
   charge les appareils quand Zigbee démarre et active les fonctions sans clic. Elle abandonne au
   bout de 2 minutes (un Zigbee qui ne démarre jamais) et propose « Réessayer ». Un pilote
-  `disabled` n'est pas relu ; « Actualiser » relit tout.
-- **Légère** : l'état lu à l'ouverture est gardé ; quelle que soit la raison (`starting` ou
-  `disabled`), les fonctions sont désactivées et la page demande à être rechargée. Rien n'est relu,
-  le lot léger ne porte aucune boucle (budget).
+  `disabled` n'est pas relu ; « Actualiser » relit tout. (L'interface légère, jusqu'au
+  18 novembre 2026, demandait seulement de recharger la page.)
 
 ### Mémoire
 
@@ -611,7 +614,7 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   le formulaire dans une **fenêtre par-dessus la page** (`<dialog>` natif : Échap et le fond la
   ferment, le bouton *Terminé* reste visible sur téléphone), et non sur place ; deux tuiles en
   pointillés ajoutent une règle : une règle **guidée** (ci-dessous) ou une règle **libre** (le formulaire).
-- **Texte non enregistré et options** (12 novembre 2026) : allumé/éteint, *une seule fois* et *arrêt sur erreur* agissent aussitôt sur la passerelle, puis la carte est reconstruite d'après ce qu'elle contient, ce qui faisait perdre un texte non enregistré (une nouvelle règle comprise). Avec un tel texte, l'interface propose maintenant de l'enregistrer d'abord (puis applique l'option) ; en cas de refus, rien ne se passe et la case est remise comme elle était ; si le texte est invalide (ou trop long), elle le dit et ne fait rien. La même question (qui nomme le jeu de règles, un par un) précède tout ce qui ferait perdre le texte : fermer la section du jeu de règles, changer d'écran ou de passerelle (`guardLeave()` dans `state.js`, que l'écran Règles enregistre tant qu'il est affiché ; un refus ou un texte invalide laisse l'écran tel quel, et le sélecteur de passerelle est redessiné avec la bonne valeur), et fermer ou recharger la page (la question propre au navigateur, `beforeunload`). Le garde est dans `state.js`, que l'interface légère partage : une modification ici demande de réinstaller le `.tapp`.
+- **Texte non enregistré et options** (12 novembre 2026) : allumé/éteint, *une seule fois* et *arrêt sur erreur* agissent aussitôt sur la passerelle, puis la carte est reconstruite d'après ce qu'elle contient, ce qui faisait perdre un texte non enregistré (une nouvelle règle comprise). Avec un tel texte, l'interface propose maintenant de l'enregistrer d'abord (puis applique l'option) ; en cas de refus, rien ne se passe et la case est remise comme elle était ; si le texte est invalide (ou trop long), elle le dit et ne fait rien. La même question (qui nomme le jeu de règles, un par un) précède tout ce qui ferait perdre le texte : fermer la section du jeu de règles, changer d'écran ou de passerelle (`guardLeave()` dans `state.js`, que l'écran Règles enregistre tant qu'il est affiché ; un refus ou un texte invalide laisse l'écran tel quel, et le sélecteur de passerelle est redessiné avec la bonne valeur), et fermer ou recharger la page (la question propre au navigateur, `beforeunload`). Le garde est dans `state.js`.
 - **Éditeur en phrases** (v0.2 étape 2, écrit ; la vue **Phrases** d'un jeu de règles, interface
   complète seulement : `rules_model.js`, `rules_editor.js`, enregistré par `main.js` pour que
   l'interface légère ne le contienne pas ; rien ne change sur la passerelle). Un bloc
@@ -734,7 +737,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] `http://<passerelle>/tf` tapé dans la barre d'adresse (sans passer par le bouton) ouvre l'interface
 - [x] Sans accès Internet, `/tf` charge la copie locale (onglet Diagnostic : « local ») ; depuis la v0.1 cette copie est l'interface légère (bandeau, en-tête « · lite »), à revérifier
 - [x] `open(tasmota.wd + "app.js.gz", "rb")` lit bien le fichier dans la `.tapp`, et le navigateur décompresse la copie locale (`lite.js.gz` depuis la v0.1)
-- [ ] v0.1 : navigateur hors ligne (ou `gnatali.github.io` bloqué), `/tf` affiche l'interface légère : les appareils avec leurs bascules, la console et le diagnostic fonctionnent, les onglets Passerelles et Événements sont absents, « Réessayer » charge l'interface complète dès que GitHub répond (la console et le diagnostic ont quitté l'interface légère le 11 novembre 2026 : voir le point suivant)
+- [ ] (Obsolète depuis le 18 novembre 2026 : plus d'interface légère, voir le point de la copie locale plus bas.) v0.1 : navigateur hors ligne (ou `gnatali.github.io` bloqué), `/tf` affiche l'interface légère : les appareils avec leurs bascules, la console et le diagnostic fonctionnent, les onglets Passerelles et Événements sont absents, « Réessayer » charge l'interface complète dès que GitHub répond (la console et le diagnostic ont quitté l'interface légère le 11 novembre 2026 : voir le point suivant)
 - [ ] v0.2, `.tapp` réduite (11 novembre 2026, build de test, `.tapp` réinstallée, `Restart 1`) : la `.tapp` fait environ 40 Ko ; le journal de démarrage affiche `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` (le Berry minifié se charge) ; GitHub bloqué, `/tf` n'affiche que les appareils, sans barre d'onglets : une bascule Zigbee, « Appairer », un interrupteur et un curseur Tuya fonctionnent et leur état revient, le bouton de langue fonctionne, « Réessayer » charge l'interface complète dès que GitHub répond ; GitHub joignable, l'interface complète marche comme avant (Règles : enregistrer et restaurer, règles Berry, `autoexec.be` ; console ; diagnostic ; passerelles) ; une mise à jour depuis l'interface légère fonctionne toujours ; mémoire au repos et interface ouverte inchangée ou plus basse (12 novembre 2026 : fonctionne sur la passerelle, Guillaume)
 - [x] v0.2, place pour la mise à jour (12 novembre 2026, vérifié sur la passerelle par Guillaume, la `.tapp` avec `/api/update_check` installée une fois à la main) : avec assez d'espace libre la mise à jour passe et l'ancienne `TasmoFlow.tapp.bak` reste jusqu'au contrôle du nouveau fichier ; avec peu d'espace libre mais une `.bak`, la `.bak` est supprimée et la mise à jour passe ; avec trop peu de place même sans la `.bak`, le bandeau le dit avec les tailles (nécessaire, disponible) avant tout téléchargement, et rien ne change
 - [x] La liste des appareils correspond à `ZbStatus1`
@@ -775,5 +778,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] v0.2, configuration Tuya appareil par appareil (18 novembre 2026, firmware du même jour flashé, `.tapp` réinstallée) : les cartes Tuya montrent leurs commandes (variateur, couleur, vitesse...), sous-appareils de la passerelle Tuya compris ; le journal de la passerelle montre des commandes `TuyaConfig <nom>` et aucun `TuyaConfig` seul ; avec moins de 30 Ko libres les commandes sont toujours là (pas de note « mémoire insuffisante »)
 - [x] v0.2, robustesse (18 novembre 2026, bugs T2 à T4, `.tapp` réinstallée ; vérifié par Guillaume le même jour : 67 Ko libres au repos, 54 Ko avec l'interface complète ouverte, 13 Ko des 15 Ko du budget) : l'interface s'ouvre comme avant et la mémoire `Status 4`, après `Br tasmota.gc()`, au repos et avec une interface ouverte est inchangée ou plus basse ; la liste des appareils est complète (même nombre que `ZbStatus1`) ; avec une interface ouverte sur un téléphone, couper son Wi-Fi 5 minutes pendant que des appareils envoient des événements : la mémoire ne baisse pas (le flux est fermé dès que 6 Ko attendent), et la page suit de nouveau à son retour ; « Actualiser » ne relance plus `TuyaConfig` (niveau de log 3)
 - [x] v0.2, redémarrage de la passerelle avec une page ouverte (18 novembre 2026, bug T1, `.tapp` réinstallée) : ouvrir `/tf` (interface complète et légère), l'utiliser quelques minutes pour que des événements arrivent, puis `Restart 1` depuis la console Tasmota ; le badge passe à « reconnexion… », puis revient à « en direct » ; juste après, un appui sur un bouton Zigbee et un changement Tuya (bouton, Smart Life) apparaissent sur les cartes (et dans l'onglet Événements de l'interface complète) en moins de 2 s, sans recharger la page
-- [ ] v0.2, connexion Tuya, cache de l'interface légère, erreurs Zigbee (18 novembre 2026, bugs T5, T8, T11, `.tapp` réinstallée) : écran Appareils ouvert, couper un appareil Tuya au mur : sa carte indique « déconnecté » et ses commandes sont grisées en quelques secondes (le pilote remarque la perte), puis de nouveau « connecté » à son retour, sans « Actualiser » (une passerelle Tuya : ses sous-appareils la suivent) ; l'interface légère est demandée en `/lite.js?v=<version>` (onglet réseau du navigateur) ; « Basculer » sur un appareil Zigbee qui ne répond pas, ou « Appairer » quand Zigbee le refuse, affiche la réponse de Tasmota sous la carte ou le bouton
+- [ ] v0.2, connexion Tuya, erreurs Zigbee (18 novembre 2026, bugs T5, T11, `.tapp` réinstallée) : écran Appareils ouvert, couper un appareil Tuya au mur : sa carte indique « déconnecté » et ses commandes sont grisées en quelques secondes (le pilote remarque la perte), puis de nouveau « connecté » à son retour, sans « Actualiser » (une passerelle Tuya : ses sous-appareils la suivent) ; « Basculer » sur un appareil Zigbee qui ne répond pas, ou « Appairer » quand Zigbee le refuse, affiche la réponse de Tasmota sous la carte ou le bouton (T8, le cache de l'interface légère, est parti avec elle)
+- [ ] v0.2, pas d'interface dans la `.tapp`, copie locale (18 novembre 2026, `.tapp` réinstallée à la main, `Restart 1`) : la `.tapp` fait environ 29 Ko ; `/tf` charge l'interface depuis GitHub (Diagnostic : source `github`), et l'écran Diagnostic indique « Aucune copie » ; **Enregistrer une copie locale** : la barre de progression avance, puis « La passerelle a une copie de cette version », `TasmoFlow.tapp.js` (environ 36 Ko) est à côté de `TasmoFlow.tapp`, et le journal montre `TFL: local copy of the interface saved` ; recharger : source `local` ; navigateur hors ligne (ou `gnatali.github.io` bloqué) : `/tf` ouvre toujours toute l'interface (Règles, Événements, Console...) et les appareils répondent ; **Supprimer la copie** : « Aucune copie », le fichier a disparu, et hors ligne `/tf` n'affiche que la ligne « GitHub cannot be reached and this gateway has no local copy » ; mémoire au repos et interface ouverte (après `Br tasmota.gc()`) inchangée (13 Ko interface ouverte le 18 novembre 2026)
+- [ ] v0.2, mise à jour avec une copie locale (au build de test suivant le point ci-dessus) : le bandeau propose la mise à jour au-dessus de chaque écran, **Mettre à jour** l'installe sans confirmation et la page revient sur le nouveau build ; l'ancienne copie n'est pas chargée (source `github`), et en quelques secondes Diagnostic indique de nouveau « La passerelle a une copie de cette version » (enregistrée d'elle-même) ; **Plus tard** masque le bandeau
 - [x] v0.1 : ce qui reste alloué après la première ouverture (6 Ko de mémoire libre, 4 Ko de Berry) : pas poursuivi, abandonné à la demande de Guillaume (12 novembre 2026)

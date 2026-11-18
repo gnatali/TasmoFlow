@@ -37,10 +37,9 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     // gateways one version behind: the /tf page checks the update manifest of its channel
     mock(['--web', '8082', '--api', '8386', '--cdn', CDN, '--sri', SRI, '--version', '0.0.9', '--upd', UPD]),
     mock(['--web', '8083', '--api', '8387', '--cdn', CDN, '--sri', SRI, '--version', '0.1.0-dev.aaaaaaa', '--upd', DEVUPD]),
-    // drivers: Zigbee then Tuya starting (delays counted from the first request), Tuya disabled, Zigbee never up
+    // drivers: Zigbee then Tuya starting (delays counted from the first request), Tuya disabled
     mock(['--web', '8084', '--api', '8388', '--cdn', CDN, '--sri', SRI, '--zb-delay', '3', '--tuya-delay', '7']),
     mock(['--web', '8085', '--api', '8389', '--cdn', CDN, '--sri', SRI, '--tuya-disabled']),
-    mock(['--web', '8086', '--api', '8390', '--cdn', CDN, '--sri', SRI, '--zb-delay', '3600', '--tuya-disabled']),
     // restarted while a page is open (its event counter starts again at 1)
     mock(['--web', '8087', '--api', '8391', '--cdn', CDN, '--sri', SRI])];
   await wait(1000);
@@ -93,20 +92,17 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     if (got !== s) throw new Error(`source ${got}, expected ${s}`);
   }
 
-  await test('no GitHub: light local copy (device control only: Zigbee and Tuya, no other screen)', async p => {
-    await p.route(CDN, r => r.abort());
-    // the light interface's address carries the version: an update never runs a cached old copy
-    const liteReq = p.waitForRequest(r => r.url().includes('/lite.js'));
+  await test('no GitHub, a local copy: the whole interface works offline (Zigbee, Tuya, every screen)', async p => {
+    await fetch('http://localhost:8384/__test/reset?copy=1');
+    let github = 0;
+    await p.route(CDN, r => { github++; r.abort(); });
+    // the copy's address carries the version: a browser cache never runs another version's
+    const localReq = p.waitForRequest(r => r.url().includes('/local.js'));
     await p.goto('http://localhost:8080/tf');
-    if (!(await liteReq).url().endsWith('/lite.js?v=' + encodeURIComponent(VERSION))) throw new Error('lite.js without its version');
+    if (!(await localReq).url().endsWith('/local.js?v=' + encodeURIComponent(VERSION))) throw new Error('local.js without its version');
     await expectSource(p, 'local');
-    await p.getByRole('status').filter({ hasText: 'Version légère' }).waitFor({ timeout: 2000 });
-    await p.getByRole('button', { name: 'Réessayer' }).waitFor();
-    // a single screen: no tab bar, and none of the full interface's screens
-    if (await p.locator('nav').count()) throw new Error('tab bar in the light interface');
-    for (const n of ['Règles', 'Événements', 'Console', 'Passerelles', 'Diagnostic']) {
-      if (await p.getByRole('button', { name: n, exact: true }).count()) throw new Error(`${n} tab in the light interface`);
-    }
+    if (github) throw new Error('GitHub asked although the local copy is there');
+    for (const n of ['Règles', 'Événements', 'Console', 'Passerelles', 'Diagnostic']) await p.getByRole('button', { name: n, exact: true }).waitFor();
     await p.getByRole('button', { name: /^Appairer/ }).waitFor();
     // Zigbee: the toggle's new state comes back through the event stream
     const lamp = () => p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe salon' }) });
@@ -144,35 +140,85 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await tv.getByRole('button', { name: 'TV · allumé' }).waitFor({ timeout: 4000 });
     await tv.getByRole('button', { name: 'TV · allumé' }).click();
     await tv.getByRole('button', { name: 'TV · éteint' }).waitFor({ timeout: 4000 });
-    if (await p.locator('input[type=color]').count()) throw new Error('colour picker in the light interface');
-    await p.getByText(`v${VERSION} · local · lite`).waitFor();
+    await p.getByText(`v${VERSION} · local`).waitFor();
     await p.getByRole('button', { name: 'English' }).click();
     await p.getByRole('button', { name: 'Toggle' }).first().waitFor({ timeout: 2000 });
-    if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'lite.png') });
+    if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'local.png') });
+    await fetch('http://localhost:8384/__test/reset');
   });
   await test('valid GitHub copy', async p => {
     await p.route(CDN, r => r.fulfill(jsBody(APP)));
     await p.goto('http://localhost:8081/tf');
     await expectSource(p, 'github');
   });
-  await test('wrong SRI hash: local copy', async p => {
+  const noCopy = () => /no local copy of the interface/.test(document.body.textContent);
+  await test('wrong SRI hash, no local copy: message', async p => {
     await p.route(CDN, r => r.fulfill(jsBody(Buffer.concat([APP, Buffer.from('\n//x')]))));
     await p.goto('http://localhost:8081/tf');
-    await expectSource(p, 'local');
+    await p.waitForFunction(noCopy, null, { timeout: 4000 });
   });
-  await test('slow GitHub (5 s): local copy after 3 s, a single interface', async p => {
+  await test('slow GitHub (5 s), no local copy: waited for, a single interface', async p => {
     await p.route(CDN, async r => { await wait(5000); try { await r.fulfill(jsBody(APP)); } catch (e) {} });
     await p.goto('http://localhost:8081/tf');
-    await expectSource(p, 'local');
-    await wait(2500);
+    await p.waitForSelector('article.card >> nth=2', { timeout: 10000 });
+    if (await src(p) !== 'github') throw new Error('source ' + await src(p));
     const n = await p.locator('header').count();
     if (n !== 1) throw new Error(`${n} interfaces`);
   });
-  await test('GitHub and local copy missing: message', async p => {
+  await test('GitHub unreachable, no local copy: message', async p => {
     await p.route(CDN, r => r.abort());
-    await p.route('http://localhost:8385/lite.js?*', r => r.abort());
     await p.goto('http://localhost:8081/tf');
-    await p.waitForFunction(() => /not found/.test(document.body.textContent), null, { timeout: 4000 });
+    await p.waitForFunction(noCopy, null, { timeout: 4000 });
+  });
+  await test('local copy file gone: GitHub instead', async p => {
+    await fetch('http://localhost:8384/__test/reset?copy=1');
+    await p.route('http://localhost:8384/local.js?*', r => r.fulfill({ status: 404, body: 'no local copy' }));
+    await openFull(p);
+    await fetch('http://localhost:8384/__test/reset');
+  });
+  // ---- local copy, saved by the interface (Diagnostics screen)
+  const GZ = fs.readFileSync(path.join(ROOT, 'dist', 'pages', `v${VERSION}`, 'app.js.gz'));
+  const gzRoute = (p, body = GZ) => p.route(CDN + '.gz', r => r.fulfill({ body, contentType: 'application/gzip', headers: { 'access-control-allow-origin': '*' } }));
+  const copyOf = async api => (await (await fetch(`http://localhost:${api}/api/status?t=0123456789abcdef0123456789abcdef`)).json()).copy;
+  await test('local copy: saved from Diagnostics, then loaded first, then deleted', async p => {
+    await fetch('http://localhost:8384/__test/reset');
+    await gzRoute(p);
+    await openFull(p);
+    await p.getByRole('button', { name: 'Diagnostic', exact: true }).click();
+    const panel = p.getByRole('region', { name: "Copie locale de l'interface" });
+    await panel.getByText(/Aucune copie/).waitFor();
+    await panel.getByRole('button', { name: 'Enregistrer une copie locale' }).click();
+    await panel.getByText(/La passerelle a une copie de cette version/).waitFor({ timeout: 10000 });
+    if (await copyOf(8384) !== 1) throw new Error('copy not recorded');
+    // next opening: the copy, GitHub not asked
+    const q = await p.context().newPage();
+    let github = 0;
+    await q.route(CDN, r => { github++; r.abort(); });
+    await q.goto('http://localhost:8080/tf');
+    await expectSource(q, 'local');
+    if (github) throw new Error('GitHub asked');
+    await q.close();
+    await panel.getByRole('button', { name: 'Supprimer la copie' }).click();
+    await panel.getByText(/Aucune copie/).waitFor({ timeout: 4000 });
+    if (await copyOf(8384) !== 0) throw new Error('copy still there');
+  });
+  await test('local copy: a file that is not this version is refused by the gateway', async p => {
+    await fetch('http://localhost:8384/__test/reset');
+    await gzRoute(p, require('zlib').gzipSync(Buffer.concat([APP, Buffer.from('\n//other')])));
+    await openFull(p);
+    await p.getByRole('button', { name: 'Diagnostic', exact: true }).click();
+    const panel = p.getByRole('region', { name: "Copie locale de l'interface" });
+    await panel.getByRole('button', { name: 'Enregistrer une copie locale' }).click();
+    await panel.getByRole('alert').filter({ hasText: "n'est pas celle de la version installée" }).waitFor({ timeout: 10000 });
+    if (await copyOf(8384) !== 0) throw new Error('a wrong copy was kept');
+  });
+  await test("local copy of another version: GitHub is loaded and this version's copy is saved by itself", async p => {
+    await fetch('http://localhost:8384/__test/reset?copy=2');
+    await gzRoute(p);
+    await openFull(p);
+    for (let i = 0; i < 40 && await copyOf(8384) !== 1; i++) await wait(250);
+    if (await copyOf(8384) !== 1) throw new Error('copy not saved again');
+    await fetch('http://localhost:8384/__test/reset');
   });
   await test('walkthrough: toggle, events, console, diagnostics, English', async p => {
     await openFull(p);
@@ -563,39 +609,49 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
   const manifest = (p, url, m) => p.route(url, r => r.fulfill({ json: m, headers: { 'access-control-allow-origin': '*' } }));
   const tappRoute = p => p.route(TAPP_URL, r => r.fulfill({ body: TAPP, contentType: 'application/octet-stream', headers: { 'access-control-allow-origin': '*' } }));
   const latest = (extra = {}) => ({ version: VERSION, size: TAPP.length, sha256: TAPP_SHA, tapp: `v${VERSION}/TasmoFlow.tapp`, ...extra });
-  await test('update: a newer version puts the light interface up with a button; "Later" opens the GitHub one', async p => {
+  await test('update: a newer version shows a banner with a button over every screen; "Later" hides it', async p => {
     await reset(8386, '0.0.9');
     await p.route(CDN, r => r.fulfill(jsBody(APP)));
     await manifest(p, UPD, latest());
     await p.goto('http://localhost:8082/tf');
-    await expectSource(p, 'local');
-    await p.getByRole('status').filter({ hasText: `disponible : ${VERSION}` }).waitFor();
-    await p.getByRole('button', { name: 'Mettre à jour' }).waitFor();
-    await p.getByRole('link', { name: 'Plus tard' }).click();
-    await p.waitForFunction(() => window.TASMOFLOW && window.TASMOFLOW.source === 'github', null, { timeout: 8000 });
+    await expectSource(p, 'github');
+    const banner = p.getByRole('status').filter({ hasText: `disponible : ${VERSION}` });
+    await banner.waitFor();
+    await p.getByRole('button', { name: 'Règles', exact: true }).click();
+    await banner.getByRole('button', { name: 'Mettre à jour' }).waitFor();
+    await banner.getByRole('button', { name: 'Plus tard' }).click();
+    await banner.waitFor({ state: 'detached', timeout: 2000 });
   });
-  await test('update: download, upload, checks, restart wait, then the new version loads', async p => {
-    await reset(8386, '0.0.9', '&restart=2');
-    await p.route(CDN, r => r.fulfill(jsBody(APP)));
+  await test('update: one click, download, upload, checks, restart wait, the new version loads, its local copy follows', async p => {
+    await reset(8386, '0.0.9', '&restart=2&copy=1');                      // a local copy is used before the update
+    let github = 0;
+    await p.route(CDN, r => { github++; r.fulfill(jsBody(APP)); });
+    await gzRoute(p);
     await manifest(p, UPD, latest());
     await tappRoute(p);
+    let dialogs = 0;
+    p.on('dialog', d => { dialogs++; d.accept(); });
     await p.goto('http://localhost:8082/tf');
     await expectSource(p, 'local');
-    p.once('dialog', d => d.accept());                                   // "the gateway will restart"
     await p.getByRole('button', { name: 'Mettre à jour' }).click();
     await p.getByText(/Redémarrage de la passerelle/).waitFor({ timeout: 10000 });
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'update-wait.png') });
-    // the gateway answers again with the new version: the page reloads, and nothing is left to update
+    // the gateway answers again with the new version: the page reloads, and nothing is left to update;
+    // its copy is the old version's: GitHub is loaded and the new copy saved by itself
     await p.waitForFunction(v => window.TASMOFLOW && window.TASMOFLOW.source === 'github' && window.TASMOFLOW.version === v, VERSION, { timeout: 30000 });
+    if (dialogs) throw new Error('a confirmation was asked');
+    for (let i = 0; i < 40 && await copyOf(8386) !== 1; i++) await wait(250);
+    if (await copyOf(8386) !== 1) throw new Error('the local copy did not follow the update');
+    await reset(8386, '0.0.9');
   });
   await test('update: a restart that does not end stops waiting and points to the Tasmota home page', async p => {
     await reset(8386, '0.0.9', '&never=1');
     await p.addInitScript(() => { window.__TF_UPDATE_WAIT = 5000; });
+    await p.route(CDN, r => r.fulfill(jsBody(APP)));
     await manifest(p, UPD, latest());
     await tappRoute(p);
     await p.goto('http://localhost:8082/tf');
-    await expectSource(p, 'local');
-    p.once('dialog', d => d.accept());
+    await expectSource(p, 'github');
     await p.getByRole('button', { name: 'Mettre à jour' }).click();
     await p.getByText(/prend plus de temps que prévu/).waitFor({ timeout: 25000 });
     const href = await p.getByRole('link', { name: 'Accueil de Tasmota' }).getAttribute('href');
@@ -604,11 +660,11 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
   });
   await test('update: a file whose hash is wrong is refused and nothing changes', async p => {
     await reset(8386, '0.0.9');
+    await p.route(CDN, r => r.fulfill(jsBody(APP)));
     await manifest(p, UPD, latest({ sha256: '0'.repeat(64) }));
     await tappRoute(p);
     await p.goto('http://localhost:8082/tf');
-    await expectSource(p, 'local');
-    p.once('dialog', d => d.accept());
+    await expectSource(p, 'github');
     await p.getByRole('button', { name: 'Mettre à jour' }).click();
     await p.getByRole('alert').filter({ hasText: /contrôle d'intégrité/ }).waitFor({ timeout: 10000 });
     const st = await (await fetch('http://localhost:8386/api/status?t=0123456789abcdef0123456789abcdef')).json();
@@ -616,12 +672,12 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
   });
   await test('update: not enough room is said before the download, with the sizes', async p => {
     await reset(8386, '0.0.9', '&free=' + 30 * 1024);                     // 30 KB free, no .bak
+    await p.route(CDN, r => r.fulfill(jsBody(APP)));
     await manifest(p, UPD, latest());
     let fetched = false;
     await p.route(TAPP_URL, r => { fetched = true; r.abort(); });
     await p.goto('http://localhost:8082/tf');
-    await expectSource(p, 'local');
-    p.once('dialog', d => d.accept());
+    await expectSource(p, 'github');
     await p.getByRole('button', { name: 'Mettre à jour' }).click();
     const need = Math.ceil((TAPP.length + 20 * 1024) / 1024);
     await p.getByRole('alert').filter({ hasText: `Il faut ${need} Ko` }).filter({ hasText: '30 Ko sont disponibles' }).waitFor({ timeout: 10000 });
@@ -634,8 +690,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await manifest(p, UPD, latest());
     await tappRoute(p);
     await p.goto('http://localhost:8082/tf');
-    await expectSource(p, 'local');
-    p.once('dialog', d => d.accept());
+    await expectSource(p, 'github');
     await p.getByRole('button', { name: 'Mettre à jour' }).click();
     await p.waitForFunction(v => window.TASMOFLOW && window.TASMOFLOW.source === 'github' && window.TASMOFLOW.version === v, VERSION, { timeout: 30000 });
     const r = await (await fetch('http://localhost:8386/api/update_check?t=0123456789abcdef0123456789abcdef&size=1000')).json();
@@ -646,7 +701,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.route(CDN, r => r.fulfill(jsBody(APP)));
     await manifest(p, DEVUPD, latest({ version: '0.1.0-dev.bbbbbbb', tapp: 'TasmoFlow.tapp' }));
     await p.goto('http://localhost:8083/tf');
-    await expectSource(p, 'local');
+    await expectSource(p, 'github');
     await p.getByRole('status').filter({ hasText: 'disponible : 0.1.0-dev.bbbbbbb' }).waitFor();
     const q = await p.context().newPage();
     await q.route(CDN, r => r.fulfill(jsBody(APP)));
@@ -798,20 +853,6 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     if (await p.getByRole('heading', { name: 'Ventilateur' }).count()) throw new Error('Tuya device shown');
     if (await p.getByRole('button', { name: /^Appairer/ }).isDisabled()) throw new Error('Zigbee is up, pairing must be on');
   });
-  await test('drivers off (light): everything off, invitation to reload, no automatic look', async p => {
-    await p.route(CDN, r => r.abort());
-    await p.goto('http://localhost:8086/tf');
-    await p.waitForFunction(() => window.TASMOFLOW && window.TASMOFLOW.source === 'local', null, { timeout: 8000 });
-    await p.getByRole('status').filter({ hasText: "Zigbee n'est pas prêt" }).waitFor({ timeout: 4000 });
-    await p.getByRole('status').filter({ hasText: "Tuya n'est pas prêt" }).waitFor();
-    if (!(await p.getByRole('button', { name: /^Appairer/ }).isDisabled())) throw new Error('pairing offered');
-    let polled = 0;
-    p.on('request', r => { if (/api\/(status|cmd)/.test(r.url())) polled++; });
-    await wait(6500);
-    if (polled) throw new Error(polled + ' requests: the light interface must not look again');
-    await p.getByRole('button', { name: 'Recharger' }).first().click();
-    await p.getByRole('status').filter({ hasText: "Zigbee n'est pas prêt" }).waitFor({ timeout: 4000 });
-  });
   await test('several gateways: bad link, add, test, use, still there after reload, remove', async p => {
     await openFull(p);
     await p.getByRole('heading', { name: 'Tuya' }).waitFor({ timeout: 6000 });
@@ -878,7 +919,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
   }
 
   await test('gateway restart while a page is open: the events that follow are shown, not dropped as repeats', async p => {
-    await p.route(CDN, r => r.abort());                                  // light interface (state.js is shared)
+    await p.route(CDN, r => r.fulfill(jsBody(APP)));
     await p.goto('http://localhost:8087/tf');
     await cards(p);
     await fetch('http://localhost:8391/__test/restart?n=30');             // 30 events seen before the restart

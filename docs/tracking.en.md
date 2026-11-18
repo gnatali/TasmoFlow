@@ -16,7 +16,7 @@ Specification (French, outside the repository):
   at packing (CI compiles them and runs the parser test on the minified `tf_http.be`). **Works on the
   gateway** (12 November, Guillaume). Then the update's room check, which still asked for two new
   copies plus 20 KB, was redone from the real sizes (`/api/update_check`, size from `latest.json`):
-  21 end-to-end tests pass, **checked on the gateway** (12 November, Guillaume). Details: [architecture](architecture.en.md#full-interface-on-github-light-interface-on-the-gateway).
+  21 end-to-end tests pass, **checked on the gateway** (12 November, Guillaume). Details: [architecture](architecture.en.md#before-18-november-2026-a-light-interface-in-the-tapp); since 18 November 2026 the `.tapp` carries no interface at all ([local copy](architecture.en.md#local-copy-of-the-interface)).
 - **v0.1 released**: tag `v0.1.0`, `.tapp` attached to the release, interface published on GitHub
   Pages (PRs #1 to #3 merged). Installed on the gateway: server start/stop, memory and the
   light interface after a restart checked; the other `[ ]` items of the test plan are left.
@@ -49,6 +49,7 @@ Specification (French, outside the repository):
 
 | Date | Step |
 | --- | --- |
+| 18 Nov | **No interface in the `.tapp`, local copy** (decision of Guillaume, replacing that of 9 November): the light interface (`lite.js.gz`, 14 KB) is gone, the `.tapp` is **28,927 B** (was 42,369). The interface is loaded from the gateway's local copy when it has one for its version (`TasmoFlow.tapp.js`, saved from Diagnostics, SHA-256 checked against the `.tapp`'s `APP_SHA`), else from GitHub; with neither, `/tf` says so in one line. The update banner is in the interface (one click, no confirmation; **Later** hides it), and after an update the copy is saved again by itself. Zopfli and `tools/requirements.txt` dropped. 33 end-to-end tests pass. **The `.tapp` must be installed again by hand** (the update code changed), then save the copy once (Diagnostics) |
 | 18 Nov | **T5, T8, T11 fixed** (bug analysis): the Tuya cards follow the driver's `TuyaConnected` / `TuyaDisconnected` (sub-devices follow their gateway), no Refresh needed; the light interface is loaded as `/lite.js?v=<version>`, so a browser cache never runs the previous one after an update; Zigbee Toggle and Pair show Tasmota's answer when it is not `Done`, like the Tuya cards. Robustness and restart items of the test plan checked by Guillaume (13 KB with the interface open). `.tapp` 42,369 B (131 B left). **The `.tapp` must be installed again** (`extension/`, the loader and the light interface) |
 | 18 Nov | **Tuya configuration device by device** (end of T4): with the firmware of the same day (`TuyaConfig <device>` read entry by entry, sub-devices found), the interface asks `TuyaConfig <name>` for each device not known yet; never the whole `tuya.json`, no memory threshold any more. Older firmware: whole configuration read once for the sub-devices. `.tapp` 41,988 B. **The `.tapp` must be installed again**, and the firmware flashed (firmware repository, branch `claude/awesome-planck-mow2gg`) |
 | 18 Nov | **T2 to T4 fixed** (bug analysis; T4 in part): an API handler that raises now gets a 500 answer (guard in `tf_http.be`, `cmdv()` safe), the interface gives up a request after 15 s; an event stream with more than 6 KB unsent is closed and the history is limited to 4 KB; `/api/devices` is streamed one device at a time; `TuyaConfig` is read once per gateway (then device by device, next entry). `lite.js.gz` compressed with Zopfli (`pip install -r tools/requirements.txt`), tighter Berry minifier; **`.tapp` budget raised to 42,500 B by Guillaume** (41,962 B). **The `.tapp` must be installed again** (`extension/` and the light interface). To check and measure on the gateway (test plan) |
@@ -112,8 +113,8 @@ After `tasmota.gc()`, gateway running the Tuya driver (9 November 2026):
 
 The budget of 15 KB holds with the rule API: **8 to 9 KB at rest, 14 KB five minutes after the interface was closed** (15 KB in v0.1). With an interface open the cost is 32 KB (25 KB in v0.1): `tf_rules.be` and the POST body add 7 KB while the server runs. The Tuya driver needs 45 KB free to start: 52 KB leaves 7 KB. Berry `HeapUsed` is back at 39 KB after closing, as in v0.1. About 6 KB of free heap are still not given back after the first opening (75 to 70 KB, same as v0.1: 75 to 69 KB), cause unknown and **not pursued** (decision of 12 November 2026).
 
-Target: 15 KB. Sizes (18 November 2026, after T5, T8, T11): `TasmoFlow.tapp` 41.4 KB (42,369 B, budget **42,500 B**, raised
-by Guillaume on 18 November from 41,534, half of v0.2.0's 83 KB: 131 B left), `lite.js.gz` 13.6 KB (13,952 B with Zopfli, budget 14 KB = 14,336 B), `app.js.gz` 34.4 KB (budget 120 KB). Ways to save more: [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md).
+Target: 15 KB. Sizes (18 November 2026, no interface in the `.tapp`): `TasmoFlow.tapp` 28.2 KB (28,927 B, budget **42,500 B**, raised
+by Guillaume on 18 November from 41,534, half of v0.2.0's 83 KB: 13.6 KB left), `app.js.gz` 36.1 KB (36,971 B, budget 120 KB; also the local copy, on the gateway's file system when saved). Ways to save more: [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md).
 
 ## Decisions still open
 
@@ -174,14 +175,13 @@ conflicts) are written and tried on the gateway in part, see the test plan.
   ([investigations/bug-analysis-2026-11.md](investigations/bug-analysis-2026-11.md)): 12 findings
   sorted by priority and 10 improvement ideas. **T1 to T4 fixed** on 18 November 2026 (T4 with
   the firmware of the same day: `TuyaConfig <device>` read entry by entry), checked on the
-  gateway by Guillaume; **T5, T8, T11 fixed** the same evening, to check. Next: T6, T9, then T7,
-  T10, T12; with 131 B left in the `.tapp`, options 2 and 3 of
-  [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md) come first.
+  gateway by Guillaume; **T5, T8, T11 fixed** the same evening, to check (T8 went with the light
+  interface). Next: T6, T9, then T7, T10, T12.
 
 - **Reducing the `.tapp`** (18 November 2026):
   [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md) lists the options
-  with their gains. Zopfli is done; the budget was raised to 42,500 B. Next if room is needed:
-  minified `/tf` loader, shorter logs and texts.
+  with their gains. Zopfli was done, then the budget raised to 42,500 B; the same evening the light
+  interface left the `.tapp` (28,927 B, 13.6 KB left): nothing more to do for now.
 
 ## Links
 

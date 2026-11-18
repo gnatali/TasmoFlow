@@ -6,11 +6,13 @@
 # Two servers:
 #
 # - port 80, Tasmota's web server: "TasmoFlow" button in the main menu and /tf page,
-#   protected by the web password, which loads the full interface from GitHub Pages
-#   (pinned version, SRI hash) or, failing that, the light interface kept in the .tapp.
+#   protected by the web password, which loads the interface: the local copy if there is one
+#   for this version (saved by the interface next to the .tapp, see tf_update.be), else GitHub
+#   Pages (pinned version, SRI hash). The .tapp itself carries no interface (decision of
+#   18 November 2026: it was 14 KB of the .tapp's 42).
 #
 # - port 8384, Berry asynchronous server (tf_http.be): JSON API, event stream
-#   (Server-Sent Events) and light interface. The main server cannot add
+#   (Server-Sent Events) and the local copy. The main server cannot add
 #   HTTP headers from Berry (neither CORS nor Content-Encoding): this second port can,
 #   without rebuilding the firmware.
 #
@@ -111,6 +113,7 @@ class tasmoflow
   static var CDN = "@@CDN@@"            # GitHub Pages address ('' = local copy only)
   static var DIR = "@@APP_DIR@@"        # folder of app.js there: vX.Y.Z, or "dev" (test build, see below)
   static var SRI = "@@SRI@@"            # SRI hash (sha384) of app.js
+  static var APP_SHA = "@@APP_SHA@@"    # SHA-256 of app.js.gz: the only local copy accepted
   static var PORT = 8384
   static var TUYA_RULES = ["Tuya", "TuyaConnected", "TuyaDisconnected"]   # rules of the firmware's Tuya driver
   static var IDLE_MS = 300000           # API server stopped after 5 minutes without a client
@@ -159,6 +162,23 @@ class tasmoflow
   #################################################################################
   # Helpers
   #################################################################################
+  # the installed .tapp: tasmota.wd saved at load time, without its trailing '#'; or nil
+  def tapp()
+    var wd = self.wd
+    if wd == nil || size(wd) < 2 || wd[size(wd) - 1] != '#'    return nil    end
+    return wd[0 .. size(wd) - 2]
+  end
+
+  # local copy of the interface (<tapp>.js, gzipped): 0 none, 1 this version's (its SHA-256 was
+  # checked when it was saved, see tf_update.be), 2 another version's (the .tapp was updated since)
+  def copy_state()
+    import path
+    import persist
+    var t = self.tapp()
+    if t == nil || !path.exists(t + ".js")    return 0    end
+    return persist.find('tasmoflow_js') == self.APP_SHA ? 1 : 2
+  end
+
   static def zb()
     import global
     return global.contains('zigbee') ? global.zigbee : nil
@@ -277,9 +297,9 @@ class tasmoflow
       if self.DIR == 'dev'    url += "?t=" + str(tasmota.millis())    end
     end
     # manifest of the latest version of this channel (releases: the root, test builds: dev/); the
-    # loader compares it with VERSION. /tf?u=0 ("Later") skips the check for this visit.
+    # interface compares it with VERSION (update.js)
     var upd = ''
-    if size(self.CDN) > 0 && !webserver.has_arg("u")
+    if size(self.CDN) > 0
       upd = self.CDN + (self.DIR == 'dev' ? 'dev/' : '') + 'latest.json'
     end
     var cfg = {
@@ -288,7 +308,8 @@ class tasmoflow
       'token': self.token,
       'cdn': url,
       'sri': self.SRI,
-      'upd': upd
+      'upd': upd,
+      'copy': self.copy_state()
     }
     webserver.content_open(200, "text/html")
     webserver.content_send(
@@ -298,32 +319,19 @@ class tasmoflow
       '<div id="tasmoflow" style="font-family:system-ui,sans-serif;padding:2rem">TasmoFlow…</div>'
       '<script>window.TASMOFLOW=')
     webserver.content_send(json.dump(cfg))
+    # the local copy of this version first (no SRI: its SHA-256 was checked when it was saved),
+    # then GitHub; nothing else to try after that
     webserver.content_send(
       ';(function(c){'
         'c.api="http://"+location.hostname+":"+c.port;'
-        'var box=document.getElementById("tasmoflow"),t,fell=false;'
         'function add(src,sri,onerr){'
           'var s=document.createElement("script");s.src=src;'
           'if(sri){s.integrity=sri;s.crossOrigin="anonymous";}'
-          's.onload=function(){clearTimeout(t);};s.onerror=onerr;'
-          'document.head.appendChild(s);}'
-        'function local(){if(fell)return;fell=true;clearTimeout(t);'
-          'add(c.api+"/lite.js?v="+c.version,"",function(){'
-            'box.textContent="TasmoFlow: interface not found (port "+c.port+")";});}'
-        'var started=false;'
-        'function go(){if(started)return;started=true;'
-          'if(c.cdn){add(c.cdn,c.sri,local);t=setTimeout(local,3000);}else{local();}}'
-        'function newer(a,b){'
-          'if(/-dev/.test(b))return a!==b;'
-          'a=a.split(".");b=b.split(".");'
-          'for(var i=0;i<3;i++){var x=+a[i]||0,y=+b[i]||0;if(x!==y)return x>y;}return false;}'
-        'if(c.upd){'
-          'setTimeout(go,1500);'
-          'fetch(c.upd,{cache:"no-store"}).then(function(r){return r.json();}).then(function(j){'
-            'if(!started&&j&&j.version&&newer(j.version,c.version)){'
-              'started=true;j.url=new URL(j.tapp,c.upd).href;c.update=j;local();}else{go();}'
-          '}).catch(go);}'
-        'else{go();}'
+          's.onerror=onerr;document.head.appendChild(s);}'
+        'function none(){document.getElementById("tasmoflow").textContent='
+          '"TasmoFlow: GitHub cannot be reached and this gateway has no local copy of the interface";}'
+        'function github(){if(c.cdn)add(c.cdn,c.sri,none);else none();}'
+        'if(c.copy==1)add(c.api+"/local.js?v="+c.version,"",github);else github();'
       '})(window.TASMOFLOW);'
       '</script></body></html>')
     webserver.content_close()
@@ -372,7 +380,7 @@ class tasmoflow
       return
     end
     self.web.set_cors(true)
-    self.web.on("/lite.js", self, self.send_lite)
+    self.web.on("/local.js", self, self.send_copy)
     self.web.on("/api/status", self, self.api_status)
     self.web.on("/api/devices", self, self.api_devices)
     self.web.on("/api/cmd", self, self.api_cmd)
@@ -409,14 +417,15 @@ class tasmoflow
     log("TFL: API server stopped", 2)
   end
 
-  # light interface, stored gzipped in the .tapp (the full one only lives on GitHub Pages)
-  def send_lite(cnx, uri, verb)
+  # the local copy of the interface, gzipped, next to the .tapp (its address carries the version:
+  # a cached copy of another version is never used)
+  def send_copy(cnx, uri, verb)
     self.touch()
     var f
     try
-      f = open(self.wd + "lite.js.gz", "rb")
+      f = open(self.tapp() + ".js", "rb")
     except ..
-      cnx.send(404, "text/plain", "lite.js.gz missing")
+      cnx.send(404, "text/plain", "no local copy")
       cnx.content_stop()
       return
     end
@@ -446,6 +455,7 @@ class tasmoflow
       'zigbee_devices': zb_started ? zb.size() : 0,
       'events_seq': self.seq,
       'feeds': size(self.feeds),
+      'copy': self.copy_state(),
       'wd': self.wd
     }
     self.send_json(cnx, 200, json.dump(st))

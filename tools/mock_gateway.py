@@ -5,17 +5,19 @@
 Mimics the extension's two servers:
   - port --web (8080 by default): /tf page, extracted as is from
     extension/tasmoflow.be to test the real loader;
-  - port --api (8384 by default): /lite.js (gzip), /api/status, /api/devices,
-    /api/cmd, /api/rules, /api/autoexec, /api/update*, /api/rule_set, /api/rule_apply, /api/rule_restore and /api/events (SSE), with the same CORS headers as tf_http.be.
+  - port --api (8384 by default): /local.js (the local copy, gzip), /api/status, /api/devices,
+    /api/cmd, /api/rules, /api/autoexec, /api/update* (the .tapp and the local copy),
+    /api/rule_set, /api/rule_apply, /api/rule_restore and /api/events (SSE), with the same CORS
+    headers as tf_http.be.
 
 Three fake Zigbee devices send events every 2 seconds. Four fake Tuya devices answer
 TuyaEnable, TuyaStatus, TuyaConfig and TuyaSend like the firmware's driver (formats from
 docs/tuya-local.en.md of the firmware repository); --no-tuya simulates a gateway without it;
 --zb-names answers SetOption83 ON.
 
-Without --cdn the page only finds the light interface (/lite.js), like a browser that cannot
-reach GitHub Pages. --full also serves the full interface (dist/app.js) from the API port,
-with its SRI hash, in place of GitHub Pages.
+The page loads the local copy first if there is one (none at start; the interface saves it, or
+the test hook /__test/reset?copy=1), then --cdn. --full serves the interface (dist/app.js) from
+the API port, with its SRI hash, in place of GitHub Pages.
 
 Usage: npm run build && python3 tools/mock_gateway.py --full
        then open http://localhost:8080/tf
@@ -237,18 +239,64 @@ def rule_apply(n, text):
 # The gateway's identity and the update, shared by the web and API servers. A restart is a
 # period during which every connection is cut; the new version comes out of the installed .tapp.
 STATE = {"version": tf_version.resolve(), "down_until": 0.0, "next_version": None, "boot": time.monotonic(),
-         "restart_s": 2.0, "never": False, "new": b"", "total": 0}
+         "restart_s": 2.0, "never": False, "new": b"", "total": 0, "js": None, "js_sha": "", "jsnew": b""}
 # its file system, for the room check of an update (bytes): free space, the installed .tapp, its .bak
 FS_DEFAULT = {"free": 180 * 1024, "tapp": 83069, "bak": 0}
 FS = dict(FS_DEFAULT)
 MARGIN = 20 * 1024
 
 
-def room(total):
-    """tf_update.be's room(): the new file needs `total` + 20 KB; a .bak can be deleted for it."""
-    stale = len(STATE["new"])
-    return {"free": FS["free"], "tapp": FS["tapp"], "bak": FS["bak"], "stale": stale, "need": total + MARGIN,
-            "room": FS["free"] + stale + FS["bak"] >= total + MARGIN}
+def app_sha():
+    """tasmoflow.APP_SHA: SHA-256 of app.js.gz as pack_tapp.py makes it (fixed level and date)."""
+    return hashlib.sha256(gzip.compress((ROOT / "dist" / "app.js").read_bytes(), compresslevel=9, mtime=0)).hexdigest()
+
+
+def copy_state():
+    """tasmoflow.copy_state(): 0 no local copy, 1 this version's, 2 another version's."""
+    if STATE["js"] is None:
+        return 0
+    return 1 if STATE["js_sha"] == app_sha() else 2
+
+
+def room(total, js=False):
+    """tf_update.be's room(): the new file needs `total` + 20 KB; a stale file, and the .bak (a
+    .tapp) or the old copy (a local copy) can be deleted for it."""
+    stale = len(STATE["jsnew" if js else "new"])
+    old = len(STATE["js"] or b"")
+    return {"free": FS["free"], "tapp": FS["tapp"], "bak": FS["bak"], "js": old, "stale": stale, "need": total + MARGIN,
+            "room": FS["free"] + stale + (old if js else FS["bak"]) >= total + MARGIN}
+
+
+def copy_route(path, q, body):
+    """/api/update*?f=js: the local copy, as tf_update.be writes it. Returns (status, json)."""
+    if path == "/api/update_check":
+        return 200, {"ok": True, **room(int(q.get("size", "0") or 0), True)}
+    if path == "/api/update":
+        off, total = int(q.get("off", "0") or 0), int(q.get("size", "0") or 0)
+        if off == 0:
+            if not room(total, True)["room"]:
+                return 400, {"error": "space"}
+            FS["free"] += len(STATE["jsnew"]) + len(STATE["js"] or b"")
+            STATE.update(jsnew=b"", js=None, js_sha="")
+        elif off != len(STATE["jsnew"]):
+            return 400, {"error": "offset"}
+        data = base64.b64decode(body)
+        STATE["jsnew"] += data
+        FS["free"] -= len(data)
+        return 200, {"ok": True, "written": len(STATE["jsnew"])}
+    if path == "/api/update_abort":
+        FS["free"] += len(STATE["jsnew"])
+        STATE["jsnew"] = b""
+        return 200, {"ok": True}
+    new = STATE["jsnew"]
+    if len(new) != int(q.get("size", "0") or 0):
+        return 400, {"error": "incomplete"}
+    if new[:3] != b"\x1f\x8b\x08":
+        return 400, {"error": "format"}
+    if hashlib.sha256(new).hexdigest() != app_sha():    # the hash of the .tapp, not one from the browser
+        return 400, {"error": "hash"}
+    STATE.update(js=new, js_sha=app_sha(), jsnew=b"")
+    return 200, {"ok": True}
 
 
 def version():
@@ -264,6 +312,12 @@ def is_down():
 
 def update_route(path, q, body):
     """/api/update*: the checks of tf_update.be. Returns (status, json)."""
+    if path == "/api/update_drop":
+        FS["free"] += len(STATE["js"] or b"") + len(STATE["jsnew"])
+        STATE.update(js=None, js_sha="", jsnew=b"")
+        return 200, {"ok": True}
+    if q.get("f") == "js":
+        return copy_route(path, q, body)
     if path == "/api/update_check":
         total = int(q.get("size", "0") or 0)
         if total <= 0 or total > 153600:
@@ -309,6 +363,8 @@ def update_route(path, q, body):
     FS["free"] += FS["bak"]                     # the old .bak goes, the installed .tapp becomes the .bak
     FS["bak"], FS["tapp"] = FS["tapp"], len(new)
     STATE["new"] = b""
+    if STATE["js"] is not None:
+        STATE["js_sha"] = "another version"    # the new .tapp carries another APP_SHA
     restart(None if STATE["never"] else 1.5 + STATE["restart_s"])
     return 200, {"ok": True, "restart": True}
 
@@ -334,7 +390,7 @@ def loader_html(api_port, cdn, sri, token, upd=""):
     body = body[body.index("check_privileged_access"):]
     body = body[body.index("webserver.content_open"):body.index("webserver.content_close")]
     cfg = {"version": version(), "port": api_port, "token": token,
-           "cdn": cdn, "sri": sri, "upd": upd}
+           "cdn": cdn, "sri": sri, "upd": upd, "copy": copy_state()}
     parts = []
     for call in re.findall(r"webserver\.content_send\((.*?)\)\n", body, re.S):
         call = call.strip()
@@ -357,9 +413,7 @@ class Web(BaseHTTPRequestHandler):
             self.close_connection = True
             self.connection.close()
             return
-        # /tf?u=0 skips the update check for this visit, like the real page
-        upd = "" if "u=" in self.path.partition("?")[2] else self.server.upd
-        html = loader_html(self.server.api_port, self.server.cdn, self.server.sri, self.server.token, upd).encode()
+        html = loader_html(self.server.api_port, self.server.cdn, self.server.sri, self.server.token, self.server.upd).encode()
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
         self.end_headers()
@@ -402,12 +456,16 @@ class Api(BaseHTTPRequestHandler):
             self.close_connection = True
             self.connection.close()
             return
-        if self.path.startswith("/__test/reset"):     # test hook: ?version=&restart=&never=1&free=&tapp=&bak=&fail=
+        if self.path.startswith("/__test/reset"):     # test hook: ?version=&restart=&never=1&free=&tapp=&bak=&fail=&copy=0|1|2
             q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))
             STATE.update(version=q.get("version", tf_version.resolve()), next_version=None,
                          down_until=0.0, restart_s=float(q.get("restart", "2")), never=q.get("never") == "1",
                          new=b"", total=0, boot=time.monotonic(), fail=q.get("fail", ""))
             FS.update({k: int(q.get(k, v)) for k, v in FS_DEFAULT.items()})
+            # a local copy: none, this version's, or another version's
+            c = q.get("copy", "0")
+            js = gzip.compress((ROOT / "dist" / "app.js").read_bytes(), compresslevel=9, mtime=0) if c != "0" else None
+            STATE.update(js=js, js_sha=app_sha() if c == "1" else "another version", jsnew=b"")
             self.json(200, {"ok": True})
             return
         if self.path.startswith("/__test/tuyaconn"):     # test hook: ?name=&on=0|1, a Tuya device lost or back
@@ -446,9 +504,12 @@ class Api(BaseHTTPRequestHandler):
             self.head(200, "application/javascript")
             self.wfile.write((ROOT / "dist" / "app.js").read_bytes())
             return
-        if u.path == "/lite.js":      # the light interface; the full one comes from --cdn
+        if u.path == "/local.js":     # the local copy, as the interface saved it
+            if STATE["js"] is None:
+                self.head(404, "text/plain")
+                return
             self.head(200, "application/javascript", [("Content-Encoding", "gzip")])
-            self.wfile.write(gzip.compress((ROOT / "dist" / "lite.js").read_bytes()))
+            self.wfile.write(STATE["js"])
             return
         if not u.path.startswith("/api/"):
             self.head(500, "text/plain")
@@ -462,7 +523,7 @@ class Api(BaseHTTPRequestHandler):
             self.json(200, {"tasmoflow": version(), "device_name": self.server.name,
                             "firmware": {"Version": "16.0.0.2(zbgw03-matter)"}, "memory": {"heap_free": 62},
                             "ufs_size_kb": 320, "ufs_free_kb": FS["free"] // 1024, "uptime_s": int(time.monotonic() - STATE["boot"]),
-                            "zigbee": zb_up, "zigbee_state": "running" if zb_up else "starting", "zigbee_devices": len(DEVICES), "events_seq": seq, "feeds": 1,
+                            "zigbee": zb_up, "zigbee_state": "running" if zb_up else "starting", "zigbee_devices": len(DEVICES), "events_seq": seq, "feeds": 1, "copy": copy_state(),
                             "wd": "/.extensions/TasmoFlow.tapp#"})
         elif u.path == "/api/devices":
             self.json(200, list(DEVICES.values()) if since_first_call() >= self.server.zb_delay else [])

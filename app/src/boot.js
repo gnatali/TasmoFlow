@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Starts an interface: `tabs` ({ id: component }) says what it offers. The full interface
-// (main.js, GitHub Pages) and the light one (main_lite.js, the .tapp's local copy) share this
-// code; the full one adds its screens, texts and styles, which the light bundle does not carry.
-// opts: { lite, css (more styles), Banner, Picker (see app.js) }
+// Starts the interface: `tabs` ({ id: component }) says what it offers.
+// opts: { css (more styles), Banner, Picker (see app.js) }
 import { render } from 'preact';
 import { html } from './html.js';
 import cfg from './config.js';
@@ -13,12 +11,11 @@ import { onChange } from './store.js';
 import css from './style.css';
 
 export function boot(tabs, opts) {
-  if (window.TASMOFLOW_STARTED) return;       // the GitHub copy and the local copy may both arrive
+  if (window.TASMOFLOW_STARTED) return;       // never twice in one page
   window.TASMOFLOW_STARTED = true;
-  // actual origin: the GitHub copy may arrive after the timeout, and the local copy before it
+  // where it came from: the gateway's local copy, or GitHub Pages
   const me = document.currentScript && document.currentScript.src;
   if (cfg.api && me) cfg.source = me.indexOf(cfg.api) === 0 ? 'local' : 'github';
-  cfg.lite = !!opts.lite;
   const root = document.getElementById('tasmoflow') || document.body;
   const style = document.createElement('style');
   style.textContent = css + (opts.css || '');
