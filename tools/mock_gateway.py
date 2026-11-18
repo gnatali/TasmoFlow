@@ -108,6 +108,17 @@ def push_tuya(name, dps):
 T_FIRST = []
 
 
+def restart(seconds):
+    """A restart: every connection is cut for `seconds`, then the extension starts again and numbers
+    its events from 1, like tasmoflow.be (`self.seq = 0` in init())."""
+    global seq
+    with events_lock:
+        seq = 0
+        events.clear()
+    STATE["down_until"] = float("inf") if seconds is None else time.monotonic() + seconds
+    STATE["boot"] = time.monotonic() + (seconds or 0)
+
+
 def since_first_call():
     """Seconds since the first API request (the delays of --zb-delay and --tuya-delay start then)."""
     if not T_FIRST:
@@ -211,7 +222,7 @@ def rule_apply(n, text):
 
 # The gateway's identity and the update, shared by the web and API servers. A restart is a
 # period during which every connection is cut; the new version comes out of the installed .tapp.
-STATE = {"version": tf_version.resolve(), "down_until": 0.0, "next_version": None,
+STATE = {"version": tf_version.resolve(), "down_until": 0.0, "next_version": None, "boot": time.monotonic(),
          "restart_s": 2.0, "never": False, "new": b"", "total": 0}
 # its file system, for the room check of an update (bytes): free space, the installed .tapp, its .bak
 FS_DEFAULT = {"free": 180 * 1024, "tapp": 83069, "bak": 0}
@@ -284,7 +295,7 @@ def update_route(path, q, body):
     FS["free"] += FS["bak"]                     # the old .bak goes, the installed .tapp becomes the .bak
     FS["bak"], FS["tapp"] = FS["tapp"], len(new)
     STATE["new"] = b""
-    STATE["down_until"] = float("inf") if STATE["never"] else time.monotonic() + 1.5 + STATE["restart_s"]
+    restart(None if STATE["never"] else 1.5 + STATE["restart_s"])
     return 200, {"ok": True, "restart": True}
 
 
@@ -381,9 +392,17 @@ class Api(BaseHTTPRequestHandler):
             q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))
             STATE.update(version=q.get("version", tf_version.resolve()), next_version=None,
                          down_until=0.0, restart_s=float(q.get("restart", "2")), never=q.get("never") == "1",
-                         new=b"", total=0)
+                         new=b"", total=0, boot=time.monotonic())
             FS.update({k: int(q.get(k, v)) for k, v in FS_DEFAULT.items()})
             self.json(200, {"ok": True})
+            return
+        if self.path.startswith("/__test/restart"):   # test hook: ?n= events sent first, then a 2 s restart
+            q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))
+            for i in range(int(q.get("n", "0"))):
+                push_event("0x5E6F", {"Temperature": 20, "Endpoint": 1})
+            if q.get("go") == "1":
+                restart(2.0)
+            self.json(200, {"ok": True, "seq": seq})
             return
         if len(self.path) + 13 > 512:
             # like tf_http.be since 10 November 2026 (checked on the gateway on 11 November with a
@@ -419,7 +438,7 @@ class Api(BaseHTTPRequestHandler):
             zb_up = since_first_call() >= self.server.zb_delay
             self.json(200, {"tasmoflow": version(), "device_name": self.server.name,
                             "firmware": {"Version": "16.0.0.2(zbgw03-matter)"}, "memory": {"heap_free": 62},
-                            "ufs_size_kb": 320, "ufs_free_kb": FS["free"] // 1024, "uptime_s": int(time.monotonic()),
+                            "ufs_size_kb": 320, "ufs_free_kb": FS["free"] // 1024, "uptime_s": int(time.monotonic() - STATE["boot"]),
                             "zigbee": zb_up, "zigbee_state": "running" if zb_up else "starting", "zigbee_devices": len(DEVICES), "events_seq": seq, "feeds": 1,
                             "wd": "/.extensions/TasmoFlow.tapp#"})
         elif u.path == "/api/devices":
@@ -498,7 +517,7 @@ class Api(BaseHTTPRequestHandler):
             self.wfile.write(b"retry: 3000\n\n")
             last = since
             try:
-                while True:
+                while not is_down():      # a restart cuts the stream
                     with events_lock:
                         new = [e for e in events if e[0] > last]
                     for n, s in new:

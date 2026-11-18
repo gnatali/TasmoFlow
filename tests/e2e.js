@@ -40,7 +40,9 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     // drivers: Zigbee then Tuya starting (delays counted from the first request), Tuya disabled, Zigbee never up
     mock(['--web', '8084', '--api', '8388', '--cdn', CDN, '--sri', SRI, '--zb-delay', '3', '--tuya-delay', '7']),
     mock(['--web', '8085', '--api', '8389', '--cdn', CDN, '--sri', SRI, '--tuya-disabled']),
-    mock(['--web', '8086', '--api', '8390', '--cdn', CDN, '--sri', SRI, '--zb-delay', '3600', '--tuya-disabled'])];
+    mock(['--web', '8086', '--api', '8390', '--cdn', CDN, '--sri', SRI, '--zb-delay', '3600', '--tuya-disabled']),
+    // restarted while a page is open (its event counter starts again at 1)
+    mock(['--web', '8087', '--api', '8391', '--cdn', CDN, '--sri', SRI])];
   await wait(1000);
   const browser = await chromium.launch();
   const results = [];
@@ -851,6 +853,24 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     } catch (e) { results.push(['mobile 360 px: rules tiles and dialog inside the screen', false, e.message.split('\n')[0]]); }
     await ctx.close();
   }
+
+  await test('gateway restart while a page is open: the events that follow are shown, not dropped as repeats', async p => {
+    await p.route(CDN, r => r.abort());                                  // light interface (state.js is shared)
+    await p.goto('http://localhost:8087/tf');
+    await cards(p);
+    await fetch('http://localhost:8391/__test/restart?n=30');             // 30 events seen before the restart
+    await wait(1500);
+    await fetch('http://localhost:8391/__test/restart?go=1');            // counter back to 0, 2 s without answer
+    await p.getByText('reconnexion…').waitFor({ timeout: 5000 });
+    await p.getByText('en direct').waitFor({ timeout: 15000 });
+    const lamp = () => p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe salon' }) });
+    const before = /Power 1/.test((await lamp().innerText()).replace(/\n/g, ' '));
+    await lamp().getByRole('button', { name: 'Basculer' }).click();      // its new state comes back as event 1, 2 or 3
+    await p.waitForFunction(on => {
+      const c = [...document.querySelectorAll('article.card')].find(a => a.textContent.includes('Lampe salon'));
+      return /Power 1/.test(c.innerText.replace(/\n/g, ' ')) === on;
+    }, !before, { timeout: 4000 });
+  });
 
   await browser.close();
   mocks.forEach(m => m.kill());

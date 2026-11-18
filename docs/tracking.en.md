@@ -49,6 +49,7 @@ Specification (French, outside the repository):
 
 | Date | Step |
 | --- | --- |
+| 18 Nov | **T1 fixed** (bug analysis): after a gateway restart an open interface no longer ignores the events. When the event stream comes back after a cut, the interface reads everything again, and starts over from event 0 when the gateway's counter went back. Simulated gateway: a restart numbers events from 1 again. 30 end-to-end tests. `.tapp` 41,526 B (8 B left); **the `.tapp` must be installed again** (`state.js` is in the light interface). To check on the gateway (test plan) |
 | 5 Nov 2026 | Existing projects reviewed (none combines GitHub hosting, no-code editor and Zigbee gateway management), 20 decisions taken, specification and roadmap written, name TasmoFlow |
 | 5 Nov | Findings from Tasmota's source: no response headers from Berry's `webserver`, `webserver_async` class compiled but not exposed, WebSocket server needs a rebuild, `.tapp` format, Extension Manager catalogue derived from `OtaUrl` |
 | 5 Nov | v0.0 prototype written: Berry extension (ports 80 and 8384), interface without dependencies, `pack_tapp.py`, simulated gateway, CI |
@@ -108,8 +109,8 @@ After `tasmota.gc()`, gateway running the Tuya driver (9 November 2026):
 
 The budget of 15 KB holds with the rule API: **8 to 9 KB at rest, 14 KB five minutes after the interface was closed** (15 KB in v0.1). With an interface open the cost is 32 KB (25 KB in v0.1): `tf_rules.be` and the POST body add 7 KB while the server runs. The Tuya driver needs 45 KB free to start: 52 KB leaves 7 KB. Berry `HeapUsed` is back at 39 KB after closing, as in v0.1. About 6 KB of free heap are still not given back after the first opening (75 to 70 KB, same as v0.1: 75 to 69 KB), cause unknown and **not pursued** (decision of 12 November 2026).
 
-Target: 15 KB. Sizes (12 November 2026): `TasmoFlow.tapp` 41.4 KB (41,499 B, budget 41.5 KB, half of
-v0.2.0's 83 KB: **35 B left**: the guard that asks to save before leaving the Rules screen took 42 B of `state.js`, shared with the light interface; the `.tapp` must be installed again), `lite.js.gz` 14.1 KB (budget 14 KB), `app.js.gz` 33.0 KB (budget 120 KB).
+Target: 15 KB. Sizes (18 November 2026): `TasmoFlow.tapp` 41.5 KB (41,526 B, budget 41.5 KB, half of
+v0.2.0's 83 KB: **8 B left**: the T1 fix took 27 B of `state.js`, shared with the light interface; the `.tapp` must be installed again), `lite.js.gz` 14.2 KB (14,163 B, budget 14 KB = 14,336 B), `app.js.gz` 34.3 KB (budget 120 KB). The light interface has no room left: anything new there needs a saving first.
 
 ## Decisions still open
 
@@ -168,10 +169,10 @@ conflicts) are written and tried on the gateway in part, see the test plan.
 
 - **Bug analysis of 15 November 2026**
   ([investigations/bug-analysis-2026-11.md](investigations/bug-analysis-2026-11.md)): 12 findings
-  sorted by priority and 10 improvement ideas, nothing fixed yet. First to handle: T1 (after a
-  gateway restart an open interface shows "live" but ignores the events, reproduced with the
-  simulated gateway), then T2 to T4 (API handlers that can leave a request unanswered, event
-  buffers and answers without a size limit).
+  sorted by priority and 10 improvement ideas. **T1 fixed** on 18 November 2026 (after a
+  gateway restart an open interface showed "live" but ignored the events), to check on the
+  gateway. Next: T2 to T4 (API handlers that can leave a request unanswered, event buffers and
+  answers without a size limit).
 
 ## Links
 

@@ -132,6 +132,7 @@ function connectEvents() {
   es = new EventSource(api.url('/api/events', { since: lastSeq }));
   es.onopen = () => S.set({ live: true });
   es.onerror = () => {
+    es.onopen = start;      // back after a cut: events were missed, read everything again
     S.set({ live: false });
     if (Date.now() - lastWake > 10000) { lastWake = Date.now(); wake(gw); }   // restarted gateway
   };
@@ -165,10 +166,15 @@ function connectEvents() {
   };
 }
 
+// Also run again when the event stream comes back after a cut. A restarted gateway numbers its
+// events from 1 again: they would all be dropped as repeats until they pass the last number seen,
+// so the stream starts over from 0 when the counter went back (if it already passed it, only the
+// events in between are missing from the list; the devices are read again anyway).
 function start() {
   const gw = S.get().gw;
   return reach(gw).then(status => {
     if (!current(gw)) return;
+    if (status.events_seq < lastSeq) lastSeq = 0;
     S.set({ status, error: null });
     return loadDevices();
   }).then(() => {

@@ -29,7 +29,7 @@ function in a plausible situation; **P3** robustness, rare cases; **P4** minor.
 
 | Id | Priority | Finding | Status |
 | --- | --- | --- | --- |
-| T1 | P1 | After a gateway restart, an open interface shows "live" but ignores every event until the new sequence numbers pass the old ones | Reproduced (simulated gateway) |
+| T1 | P1 | After a gateway restart, an open interface shows "live" but ignores every event until the new sequence numbers pass the old ones | **Fixed** (18 November 2026), to check on the gateway |
 | T2 | P2 | An exception in `/api/status`, `/api/devices`, `/api/cmd` or `/api/events` leaves the request unanswered for ever; the interface then stays on "loading" | Read in the code and Tasmota's source |
 | T3 | P2 | Events pile up without limit in RAM for a client that stopped reading; the event history is limited by count, not by size | Read in the code |
 | T4 | P2 | `/api/devices` and `TuyaConfig` build their whole answer in RAM: memory grows with the number of devices | Read in the code, to measure |
@@ -76,6 +76,21 @@ extension: on `es.onopen` after an error, read `/api/status` and reset when `eve
 below `lastSeq`. In both cases reload the device list after a reconnection, since events were
 missed while the gateway was away. Test: make the simulated restart reset `seq`, then check
 that a card follows an event sent after it.
+
+**Fixed on 18 November 2026** (interface only, `app/src/state.js`, shared by both interfaces;
+`extension/` unchanged). When the event stream comes back after an error, the interface runs its
+opening sequence again (`start()`: status, devices, event stream, current screen, Tuya, drivers),
+since events were missed during the cut; if the status' `events_seq` is below the last number
+seen, the gateway restarted and `lastSeq` goes back to 0, so the new stream replays its history
+from the first event. If a restarted gateway has already sent more events than before the
+restart by the time the page is back (rare: the stream retries every 3 s), only those in between
+are missing from the Events list; the cards are right since the devices were read again. Side
+effect: the load time of the Diagnostics screen then counts from the page's opening to the
+reconnection. A random start id in the
+extension would cover that case too, but did not fit: the `.tapp` had 35 B left (now 41,526 B of
+41,534). The simulated gateway now numbers its events from 1 after a restart and cuts the
+stream (`/__test/restart`); the end-to-end test "gateway restart while a page is open" fails
+without the fix and passes with it.
 
 ### T2 (P2): an exception in an API handler leaves the request unanswered
 

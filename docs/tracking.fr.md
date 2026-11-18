@@ -54,6 +54,7 @@ Cahier des charges (en français, hors du dépôt) :
 
 | Date | Étape |
 | --- | --- |
+| 18 nov. | **T1 corrigé** (analyse de bugs) : après un redémarrage de la passerelle, une interface ouverte n'ignore plus les événements. Quand le flux d'événements revient après une coupure, l'interface relit tout, et repart de l'événement 0 quand le compteur de la passerelle a reculé. Passerelle simulée : un redémarrage renumérote les événements à partir de 1. 30 tests de bout en bout. `.tapp` 41 526 octets (8 octets de marge) ; **la `.tapp` doit être réinstallée** (`state.js` fait partie de l'interface légère). À vérifier sur la passerelle (plan de test) |
 | 5 nov. 2026 | Revue de l'existant (aucun projet ne réunit hébergement GitHub, éditeur sans code et gestion d'une passerelle Zigbee), 20 décisions, cahier des charges et feuille de route, nom TasmoFlow |
 | 5 nov. | Constats tirés du code de Tasmota : pas d'en-têtes de réponse depuis le `webserver` de Berry, classe `webserver_async` compilée mais pas exposée, serveur WebSocket à recompiler, format `.tapp`, catalogue de l'Extension Manager déduit d'`OtaUrl` |
 | 5 nov. | Prototype v0.0 écrit : extension Berry (ports 80 et 8384), interface sans dépendance, `pack_tapp.py`, passerelle simulée, CI |
@@ -113,8 +114,8 @@ Après `tasmota.gc()`, passerelle avec le pilote Tuya (9 novembre 2026) :
 
 Le budget de 15 Ko est tenu avec l'API des règles : **8 à 9 Ko au repos, 14 Ko cinq minutes après la fermeture de l'interface** (15 Ko en v0.1). Interface ouverte, le coût est de 32 Ko (25 Ko en v0.1) : `tf_rules.be` et le corps POST ajoutent 7 Ko tant que le serveur tourne. Le pilote Tuya demande 45 Ko libres pour démarrer : 52 Ko laissent 7 Ko de marge. `HeapUsed` de Berry revient à 39 Ko après la fermeture, comme en v0.1. Environ 6 Ko de mémoire libre ne sont toujours pas rendus après la première ouverture (75 à 70 Ko, comme en v0.1 : 75 à 69 Ko), cause inconnue et **pas poursuivie** (décision du 12 novembre 2026).
 
-Cible : 15 Ko. Tailles (12 novembre 2026) : `TasmoFlow.tapp` 41,4 Ko (41 499 octets, budget 41,5 Ko, la moitié
-des 83 Ko de la v0.2.0 : **35 octets de marge** : le garde qui propose d'enregistrer avant de quitter l'écran Règles a pris 42 octets de `state.js`, partagé avec l'interface légère ; le `.tapp` doit être réinstallé), `lite.js.gz` 14,1 Ko (budget 14 Ko), `app.js.gz` 33,0 Ko (budget 120 Ko).
+Cible : 15 Ko. Tailles (18 novembre 2026) : `TasmoFlow.tapp` 41,5 Ko (41 526 octets, budget 41,5 Ko, la moitié
+des 83 Ko de la v0.2.0 : **8 octets de marge** : le correctif de T1 a pris 27 octets de `state.js`, partagé avec l'interface légère ; le `.tapp` doit être réinstallé), `lite.js.gz` 14,2 Ko (14 163 octets, budget 14 Ko = 14 336 octets), `app.js.gz` 34,3 Ko (budget 120 Ko). L'interface légère n'a plus de place : tout ajout y demande d'abord une économie.
 
 ## Décisions encore ouvertes
 
@@ -177,11 +178,11 @@ en partie essayées sur la passerelle, voir le plan de test.
 
 - **Analyse de bugs du 15 novembre 2026**
   ([investigations/bug-analysis-2026-11.md](investigations/bug-analysis-2026-11.md), en anglais) :
-  12 constats classés par priorité et 10 pistes d'amélioration, rien n'est encore corrigé. À
-  traiter en premier : T1 (après un redémarrage de la passerelle, une interface ouverte affiche
-  « en direct » mais ignore les événements, reproduit avec la fausse passerelle), puis T2 à T4
-  (gestionnaires de l'API qui peuvent laisser une requête sans réponse, tampons d'événements et
-  réponses sans limite de taille).
+  12 constats classés par priorité et 10 pistes d'amélioration. **T1 corrigé** le 18 novembre
+  2026 (après un redémarrage de la passerelle, une interface ouverte affichait « en direct » mais
+  ignorait les événements), à vérifier sur la passerelle. Ensuite : T2 à T4 (gestionnaires de
+  l'API qui peuvent laisser une requête sans réponse, tampons d'événements et réponses sans
+  limite de taille).
 
 ## Liens
 
