@@ -460,9 +460,9 @@ class tasmoflow
       self.send_json(cnx, 200, "[]")
       return
     end
-    var list = tf_devices(zb)
-    cnx.send(200, "application/json")
-    tf_streamer(cnx, list)              # one device per fast-loop turn, at the client's pace
+    var devs = tf_devices(zb)           # never name a variable `list`, `map`...: Tasmota compiles in
+    cnx.send(200, "application/json")   # strict mode, which refuses to redefine a builtin
+    tf_streamer(cnx, devs)              # one device per fast-loop turn, at the client's pace
   end
 
   # any Tasmota command: POST /api/cmd?t=... with the command as the body (a URL of more than

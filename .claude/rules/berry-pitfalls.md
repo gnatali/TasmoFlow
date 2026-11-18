@@ -8,6 +8,10 @@ paths:
 
 - A line starting with `#-` opens a **block comment** (closed by `-#`): never use `#-----`
   separators. Use `#####` lines.
+- **Never name a variable, parameter or loop variable like a builtin** (`list`, `map`, `str`,
+  `type`, `size`, `bytes`, `open`...): Tasmota compiles in strict mode and refuses the whole file
+  (`strict: redefinition of builtin 'list'`, the extension did not start on 18 November 2026).
+  `tools/check_syntax.be` runs with `berry -s` in CI since then.
 - `re` is **not** a global name: `import re` before using it, including in static initialisers
   (`tf_http.be`). Tasmota's embedded copy works without it only because it is precompiled.
 - `tools/check_syntax.be` predeclares the real firmware globals (`tasmota`, `log`, `tcpserver`,
