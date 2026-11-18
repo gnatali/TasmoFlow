@@ -63,6 +63,8 @@ export function loadDevices() {
 
 // Local Tuya devices: state of the firmware's driver, devices, then (memory permitting) their
 // configuration, which tells what each DP means. Sequential: each command loads the driver's data.
+// TuyaConfig is the heaviest (the whole tuya.json loaded, then copied three times on the gateway):
+// read once per gateway, again only when a device is not in it (added since).
 export async function loadTuya() {
   const gw = S.get().gw;
   const a = api;
@@ -78,10 +80,11 @@ export async function loadTuya() {
       const d = st[n];
       nodes[n] = { connected: !!d.Connected, ip: d.Ip || '', version: d.Version || '', dps: d.Dps || {} };
     }
-    const status = await a.get('/api/status');
-    const heap = status.memory && status.memory.heap_free;
-    let conf = null;
-    if (heap == null || heap >= MIN_HEAP_KB) conf = indexConfig((await a.cmd('TuyaConfig')).TuyaConfig);
+    let conf = (S.get().tuya || {}).conf;
+    if (!conf || Object.keys(nodes).some(n => !conf[n])) {
+      const heap = (await a.get('/api/status')).memory.heap_free;
+      conf = heap >= MIN_HEAP_KB ? indexConfig((await a.cmd('TuyaConfig')).TuyaConfig) : null;
+    }
     set({ state: 'running', nodes, conf, lowMem: !conf });
   } catch (err) { fail(gw, err); }
 }

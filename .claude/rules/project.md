@@ -22,7 +22,7 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
   Pages (pinned version + SRI), a **light** one (device control and the update only, since
   11 November 2026; same sources, `app/src/main_lite.js`) is kept gzipped in the `.tapp` and served
   when GitHub is unreachable (decision of 9 November 2026, see `docs/architecture.en.md`). The
-  `.tapp` stays under half of v0.2.0's size (`pack_tapp.py` budget, 41,534 B): anything else goes
+  `.tapp` stays under about half of v0.2.0's size (`pack_tapp.py` budget 42,500 B, raised from 41,534 on 18 November 2026 by Guillaume): anything else goes
   in the full interface only. **Firmware untouched**:
   TasmoFlow is a Berry extension (`.tapp`), no `USE_CORS`, no rebuild.
 - Second server on **port 8384** (`extension/tf_http.be`, copy of Tasmota's

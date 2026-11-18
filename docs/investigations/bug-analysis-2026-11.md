@@ -30,9 +30,9 @@ function in a plausible situation; **P3** robustness, rare cases; **P4** minor.
 | Id | Priority | Finding | Status |
 | --- | --- | --- | --- |
 | T1 | P1 | After a gateway restart, an open interface shows "live" but ignores every event until the new sequence numbers pass the old ones | **Fixed** (18 November 2026), to check on the gateway |
-| T2 | P2 | An exception in `/api/status`, `/api/devices`, `/api/cmd` or `/api/events` leaves the request unanswered for ever; the interface then stays on "loading" | Read in the code and Tasmota's source |
-| T3 | P2 | Events pile up without limit in RAM for a client that stopped reading; the event history is limited by count, not by size | Read in the code |
-| T4 | P2 | `/api/devices` and `TuyaConfig` build their whole answer in RAM: memory grows with the number of devices | Read in the code, to measure |
+| T2 | P2 | An exception in `/api/status`, `/api/devices`, `/api/cmd` or `/api/events` leaves the request unanswered for ever; the interface then stays on "loading" | **Fixed** (18 November 2026), to check on the gateway |
+| T3 | P2 | Events pile up without limit in RAM for a client that stopped reading; the event history is limited by count, not by size | **Fixed** (18 November 2026), to measure on the gateway |
+| T4 | P2 | `/api/devices` and `TuyaConfig` build their whole answer in RAM: memory grows with the number of devices | **Partly fixed** (18 November 2026): devices streamed, `TuyaConfig` read once; one device at a time left |
 | T5 | P3 | The Tuya cards never learn that a device disconnected | Read in the code |
 | T6 | P3 | A fourth open interface makes the interfaces evict each other every 3 seconds | Read in the code |
 | T7 | P3 | The rule write keeps one text for all clients: two interfaces saving together can store the other's text and report success | Read in the code |
@@ -112,6 +112,15 @@ Fix: one guard for all routes, in `webserver_async.dispatch` or in a small wrapp
 Make `cmdv()` test `isinstance(r, map)`. On the client, an `AbortController` timeout in
 `api.js` (10 s) turns a silent wait into a visible error.
 
+**Fixed on 18 November 2026.** `tf_http.be`: `dispatch()` runs each handler in `try`; on an
+exception it logs the route (not the URI, which holds the token) and calls the new
+`cnx.fail(err)`, which answers `500 {"error":"<exception>"}` if nothing was sent yet (headers
+set with `send_header()` are dropped) and else ends what was sent. `cmdv()` tests
+`isinstance(r, map)`. `tf_streamer.loop()` (fast loop) catches a read error and ends the answer.
+`api.js`: every request gives up after 15 s (`AbortSignal.timeout`; 15 s rather than 10 for
+slow commands), and `get` and `post` share one function. `tests/tf_http_test.be` checks the three
+cases (raise before sending, after `send_header()`, after `send()`).
+
 ### T3 (P2): event buffers without a size limit
 
 - `push_event` (line 473) writes each event to every open stream. `_write` in `tf_http.be`
@@ -128,6 +137,13 @@ On this gateway an allocation failure is not a slow page, it is a restart.
 Fix: close a stream whose `buf_out` exceeds a few KB (the browser reconnects and asks for what
 it missed), and limit the history by bytes (for instance 6 KB) as well as by count. Worth a
 heap measurement with a paused client before and after.
+
+**Fixed on 18 November 2026** (`tasmoflow.be`). Every write to the streams goes through
+`feed()`: a stream holding more than `MAX_OUT = 6144` unsent bytes is closed instead
+(`every_second()` drops it, the browser reconnects and, with the T1 fix, reads everything
+again). The history keeps at most 50 events **and** `MAX_EVENTS_B = 4096` bytes. `MAX_OUT` is
+above `MAX_EVENTS_B` on purpose: a new stream gets the whole history at once, and a slow client
+must not be closed by it, reconnect and get it again in a loop. Not measured on the gateway yet.
 
 ### T4 (P2): answers built whole in RAM
 
@@ -146,6 +162,16 @@ Fix: send the devices one per fast-loop turn when the buffer is empty (the `tf_s
 pattern with an iterator instead of a file). For Tuya, ask the configuration device by device
 (`TuyaConfig <name>`; the firmware report suggests making that command read one entry instead
 of the whole file) and keep it for the session instead of reading it again at every Refresh.
+
+**Partly fixed on 18 November 2026.** `/api/devices` is streamed: `tf_devices` keeps only the
+short addresses and gives `tf_streamer` one device per read, when the output buffer is empty,
+so the answer is never held whole (a device removed meanwhile is skipped). The interface reads
+`TuyaConfig` once per gateway and again only when a device of `TuyaStatus` is missing from it
+(`loadTuya()` in `state.js`): Refresh, reconnections and the drivers' checks no longer reload
+`tuya.json`. Trade-off: a binding changed on the `/tuya` page for an existing device shows after
+a page reload. Left: `TuyaConfig <name>` already exists in the firmware, but its `masked_conf()`
+loads the whole file for one entry (`read_conf()`), so asking device by device would multiply
+the loads; making it read one entry is firmware work (firmware repository).
 
 ### T5 (P3): a Tuya device that disconnects stays "connected"
 

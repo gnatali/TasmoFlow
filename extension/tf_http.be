@@ -480,6 +480,20 @@ class webserver_async
     def content_stop()
       self.close_after_send = true    # close connection when everything was sent to client
     end
+
+    #############################################################
+    # fail: (TasmoFlow) the handler raised `err`. The server runs from Tasmota's fast loop,
+    # which is not guarded: without this the request would stay unanswered for ever. Answers
+    # 500 {"error":err} if nothing was sent yet (headers set by send_header() are dropped),
+    # else ends what was sent.
+    #
+    def fail(err)
+      if self.resp_headers != nil         # send() sets it to nil
+        self.resp_headers = ''
+        self.send(500, "application/json", '{"error":"' + str(err) + '"}')
+      end
+      self.content_stop()
+    end
   end
 
   #######################################################################
@@ -643,14 +657,23 @@ class webserver_async
 
   #############################################################
   # add to dispatcher
+  # TasmoFlow: a handler that raises gets a 500 answer (cnx.fail()), logged with the route only
+  # (the URI holds the token)
   def dispatch(cnx, uri, verb)
     var idx = 0
-    while idx < size(self.dispatchers)
-      if (self.dispatchers[idx].dispatch(cnx, uri, verb))
-        return
+    var done = false
+    while !done && idx < size(self.dispatchers)
+      var d = self.dispatchers[idx]
+      try
+        done = d.dispatch(cnx, uri, verb)
+      except .. as e, m
+        log(f"TFL: {d.uri_prefix} failed ({e}: {m})", 1)
+        cnx.fail(e)
+        done = true
       end
       idx += 1
     end
+    if done    return    end
     # fallback unsupported request  
     cnx.send(500, "text/plain")
     cnx.write("Unsupported")

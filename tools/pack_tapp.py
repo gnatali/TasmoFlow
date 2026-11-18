@@ -46,10 +46,11 @@ LITE = ROOT / "dist" / "lite.js"
 DIST = ROOT / "dist"
 
 # size budgets (the specification allowed 150 KB for the .tapp, 25 KB for lite.js.gz; Guillaume
-# asked on 11 November 2026 for half of v0.2.0's 83,069 B .tapp: device control and update only)
+# asked on 11 November 2026 for half of v0.2.0's 83,069 B .tapp: device control and update only;
+# raised by Guillaume on 18 November 2026 from 41,534 to 42,500 B for the robustness fixes T2 to T4)
 MAX_APP_GZ = 120 * 1024             # full interface (GitHub Pages)
 MAX_LITE_GZ = 14 * 1024             # light interface (file system of the gateway)
-MAX_TAPP = 83069 // 2
+MAX_TAPP = 42500
 
 # fixed date in the zip and the gzip: two builds of the same code give the same file
 ZIP_DATE = (2026, 1, 1, 0, 0, 0)
@@ -128,11 +129,14 @@ def berry_word(c):
 
 def needs_space(a, b):
     """Must a blank stay between the characters a and b? Yes between two words (`return x`), and
-    between two signs (`= =` is not `==`, `/ ->` is a lambda). Also kept next to a string (`f 'x'`
-    is not the f-string `f'x'`) and next to a dot (`1 .. 3` is not `1. .3`). A word and a sign
-    need none (`x = 1` is `x=1`)."""
-    if a in "'\"." or b in "'\".":
+    between two signs (`= =` is not `==`, `/ ->` is a lambda). Next to a string, only when the
+    other side is a word (`f 'x'` is not the f-string `f'x'`) or another string; a string and a
+    sign need none (`s = ""` is `s=""`, 18 November 2026: -300 B). Kept next to a dot (`1 .. 3` is
+    not `1. .3`). A word and a sign need none (`x = 1` is `x=1`)."""
+    if a in "." or b in ".":
         return True
+    if a in "'\"" or b in "'\"":
+        return berry_word(a) or berry_word(b) or (a in "'\"" and b in "'\"")
     return berry_word(a) == berry_word(b)
 
 
@@ -187,7 +191,13 @@ def main():
             sys.exit(f"{f.relative_to(ROOT)} missing: run `npm ci && npm run build` first")
     app = APP.read_bytes()
     app_gz = gzip.compress(app, compresslevel=9, mtime=0)
-    lite_gz = gzip.compress(LITE.read_bytes(), compresslevel=9, mtime=0)
+    # Zopfli: still standard gzip for the browser, 2.7 % smaller than level 9 (-377 B on 18 November
+    # 2026), which the .tapp budget needs; same input, same output
+    try:
+        import zopfli.gzip
+    except ImportError:
+        sys.exit("the zopfli module is missing: pip install -r tools/requirements.txt")
+    lite_gz = zopfli.gzip.compress(LITE.read_bytes(), numiterations=50)
     sri = "sha384-" + base64.b64encode(hashlib.sha384(app).digest()).decode()
 
     shown = version

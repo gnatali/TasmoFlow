@@ -48,7 +48,8 @@ class tf_streamer
   def loop()
     if !self.cnx.connected()    self.stop()   return  end
     if !self.cnx.buf_out_empty()   return   end
-    var b = self.f.readbytes(1024)
+    var b = bytes()
+    try b = self.f.readbytes(1024) except .. end     # the fast loop is not guarded: an error ends the answer
     if size(b) == 0
       self.cnx.content_stop()
       self.stop()
@@ -64,6 +65,47 @@ class tf_streamer
 end
 
 #################################################################################
+# The Zigbee devices as a JSON list read like a file by tf_streamer, one device per read:
+# with 30 or 40 devices and their attributes the answer is over 10 KB, never held whole in RAM.
+# Only the short addresses are kept (a device removed meanwhile is skipped).
+#################################################################################
+class tf_devices
+  var zb, addrs, i, sep
+
+  def init(zb)
+    self.zb = zb
+    self.addrs = []
+    self.i = 0
+    self.sep = "["
+    for d: zb    self.addrs.push(d.shortaddr)    end
+  end
+
+  def readbytes(n)
+    var a = self.addrs
+    var s = ""
+    while s == "" && self.i < size(a)
+      var d = self.zb.find(a[self.i])
+      self.i += 1
+      if d != nil
+        s = self.sep + format('{"addr":"0x%04X","name":%s,"model":%s,"manufacturer":%s,'
+                              '"lqi":%s,"battery":%s,"lastseen":%s,"reachable":%s,"router":%s,"info":%s}',
+                              d.shortaddr, json.dump(d.name), json.dump(d.model), json.dump(d.manufacturer),
+                              json.dump(d.lqi), json.dump(d.battery), json.dump(d.lastseen),
+                              json.dump(d.reachable), json.dump(d.router), str(d.info()))
+        self.sep = ","
+      end
+    end
+    if s == "" && self.sep != nil       # after the last device: the end of the list, once
+      s = self.sep == "[" ? "[]" : "]"
+      self.sep = nil
+    end
+    return bytes().fromstring(s)
+  end
+
+  def close() end
+end
+
+#################################################################################
 class tasmoflow
   static var VERSION = "@@VERSION@@"
   static var CDN = "@@CDN@@"            # GitHub Pages address ('' = local copy only)
@@ -71,7 +113,10 @@ class tasmoflow
   static var SRI = "@@SRI@@"            # SRI hash (sha384) of app.js
   static var PORT = 8384
   static var IDLE_MS = 300000           # API server stopped after 5 minutes without a client
-  static var MAX_EVENTS = 50            # events kept for clients that reconnect
+  static var MAX_EVENTS = 50            # events kept for clients that reconnect...
+  static var MAX_EVENTS_B = 4096        # ... and their size in bytes (a Tuya status can be 1 KB)
+  static var MAX_OUT = 6144             # unsent bytes after which an event stream is closed: above
+                                        # MAX_EVENTS_B, which a new stream gets at once
   static var MAX_FEEDS = 3              # event streams open at the same time
 
   var wd                                # .tapp folder, e.g. '/.extensions/TasmoFlow.tapp#'
@@ -80,6 +125,7 @@ class tasmoflow
   var upd                               # tf_update (update API), loaded at the first /api/update request
   var token
   var events                            # [ [seq, SSE text], ... ]
+  var events_b                          # their size in bytes
   var seq
   var feeds                             # open SSE connections
   var ping
@@ -89,6 +135,7 @@ class tasmoflow
   def init()
     self.wd = tasmota.wd
     self.events = []
+    self.events_b = 0
     self.seq = 0
     self.feeds = []
     self.ping = 0
@@ -168,7 +215,7 @@ class tasmoflow
   # value returned by a Tasmota command, or nil
   static def cmdv(cmd, key)
     var r = tasmota.cmd(cmd, true)
-    return r != nil ? r.find(key) : nil
+    return isinstance(r, map) ? r.find(key) : nil     # a string when the answer is not JSON
   end
 
   def send_json(cnx, code, s)
@@ -351,6 +398,7 @@ class tasmoflow
     for f: self.feeds   f.close()   end
     self.feeds = []
     self.events = []
+    self.events_b = 0
     self.web.close()
     self.web = nil
     self.rules = nil
@@ -403,25 +451,18 @@ class tasmoflow
 
   def api_devices(cnx, uri, verb)
     if self.authorized(cnx, uri) == nil   return   end
-    cnx.send(200, "application/json", "[")
     var zb = self.zb()
     var started = false
     if zb != nil
       try started = bool(zb.started()) except .. end
     end
-    if started
-      var sep = ""
-      for d: zb
-        cnx.write(sep + format('{"addr":"0x%04X","name":%s,"model":%s,"manufacturer":%s,'
-                               '"lqi":%s,"battery":%s,"lastseen":%s,"reachable":%s,"router":%s,"info":%s}',
-                               d.shortaddr, json.dump(d.name), json.dump(d.model), json.dump(d.manufacturer),
-                               json.dump(d.lqi), json.dump(d.battery), json.dump(d.lastseen),
-                               json.dump(d.reachable), json.dump(d.router), str(d.info())))
-        sep = ","
-      end
+    if !started
+      self.send_json(cnx, 200, "[]")
+      return
     end
-    cnx.write("]")
-    cnx.content_stop()
+    var list = tf_devices(zb)
+    cnx.send(200, "application/json")
+    tf_streamer(cnx, list)              # one device per fast-loop turn, at the client's pace
   end
 
   # any Tasmota command: POST /api/cmd?t=... with the command as the body (a URL of more than
@@ -475,9 +516,23 @@ class tasmoflow
     var s = format('id: %i\ndata: {"seq":%i,"type":"%s","ts":%i,%s}\n\n',
                    self.seq, self.seq, kind, tasmota.rtc()['utc'], payload)
     self.events.push([self.seq, s])
-    if size(self.events) > self.MAX_EVENTS    self.events.remove(0)    end
+    self.events_b += size(s)
+    while size(self.events) > self.MAX_EVENTS || self.events_b > self.MAX_EVENTS_B
+      self.events_b -= size(self.events[0][1])
+      self.events.remove(0)
+    end
+    self.feed(s)
+  end
+
+  # writes to every open stream. A client that stopped reading without closing (a laptop gone to
+  # sleep, a phone that left Wi-Fi) stays connected for minutes: what it does not take piles up
+  # in RAM, so its stream is closed beyond MAX_OUT bytes (every_second() drops it; the browser
+  # reconnects and asks for what it missed)
+  def feed(s)
     for f: self.feeds
-      if f.connected()    f.write(s)    end
+      if f.connected()
+        if size(f.buf_out) > self.MAX_OUT    f.close()    else    f.write(s)    end
+      end
     end
   end
 
@@ -520,7 +575,7 @@ class tasmoflow
     self.ping += 1
     if self.ping >= 15                  # SSE comment: keeps connections open
       self.ping = 0
-      for f: self.feeds   f.write(": ping\n\n")   end
+      self.feed(": ping\n\n")
     end
   end
 end

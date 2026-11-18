@@ -229,8 +229,25 @@ for k: 1 .. 600    flood.push(repeat("z", 50))    end
 rr = refused_run([repeat("a", 600)] + flood, 400)
 check("refused request: a sender that never stops is cut after 2 s", rr[0].closed && rr[1] > 0 && rr[2] <= 220, [rr[0].closed, rr[1], rr[2]])
 
+# A handler that raises gets an answer: the server runs from Tasmota's unguarded fast loop, and
+# the request used to stay unanswered for ever (bug analysis T2, 15 November 2026)
+srv.on("/boom", nil, def (cnx, uri, verb)
+  if uri == "/boom/h"    cnx.send_header("Content-Encoding", "gzip")    end
+  if uri == "/boom/s"    cnx.send(200, "text/event-stream", "retry: 3000\n\n")    end
+  raise "value_error", "handler failed"
+end)
+var r = run([get("GET /boom HTTP/1.1")])
+check("handler raises: 500 with the error", r[0] == 500 && r[1].closed && string.find(r[1].out, '{"error":"value_error"}') > 0,
+      [r[0], r[1].closed, r[1].out])
+r = run([get("GET /boom/h HTTP/1.1")])
+check("handler raises after send_header: 500 without that header", r[0] == 500 && r[1].closed && string.find(r[1].out, "gzip") < 0,
+      [r[0], r[1].out])
+r = run([get("GET /boom/s HTTP/1.1")])
+check("handler raises after send: what was sent ends, closed", r[0] == 200 && r[1].closed && string.find(r[1].out, "HTTP/", 5) < 0,
+      [r[0], r[1].closed, r[1].out])
+
 # Incomplete request: no answer, the connection waits for the rest
-var r = run(["GET " + STATUS + " HTTP/1.1\r\nHost: gw\r\n"])
+r = run(["GET " + STATUS + " HTTP/1.1\r\nHost: gw\r\n"])
 check("incomplete request waits", r[0] == nil && !r[1].closed && size(seen) == 0, [r[0], r[1].closed])
 
 if failures > 0

@@ -1,9 +1,13 @@
 # Ways to reduce the `.tapp` (18 November 2026)
 
-Not done yet: a list of options to handle later, measured or estimated on branch `claude/awesome-planck-mow2gg`
-after the T1 fix. Why it matters: the `.tapp` is **41,526 B of a 41,534 B budget** (half of
-v0.2.0, decision of 11 November 2026, `pack_tapp.py`), so **8 B are left** and anything new in the
-light interface or the extension needs a saving first.
+A list of options to handle later, measured or estimated on branch `claude/awesome-planck-mow2gg`
+after the T1 fix, when the `.tapp` was **41,526 B of a 41,534 B budget** (half of v0.2.0,
+decision of 11 November 2026, `pack_tapp.py`).
+
+**Update, same day (T2 to T4 fixes, about 1 KB of Berry):** option 1 (Zopfli) is done, and the
+Berry minifier no longer keeps a blank between a string and a sign (`s=""`, -234 B). That was
+not enough: **Guillaume raised the budget to 42,500 B**. The `.tapp` is then 41,962 B (538 B
+left). The other options stay open.
 
 ## What is in it
 
@@ -27,7 +31,7 @@ The light interface, minified, before gzip: Preact 10.8 KB, texts (`i18n.js`) 5.
 
 | # | Option | Gain | Risk, effort |
 | --- | --- | --- | --- |
-| 1 | **Zopfli instead of gzip** for `lite.js.gz` (`pack_tapp.py`) | **-377 B, measured** (14,163 to 13,786, 50 iterations) | None: still standard gzip for the browser and the extension. Build dependency (Python `zopfli` package, in CI too) |
+| 1 | **Done (18 November 2026).** **Zopfli instead of gzip** for `lite.js.gz` (`pack_tapp.py`) | **-377 B, measured** (14,163 to 13,786, 50 iterations) | None: still standard gzip for the browser and the extension. Build dependency (Python `zopfli` package, in CI too) |
 | 2 | **Minify the `/tf` loader JS** in `tasmoflow.be` at packing (esbuild) | about -400 B of 1,189 (estimate) | Low. The simulated gateway has its own copy of the loader (`loader_html()`), so the end-to-end tests do not cover the real one: add a test that takes the loader out of `tasmoflow.be` |
 | 3 | **Shorter Berry log and error messages** (8 log strings, 424 B) | -100 to -150 B (estimate) | Low. Keep the boot line `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened`, used to tell the installed version |
 | 4 | **Shorter texts in the light interface**, mostly the long update messages (`updateTimeout`, `updateConfirm`, `updateSpaceDetail`...), French and English | -200 to -400 B gzipped (estimate) | Low; wording to agree with Guillaume |

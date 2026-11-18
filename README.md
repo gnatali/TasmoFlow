@@ -47,6 +47,7 @@ The firmware is not modified. How it works: [docs/architecture.en.md](docs/archi
    ```sh
    npm ci
    npm run build
+   pip install -r tools/requirements.txt
    python3 tools/pack_tapp.py
    ```
 
@@ -54,7 +55,8 @@ The firmware is not modified. How it works: [docs/architecture.en.md](docs/archi
    Pages) and `dist/lite.js` (light, kept in the `.tapp`). `pack_tapp.py` writes
    `dist/TasmoFlow.tapp`, with the Berry files of `extension/` minified (no comments), and
    prints the sizes and their budgets (a test build, `--dev` below, is minified too but has no
-   size budget).
+   size budget). `lite.js.gz` is compressed with Zopfli (standard gzip, smaller), hence the
+   `pip install`.
 
 2. In Tasmota: **Tools → Manage File system**, upload `dist/TasmoFlow.tapp` (to the root, or
    to `/.extensions/`).
