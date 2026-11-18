@@ -184,6 +184,11 @@ en partie essayées sur la passerelle, voir le plan de test.
   l'API qui peuvent laisser une requête sans réponse, tampons d'événements et réponses sans
   limite de taille).
 
+- **Réduire le `.tapp`** (18 novembre 2026, 8 octets de marge) :
+  [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md) (en anglais) liste
+  les pistes et leurs gains (Zopfli mesuré à -377 octets, chargeur `/tf` minifié, logs et textes
+  raccourcis...), rien n'est encore fait. À faire d'abord : pistes 1 à 3, environ -900 octets.
+
 ## Liens
 
 | Quoi | Où |

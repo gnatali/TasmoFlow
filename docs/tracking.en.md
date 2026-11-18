@@ -174,6 +174,11 @@ conflicts) are written and tried on the gateway in part, see the test plan.
   gateway. Next: T2 to T4 (API handlers that can leave a request unanswered, event buffers and
   answers without a size limit).
 
+- **Reducing the `.tapp`** (18 November 2026, 8 B left):
+  [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md) lists the options
+  with their gains (Zopfli measured at -377 B, minified `/tf` loader, shorter logs and texts...),
+  nothing done yet. Recommended first: options 1 to 3, about -900 B.
+
 ## Links
 
 | What | Where |
