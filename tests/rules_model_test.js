@@ -19,7 +19,7 @@ globalThis.document = { documentElement: {} };
 globalThis.window = {};
 const m = { exports: {} };
 new Function('module', 'exports', out)(m, m.exports);
-const { controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
+const { controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
 
 let n = 0;
 const ok = (name, f) => { f(); n++; };
@@ -51,10 +51,45 @@ ok('if without else, with backlog', () => {
   const b = parseBlock('on Rules#Timer=1 do if (Var1==1) Backlog Power1 1; Var1 0 endif endon');
   assert.strictEqual(b.else, null); assert.deepStrictEqual(b.then, ['Power1 1', 'Var1 0']);
 });
+ok('elseif: any number, with or without else', () => {
+  const b = parseBlock('on Button1#State=3 do if (Var1==1) Power1 1 elseif (Var1==2) Backlog Power1 0; Power2 1 elseif ((Var1>3) and (Var2<1)) Power3 1 else Power1 2 endif endon');
+  assert.strictEqual(b.kind, 'sentence');
+  assert.deepStrictEqual(b.then, ['Power1 1']);
+  assert.deepStrictEqual(b.elifs, [{ cond: 'Var1==2', then: ['Power1 0', 'Power2 1'] }, { cond: '(Var1>3) and (Var2<1)', then: ['Power3 1'] }]);
+  assert.deepStrictEqual(b.else, ['Power1 2']);
+  const c = parseBlock('on Button1#State=3 do if (Var1==1) Power1 1 elseif (Var1==2) Power1 0 endif endon');
+  assert.deepStrictEqual([c.elifs.length, c.else], [1, null]);
+  assert.deepStrictEqual(parseBlock('on x#y do if (Var1==1) Power1 1 endif endon').elifs, []);
+});
+ok('several triggers: neighbouring blocks with the same actions are one sentence, read and written back unchanged', () => {
+  const text = 'on Button1#State=3 do Power2 toggle endon on Button2#State>1 do Power2 toggle endon on System#Boot do Power2 toggle endon on Time#Minute=5 do Power3 1 endon';
+  const blocks = parseRuleSet(text);
+  assert.strictEqual(blocks.length, 2);
+  assert.deepStrictEqual(triggersOf(blocks[0]), [{ subject: 'Button1#State', op: '=', value: '3' }, { subject: 'Button2#State', op: '>', value: '1' }, { subject: 'System#Boot', op: '', value: '' }]);
+  assert.strictEqual(serializeRuleSet(blocks), splitBlocks(text).join('\n'));              // never rewritten
+  // not neighbours, or other actions: not merged
+  assert.strictEqual(parseRuleSet('on a#b do Power1 1 endon on c#d do Power2 1 endon on e#f do Power1 1 endon').length, 3);
+  assert.strictEqual(parseRuleSet('on a#b do if (Var1==1) Power1 1 endif endon on c#d do Power1 1 endon').length, 2);
+  assert.strictEqual(parseRuleSet('on a#b do Power1 1 endon on c#d and e#f do Power1 1 endon').length, 2);   // "and" between triggers: raw
+});
+ok('several triggers: one block per trigger when written, an empty extra trigger is left out', () => {
+  const b = { ...newBlock(), subject: 'Button1#State', op: '=', value: '3', then: ['Power2 toggle'], more: [{ subject: 'System#Boot', op: '', value: '' }, { subject: ' ', op: '', value: '' }] };
+  assert.strictEqual(serializeBlock(b), 'on Button1#State=3 do Power2 toggle endon\non System#Boot do Power2 toggle endon');
+  const c = { ...b, cond: 'Var1==1', elifs: [{ cond: 'Var1==2', then: ['Power2 off', 'Var1 0'] }], else: ['Power2 on'], more: [{ subject: 'Wifi#Connected', op: '', value: '' }] };
+  const text = serializeBlock(c);
+  assert.strictEqual(text, 'on Button1#State=3 do if (Var1==1) Power2 toggle elseif (Var2==2) Backlog Power2 off; Var1 0 else Power2 on endif endon\non Wifi#Connected do if (Var1==1) Power2 toggle elseif (Var1==2) Backlog Power2 off; Var1 0 else Power2 on endif endon'.replace('Var2==2', 'Var1==2'));
+  assert.strictEqual(lintRule(flatRule(text)), null);
+  const back = parseRuleSet(text);                                                               // read back as one sentence
+  assert.strictEqual(back.length, 1);
+  assert.deepStrictEqual([back[0].elifs, back[0].else, back[0].more.length], [c.elifs, ['Power2 on'], 1]);
+});
 ok('what stays raw', () => {
   for (const t of [
     'on Power1#State=1 and Power2#State=1 do Power3 1 endon',            // two triggers
-    'on Button1#State=3 do if (Var1==1) Power1 1 elseif (Var1==2) Power1 0 endif endon',
+    'on Button1#State=3 do if (Var1==1) Power1 1 elseif (Var1==2) if (Var2==1) Power1 0 endif endif endon',   // nested if, even in an elseif
+    'on Button1#State=3 do if (Var1==1) Power1 1 elseif Power1 0 endif endon',                                // elseif without a condition
+    'on Button1#State=3 do if (Var1==1) Power1 1 elseif (Var1==2) else Power1 0 endif endon',                 // an empty branch
+    'on Button1#State=3 do if (Var1==1) Power1 1 else Power1 0 elseif (Var1==2) Power1 2 endif endon',        // elseif after else
     'on Button1#State=3 do if (Var1==1) if (Var2==1) Power1 1 endif endif endon',
     'on x#y= do Power1 1 endon',                                        // operator without value
     'on x#y do endon'                                                   // empty body
@@ -92,12 +127,13 @@ ok('serialization of every shape, parsed back to the same sentence', () => {
     { subject: 'System#Boot', op: '', value: '', cond: null, then: ['Power1 1'], else: null },
     { subject: 'Button1#State', op: '=', value: '3', cond: null, then: ['Power1 1', 'Delay 10', 'Power1 0'], else: null },
     { subject: 'Rules#Timer', op: '=', value: '1', cond: 'Var1==1', then: ['Power1 1'], else: ['Power1 0'] },
-    { subject: 'Time#Minute', op: '>=', value: '30', cond: '(Var1>1) and (Var2<3)', then: ['Power1 1', 'Var1 0'], else: null }
+    { subject: 'Time#Minute', op: '>=', value: '30', cond: '(Var1>1) and (Var2<3)', then: ['Power1 1', 'Var1 0'], else: null },
+    { subject: 'Time#Minute', op: '=', value: '30', cond: 'Var1==1', then: ['Power1 1'], elifs: [{ cond: 'Var1==2', then: ['Power1 0'] }, { cond: 'Var1==3', then: ['Power2 1', 'Power3 1'] }], else: ['Power1 2'] }
   ];
   for (const s of shapes) {
-    const text = serializeBlock({ kind: 'sentence', ...s, src: null });
+    const text = serializeBlock({ kind: 'sentence', more: [], elifs: [], ...s, src: null });
     const b = parseBlock(text);
-    assert.deepStrictEqual({ subject: b.subject, op: b.op, value: b.value, cond: b.cond, then: b.then, else: b.else }, s, text);
+    assert.deepStrictEqual({ subject: b.subject, op: b.op, value: b.value, cond: b.cond, then: b.then, elifs: b.elifs, else: b.else }, { elifs: [], ...s }, text);
     assert.strictEqual(lintRule(text), null, text);
   }
 });
@@ -294,6 +330,41 @@ ok('guided: the block written, with the name or the address', () => {
     'on ZbReceived#Prise#Power do Power1 on endon');
   assert.strictEqual(guidedBlock({ addr: '0x7788', attr: 'Power', op: '', value: '' }, ['Power1 on'], GZ, true), null);   // "Prise cuisine bas": no name in a trigger
   assert.strictEqual(parseBlock(serializeBlock(b)).kind, 'sentence');                    // the editor reads it back
+});
+
+const LAB = { connected: 'connecté', disconnected: 'déconnecté' };
+ok('device connected: Zigbee ZbState announce by short address, Tuya by name, plain language, nothing for others', () => {
+  const dev = { '0x1A2B': { addr: '0x1A2B', name: 'Lampe salon', attrs: { Power: 1 } } };
+  const z = zbTriggers(dev, false, LAB).groups[0].items;
+  assert.deepStrictEqual(z.map(i => [i.label, i.value, i.op, i.val]), [['Power', 'ZbReceived#0x1A2B#Power', undefined, undefined], ['connecté', 'ZbState#ShortAddr', '=', '0x1A2B']]);
+  assert.strictEqual(zbTriggers(dev, false).groups[0].items.length, 1);                       // without labels: as before
+  const tuya = { state: 'running', nodes: { 'Ventilateur': {}, 'Salon, TV': {}, 'a=b': {}, 'x do y': {}, ' sp': {} } };
+  const tt = tuyaTriggers(tuya, LAB);
+  assert.deepStrictEqual(tt.map(g => g.group), ['Tuya · Salon, TV', 'Tuya · Ventilateur']);      // a name that would split or compare the trigger is left out
+  assert.deepStrictEqual(tt[1].items.map(i => [i.value, i.op, i.val]), [['TuyaConnected#Name', '=', 'Ventilateur'], ['TuyaDisconnected#Name', '=', 'Ventilateur']]);
+  assert.deepStrictEqual(tuyaTriggers({ state: 'disabled', nodes: {} }, LAB), []);
+  const tr = (subject, op, value) => ({ subject, op, value });
+  assert.strictEqual(describeConnection(tr('ZbState#ShortAddr', '=', '0x1a2b'), dev, LAB), 'Lampe salon · connecté');
+  assert.strictEqual(describeConnection(tr('ZbState#ShortAddr', '=', '0x9999'), dev, LAB), null);   // unknown device: as written
+  assert.strictEqual(describeConnection(tr('TuyaDisconnected#Name', '=', 'Salon, TV'), dev, LAB), 'Salon, TV · déconnecté');
+  assert.strictEqual(describeConnection(tr('TuyaConnected#Name', '', ''), dev, LAB), null);
+  assert.strictEqual(describeTrigger(tr('ZbReceived#0x1A2B#Power', '=', '1'), dev, false, LAB), 'Lampe salon · Power = 1');
+  assert.strictEqual(describeTrigger(tr('ZbState#ShortAddr', '=', '0x9999'), dev, false, LAB), 'ZbState#ShortAddr = 0x9999');
+  // written and read back as any other trigger
+  const text = serializeBlock({ ...newBlock(), subject: 'ZbState#ShortAddr', op: '=', value: '0x1A2B', then: ['Power1 on'], more: [tr('TuyaConnected#Name', '=', 'Salon, TV')] });
+  assert.strictEqual(text, 'on ZbState#ShortAddr=0x1A2B do Power1 on endon\non TuyaConnected#Name=Salon, TV do Power1 on endon');
+  assert.strictEqual(lintRule(flatRule(text)), null);
+  assert.deepStrictEqual(triggersOf(parseRuleSet(text)[0]).map(x => x.value), ['0x1A2B', 'Salon, TV']);
+});
+ok('conflicts: a sentence with several triggers fires on each, branches count', () => {
+  const sets = [
+    { n: 1, on: true, text: 'on Button1#State=3 do Power2 toggle endon on Button2#State=1 do Power2 toggle endon' },       // one sentence, two triggers
+    { n: 2, on: true, text: 'on Button2#State=1 do if (Var1==1) Power1 on elseif (Var1==2) Power2 toggle endif endon' }     // toggles Power2 on Button2 too, in an elseif
+  ];
+  const c = findConflicts(sets);
+  assert.strictEqual(c.length, 1);
+  assert.deepStrictEqual([c[0].kind, c[0].target, c[0].subject, c[0].where.map(w => w.n + ':' + w.i)], ['cancel', 'Power2', 'Button2#State', ['1:0', '2:0']]);
+  assert.strictEqual(findConflicts([{ n: 1, on: true, text: 'on a#b do Power1 on endon on c#d do Power1 on endon' }]).length, 0);   // two triggers of one sentence do not clash with each other
 });
 
 console.log(`ok     rule model (${n} checks)`);

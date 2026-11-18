@@ -7,6 +7,15 @@
 // a rule trigger reads ZbReceived#<key>#<attribute>. The key is the friendly name only when
 // SetOption83 is on (flag4.zigbee_use_names) and the device has one, else the short address
 // "0x%04X". ZbSend takes the device as a name or an address: the address never changes.
+//
+// Device connected (Tasmota source, tasmota/tasmota_xdrv_driver/xdrv_23_zigbee_8_parsers.ino,
+// Z_ReceiveEndDeviceAnnonce, firmware commit 43d9409): when a paired device is powered up again (or
+// joins), Tasmota publishes {"ZbState":{"Status":30,"IEEEAddr":...,"ShortAddr":"0x1234",...}} and runs
+// the rules on it: the trigger is ZbState#ShortAddr=0x1234 (a rule trigger tests one value; the
+// other ZbState messages of that device, during pairing, match it too). `Reachable` only ever
+// goes out as false (xdrv_23_zigbee_6_0_commands.ino, Z_Unreachable): no trigger for "back".
+// Tuya: the firmware's driver publishes {"TuyaConnected":{"Name":...}} and {"TuyaDisconnected":...}
+// (berry/tuya_local.be of the firmware repository; older builds do not).
 import { controlsFor, sendName } from './tuya_model.js';
 
 // attributes that are not something a rule waits for
@@ -31,16 +40,36 @@ export const zbAttrs = d => triggerAttrs(d.attrs);
 
 // [{ group, items: [{ label, value }] }]: one group per Zigbee device, one item per attribute
 // it reported. `skipped`: how many devices had a name no trigger can carry.
-export function zbTriggers(devices, useNames) {
+// `labels` = { connected }: adds "device connected" to each device. An item with `op` and `val` sets
+// the comparison too (the trigger is the subject, the operator and the value together).
+export function zbTriggers(devices, useNames, labels) {
   const groups = [];
   let skipped = 0;
   for (const d of sorted(devices)) {
     const key = zbKey(d, useNames);
     if (!usableKey(key)) { skipped++; continue; }
     const attrs = zbAttrs(d);
-    groups.push({ group: shown(d), items: (attrs.length ? attrs : ['Power']).map(a => ({ label: a, value: 'ZbReceived#' + key + '#' + a })) });
+    const items = (attrs.length ? attrs : ['Power']).map(a => ({ label: a, value: 'ZbReceived#' + key + '#' + a }));
+    if (labels) items.push({ label: labels.connected, value: 'ZbState#ShortAddr', op: '=', val: d.addr });
+    groups.push({ group: shown(d), items });
   }
   return { groups, skipped };
+}
+
+// a name that can stand as the value of a rule trigger: none of the characters that split or compare it
+const usableValue = n => n.trim() === n && /^[^=<>!|$%]+$/.test(n) && !/\s(do|endon|break)\s/i.test(' ' + n + ' ');
+
+// Tuya devices connecting and disconnecting (see above); `labels` = { connected, disconnected }
+export function tuyaTriggers(tuya, labels) {
+  const groups = [];
+  if (!tuya || tuya.state !== 'running') return groups;
+  for (const name of Object.keys(tuya.nodes).sort((a, b) => a.localeCompare(b))) {
+    if (!usableValue(name)) continue;
+    groups.push({ group: 'Tuya · ' + name, items: [
+      { label: labels.connected, value: 'TuyaConnected#Name', op: '=', val: name },
+      { label: labels.disconnected, value: 'TuyaDisconnected#Name', op: '=', val: name }] });
+  }
+  return groups;
 }
 
 const zbSend = (addr, power) => 'ZbSend {"device":"' + addr + '","send":{"Power":"' + power + '"}}';
@@ -85,6 +114,26 @@ export function describeSubject(subject, devices, useNames) {
   if (!m) return null;
   const d = Object.values(devices || {}).find(x => zbKey(x, useNames) === m[1] || x.addr.toLowerCase() === m[1].toLowerCase());
   return d ? shown(d) + ' · ' + m[2] : null;
+}
+
+// a device connecting or disconnecting, in plain language (`Lampe · connecté`), or null for any other
+// trigger { subject, op, value }; `labels` = { connected, disconnected }
+export function describeConnection(tr, devices, labels) {
+  if (tr.op !== '=') return null;
+  if (/^ZbState#ShortAddr$/i.test(tr.subject)) {
+    const d = Object.values(devices || {}).find(x => x.addr.toLowerCase() === tr.value.trim().toLowerCase());
+    return d ? shown(d) + ' · ' + labels.connected : null;
+  }
+  if (/^Tuya(Dis)?connected#Name$/i.test(tr.subject) && tr.value.trim()) {
+    return tr.value.trim() + ' · ' + (/^TuyaDis/i.test(tr.subject) ? labels.disconnected : labels.connected);
+  }
+  return null;
+}
+
+// a trigger in plain language: the device and what it does (`Lampe · Power = 1`, `Lampe · connecté`), or as written
+export function describeTrigger(tr, devices, useNames, labels) {
+  return describeConnection(tr, devices, labels)
+    || (describeSubject(tr.subject, devices, useNames) || tr.subject || '…') + (tr.op ? ' ' + tr.op + ' ' + tr.value : '');
 }
 
 // the name of the Tuya device a `TuyaSend` argument stands for (its id when the name has a comma)

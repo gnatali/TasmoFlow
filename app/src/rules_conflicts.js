@@ -3,7 +3,7 @@
 // device. Two toggles cancel out, an "on" and an "off" contradict, the same order twice is
 // redundant. Only enabled rule sets count, only blocks the sentence model understands, and only
 // commands that name what they act on (Power<n>, ZbSend Power, TuyaSend with true/false/toggle).
-import { parseRuleSet } from './rules_model.js';
+import { parseRuleSet, triggersOf } from './rules_model.js';
 
 const VERB = { on: 'on', 1: 'on', true: 'on', off: 'off', 0: 'off', false: 'off', toggle: 'toggle', 2: 'toggle' };
 
@@ -26,13 +26,16 @@ export function findConflicts(sets) {
     if (!s.on) continue;
     (parseRuleSet(s.text) || []).forEach((b, i) => {
       if (b.kind !== 'sentence') return;
-      const trig = (b.subject + b.op + b.value).replace(/\s+/g, '').toLowerCase();
-      for (const cmd of [...b.then, ...(b.else || [])]) {
-        const info = commandInfo(cmd);
-        if (!info) continue;
-        const key = trig + '|' + info.target;
-        if (!groups.has(key)) groups.set(key, { subject: b.subject, op: b.op, value: b.value, target: info.target, cmd, entries: [] });
-        groups.get(key).entries.push({ n: s.n, i, verb: info.verb });
+      const cmds = [...b.then, ...(b.elifs || []).flatMap(e => e.then), ...(b.else || [])];
+      for (const tr of triggersOf(b)) {                // a sentence with several triggers fires on each
+        const trig = (tr.subject + tr.op + tr.value).replace(/\s+/g, '').toLowerCase();
+        for (const cmd of cmds) {
+          const info = commandInfo(cmd);
+          if (!info) continue;
+          const key = trig + '|' + info.target;
+          if (!groups.has(key)) groups.set(key, { subject: tr.subject, op: tr.op, value: tr.value, target: info.target, cmd, entries: [] });
+          groups.get(key).entries.push({ n: s.n, i, verb: info.verb });
+        }
       }
     });
   }
