@@ -32,7 +32,7 @@ function in a plausible situation; **P3** robustness, rare cases; **P4** minor.
 | T1 | P1 | After a gateway restart, an open interface shows "live" but ignores every event until the new sequence numbers pass the old ones | **Fixed** (18 November 2026), to check on the gateway |
 | T2 | P2 | An exception in `/api/status`, `/api/devices`, `/api/cmd` or `/api/events` leaves the request unanswered for ever; the interface then stays on "loading" | **Fixed** (18 November 2026), to check on the gateway |
 | T3 | P2 | Events pile up without limit in RAM for a client that stopped reading; the event history is limited by count, not by size | **Fixed** (18 November 2026), to measure on the gateway |
-| T4 | P2 | `/api/devices` and `TuyaConfig` build their whole answer in RAM: memory grows with the number of devices | **Partly fixed** (18 November 2026): devices streamed, `TuyaConfig` read once; one device at a time left |
+| T4 | P2 | `/api/devices` and `TuyaConfig` build their whole answer in RAM: memory grows with the number of devices | **Fixed** (18 November 2026): devices streamed, `TuyaConfig` read device by device (firmware of the same day) |
 | T5 | P3 | The Tuya cards never learn that a device disconnected | Read in the code |
 | T6 | P3 | A fourth open interface makes the interfaces evict each other every 3 seconds | Read in the code |
 | T7 | P3 | The rule write keeps one text for all clients: two interfaces saving together can store the other's text and report success | Read in the code |
@@ -169,9 +169,16 @@ so the answer is never held whole (a device removed meanwhile is skipped). The i
 `TuyaConfig` once per gateway and again only when a device of `TuyaStatus` is missing from it
 (`loadTuya()` in `state.js`): Refresh, reconnections and the drivers' checks no longer reload
 `tuya.json`. Trade-off: a binding changed on the `/tuya` page for an existing device shows after
-a page reload. Left: `TuyaConfig <name>` already exists in the firmware, but its `masked_conf()`
-loads the whole file for one entry (`read_conf()`), so asking device by device would multiply
-the loads; making it read one entry is firmware work (firmware repository).
+a page reload.
+
+**Then, the same day:** the firmware's `TuyaConfig <device>` reads `tuya.json` entry by entry
+(`each_device()`, no memory threshold) and also finds a sub-device of a Tuya gateway (firmware
+repository, its scenario 28). The interface asks `TuyaConfig <name>` for each device of
+`TuyaStatus` it does not know yet (a gateway's entry brings its sub-devices), so the whole file
+is never loaded and the cards keep their controls whatever the free memory. With an older
+firmware, sub-devices are not found alone: the whole configuration is then read once. The
+simulated gateway answers `TuyaConfig <name>` and counts the requests: the Tuya end-to-end test
+checks that no bare `TuyaConfig` is sent.
 
 ### T5 (P3): a Tuya device that disconnects stays "connected"
 

@@ -126,6 +126,9 @@ def since_first_call():
     return time.monotonic() - T_FIRST[0]
 
 
+TUYA_CONF_READS = {"whole": 0, "one": 0}      # TuyaConfig requests, for the tests (/__test/tuyaconfig)
+
+
 def tuya_command(c):
     """Response to a Tuya* command (None: not one)."""
     word, _, arg = c.partition(" ")
@@ -133,7 +136,15 @@ def tuya_command(c):
     if word == "TuyaEnable":
         return {"TuyaEnable": {"Enabled": True, "State": "running"}}
     if word == "TuyaConfig":
-        return {"TuyaConfig": TUYA_CONF}
+        TUYA_CONF_READS["one" if arg else "whole"] += 1
+        if not arg:
+            return {"TuyaConfig": TUYA_CONF}
+        # one device (name or id, any case) or a sub-device, like the firmware since 18 November 2026
+        for d in TUYA_CONF["devices"]:
+            for e in [d] + d.get("children", []):
+                if arg.lower() == e["name"].lower() or arg == e.get("id"):
+                    return {"TuyaConfig": e}
+        return {"TuyaConfig": {"Error": "unknown device"}}
     if word == "TuyaStatus":
         return {"TuyaStatus": {n: d for n, d in TUYA.items() if not arg or n.lower() == arg.lower()}}
     if word == "TuyaSend":
@@ -395,6 +406,9 @@ class Api(BaseHTTPRequestHandler):
                          new=b"", total=0, boot=time.monotonic())
             FS.update({k: int(q.get(k, v)) for k, v in FS_DEFAULT.items()})
             self.json(200, {"ok": True})
+            return
+        if self.path.startswith("/__test/tuyaconfig"):   # test hook: TuyaConfig requests so far
+            self.json(200, TUYA_CONF_READS)
             return
         if self.path.startswith("/__test/restart"):   # test hook: ?n= events sent first, then a 2 s restart
             q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))

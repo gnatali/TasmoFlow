@@ -369,7 +369,9 @@ The driver only keeps the DPs it uses: those of the Matter bindings (`relay`, `r
 of `keep`. The Matter bindings give their meaning: TasmoFlow derives the controls to show from
 them (switch, dimmer, colour temperature, colour, speed). Without a binding, it offers to
 toggle the boolean DPs. The `codes` table (imported devices) stays in `tuya.json`: reading it
-goes through `TuyaConfig`, which loads the whole file.
+goes through `TuyaConfig`. Since the firmware of 18 November 2026, `TuyaConfig <device>` reads
+`tuya.json` entry by entry (`each_device()`) and also finds a sub-device of a Tuya gateway;
+`TuyaConfig` alone still loads the whole file (`read_conf()`, refused below 30 KB free).
 
 ### Tuya Zigbee paired with the ZB-GW03
 
@@ -397,9 +399,13 @@ with a mapping editor, then load it (`ZbLoad`).
    starting (see [Drivers at opening](#drivers-at-opening)). With no driver **no Tuya screen is
    shown**.
 2. `TuyaStatus`: every device and sub-device (name, `Connected`, `Ip`, `Version`, `Dps`).
-3. `/api/status`, then `TuyaConfig` **only if at least 32 KB are free** (the driver refuses
-   below 30 KB, and `TuyaConfig` loads the whole `tuya.json`). Otherwise the cards fall back to
-   toggles for the boolean DPs and say so.
+3. `TuyaConfig <name>` for each device of `TuyaStatus` not known yet (since 18 November 2026,
+   `loadTuya()` in `state.js`): a Tuya gateway's entry brings its sub-devices with it. The
+   configuration is kept for the gateway and asked again only for a device missing from it.
+   With the new firmware nothing is refused for lack of memory. An older firmware loads the whole
+   file for each device and refuses below 30 KB free: the cards then fall back to toggles for the
+   boolean DPs and say so; it also finds no sub-device alone, so the whole configuration is then
+   read once.
 
 Changes arrive through the event stream: the extension adds a Berry rule
 `tasmota.add_rule("Tuya", closure, 'tasmoflow')` while its server runs (a closure, because
@@ -721,6 +727,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] v0.1 (12 November 2026, `.tapp` installed again, light interface changed): a Tuya device whose name has a comma (Wi-Fi or gateway, listed by `TuyaConfig` with its `id`) switches from its card in both interfaces (`TuyaSend <id>,<dp>,toggle` in the log) and appears in the rule pickers under its name; a sub-device of a gateway with a comma shows its readings without a control (verified by Guillaume on the gateway, 12 November 2026)
 - [x] v0.1 (12 November 2026, test build): a `light3` card of the full interface (test build, no `.tapp` to install again for this, except for the 1-100 % brightness of the light interface) shows the tabs White / Colour (not the light interface); the selected tab follows the mode set from the Tuya app; the hue wheel, saturation and brightness sliders change the lamp and the card follows the state sent back; in White the brightness slider matches the Tuya app's; a lamp without `dp_ct` shows no colour temperature; the same card for a `light2` (`Entrée-Porche`): open arc dial for the colour temperature and brightness, 1 % to 100 %; a value just set stays on screen until the device reports it (no new / old / new flicker); the options are hidden while the lamp is off or disconnected and come back when it is on (verified by Guillaume on the gateway, 12 November 2026)
 - [ ] v0.1: check that `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)
+- [ ] v0.2, Tuya configuration device by device (18 November 2026, firmware of the same day flashed, `.tapp` installed again): the Tuya cards show their controls (dimmer, colour, speed...), sub-devices of the Tuya gateway included; the gateway's log shows `TuyaConfig <name>` commands and no bare `TuyaConfig`; with less than 30 KB free the controls are still there (no "not enough memory" note)
 - [ ] v0.2, robustness (18 November 2026, bugs T2 to T4, `.tapp` installed again): the interface opens as before and `Status 4` heap, after `Br tasmota.gc()`, at rest and with an interface open is unchanged or lower; the device list is complete (same count as `ZbStatus1`); with an interface open on a phone, turn its Wi-Fi off for 5 minutes while devices send events: the heap does not fall (the stream is closed once 6 KB are waiting), and the page follows again once back; Refresh does not run `TuyaConfig` again (log level 3)
 - [ ] v0.2, gateway restart with a page open (18 November 2026, bug T1, `.tapp` installed again): open `/tf` (full and light interface), use it a few minutes so that events come in, then `Restart 1` from Tasmota's console; the badge goes to "reconnecting…", then back to "live"; right after, a Zigbee button press and a Tuya change (button, Smart Life) show up on the cards (and in the Events tab of the full interface) within 2 s, without reloading the page
 - [x] v0.1: what stays allocated after the first opening (6 KB free heap, 4 KB Berry): not pursued, dropped at Guillaume's request (12 November 2026)

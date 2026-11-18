@@ -644,6 +644,9 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await openFull(p);
     const fan = p.locator('article.card', { has: p.getByRole('heading', { name: 'Ventilateur', exact: true }) });
     await fan.waitFor({ timeout: 6000 });
+    // the configuration is read device by device, never the whole tuya.json
+    const reads = await (await fetch('http://localhost:8384/__test/tuyaconfig')).json();
+    if (reads.whole || !reads.one) throw new Error('TuyaConfig requests ' + JSON.stringify(reads));
     await fan.getByRole('button', { name: 'Lumière ventilateur · éteint' }).click();
     await fan.getByRole('button', { name: 'Lumière ventilateur · allumé' }).waitFor({ timeout: 4000 });   // state comes back through the event stream
     await fan.getByLabel('Vitesse').fill('5');

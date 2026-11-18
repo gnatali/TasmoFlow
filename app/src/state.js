@@ -5,7 +5,7 @@
 import { createStore } from './store.js';
 import { client } from './api.js';
 import cfg from './config.js';
-import { indexConfig, MIN_HEAP_KB } from './tuya_model.js';
+import { indexConfig } from './tuya_model.js';
 
 const T0 = performance.now();
 export const RECHECK_MAX = 24;                      // x 5 s: the full interface gives up after 2 minutes
@@ -63,8 +63,11 @@ export function loadDevices() {
 
 // Local Tuya devices: state of the firmware's driver, devices, then (memory permitting) their
 // configuration, which tells what each DP means. Sequential: each command loads the driver's data.
-// TuyaConfig is the heaviest (the whole tuya.json loaded, then copied three times on the gateway):
-// read once per gateway, again only when a device is not in it (added since).
+// The configuration is read device by device (`TuyaConfig <name>`: since the firmware of 18 November
+// 2026 the driver reads tuya.json entry by entry, with no memory threshold; a Tuya gateway's entry
+// also brings its sub-devices), once per gateway, and again only for a device missing from it
+// (added since). An older firmware loads the whole file for each and refuses below 30 KB free
+// (lowMem), and finds no sub-device alone: then the whole configuration is read once.
 export async function loadTuya() {
   const gw = S.get().gw;
   const a = api;
@@ -80,12 +83,17 @@ export async function loadTuya() {
       const d = st[n];
       nodes[n] = { connected: !!d.Connected, ip: d.Ip || '', version: d.Version || '', dps: d.Dps || {} };
     }
-    let conf = (S.get().tuya || {}).conf;
-    if (!conf || Object.keys(nodes).some(n => !conf[n])) {
-      const heap = (await a.get('/api/status')).memory.heap_free;
-      conf = heap >= MIN_HEAP_KB ? indexConfig((await a.cmd('TuyaConfig')).TuyaConfig) : null;
+    const conf = { ...(S.get().tuya || {}).conf };
+    let lowMem = false;
+    const missing = () => Object.keys(nodes).filter(n => !conf[n]);
+    for (const n of missing()) {
+      if (conf[n]) continue;                              // brought by its gateway's entry
+      const c = (await a.cmd('TuyaConfig ' + n)).TuyaConfig || {};
+      if (c.name) Object.assign(conf, indexConfig({ devices: [c] }));
+      else if (/memory/.test(c.Error)) lowMem = true;
     }
-    set({ state: 'running', nodes, conf, lowMem: !conf });
+    if (!lowMem && missing().length) Object.assign(conf, indexConfig((await a.cmd('TuyaConfig')).TuyaConfig));
+    set({ state: 'running', nodes, conf, lowMem });
   } catch (err) { fail(gw, err); }
 }
 

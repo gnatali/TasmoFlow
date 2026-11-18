@@ -389,7 +389,9 @@ Le pilote ne garde que les DP utilisés : ceux des liaisons Matter (`relay`, `re
 `keep`. Les liaisons Matter donnent leur sens : TasmoFlow en déduit les commandes à afficher
 (interrupteur, variateur, température de blanc, couleur, vitesse). Sans liaison, il propose la
 bascule des DP booléens. La table `codes` (appareils importés) reste dans `tuya.json` : la lire
-passe par `TuyaConfig`, qui charge tout le fichier.
+passe par `TuyaConfig`. Depuis le firmware du 18 novembre 2026, `TuyaConfig <appareil>` lit
+`tuya.json` entrée par entrée (`each_device()`) et trouve aussi un sous-appareil d'une passerelle
+Tuya ; `TuyaConfig` seul charge toujours tout le fichier (`read_conf()`, refusé sous 30 Ko libres).
 
 ### Tuya Zigbee appairé à la ZB-GW03
 
@@ -418,9 +420,13 @@ données du pilote) :
    (voir [Pilotes à l'ouverture](#pilotes-à-louverture)). Sans pilote, **aucun écran Tuya n'est
    affiché**.
 2. `TuyaStatus` : chaque appareil et sous-appareil (nom, `Connected`, `Ip`, `Version`, `Dps`).
-3. `/api/status`, puis `TuyaConfig` **seulement si au moins 32 Ko sont libres** (le pilote
-   refuse sous 30 Ko, et `TuyaConfig` charge tout `tuya.json`). Sinon les cartes retombent sur
-   des bascules pour les DP booléens et le disent.
+3. `TuyaConfig <nom>` pour chaque appareil de `TuyaStatus` pas encore connu (depuis le 18
+   novembre 2026, `loadTuya()` dans `state.js`) : l'entrée d'une passerelle Tuya apporte ses
+   sous-appareils. La configuration est gardée pour la passerelle et redemandée seulement pour un
+   appareil qui y manque. Avec le nouveau firmware, rien n'est refusé faute de mémoire. Un
+   firmware plus ancien charge tout le fichier pour chaque appareil et refuse sous 30 Ko libres :
+   les cartes retombent alors sur des bascules pour les DP booléens et le disent ; il ne trouve
+   pas non plus un sous-appareil seul, la configuration entière est alors lue une fois.
 
 Les changements arrivent par le flux d'événements : l'extension ajoute une règle Berry
 `tasmota.add_rule("Tuya", fermeture, 'tasmoflow')` tant que son serveur tourne (une fermeture,
@@ -766,6 +772,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] v0.1 (12 novembre 2026, `.tapp` réinstallée, interface légère modifiée) : un appareil Tuya dont le nom contient une virgule (Wi-Fi ou passerelle, listé par `TuyaConfig` avec son `id`) se commande depuis sa carte dans les deux interfaces (`TuyaSend <id>,<dp>,toggle` dans le journal) et apparaît dans les sélecteurs de règles sous son nom ; un sous-appareil de passerelle dont le nom contient une virgule montre ses mesures sans contrôle (vérifié par Guillaume sur la passerelle, le 12 novembre 2026)
 - [x] v0.1 (12 novembre 2026, version de test) : la carte d'une `light3` de l'interface complète (version de test, pas de `.tapp` à réinstaller pour cela, sauf pour la luminosité 1-100 % de l'interface légère) montre les onglets Blanc / Couleur (pas l'interface légère) ; l'onglet sélectionné suit le mode réglé depuis l'application Tuya ; la roue de teinte et les curseurs de saturation et de luminosité changent la lampe et la carte suit l'état renvoyé ; en Blanc, le curseur de luminosité correspond à celui de l'application Tuya ; une lampe sans `dp_ct` n'affiche pas de température de couleur; la même carte pour une `light2` (`Entrée-Porche`) : cadran en arc ouvert pour la température de couleur et luminosité de 1 % à 100 % ; une valeur qu'on vient de régler reste affichée jusqu'à ce que l'appareil la signale (plus de clignotement nouvelle / ancienne / nouvelle) ; les options sont masquées tant que la lampe est éteinte ou déconnectée et reviennent à l'allumage (vérifié par Guillaume sur la passerelle, le 12 novembre 2026)
 - [ ] v0.1 : vérifier que `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)
+- [ ] v0.2, configuration Tuya appareil par appareil (18 novembre 2026, firmware du même jour flashé, `.tapp` réinstallée) : les cartes Tuya montrent leurs commandes (variateur, couleur, vitesse...), sous-appareils de la passerelle Tuya compris ; le journal de la passerelle montre des commandes `TuyaConfig <nom>` et aucun `TuyaConfig` seul ; avec moins de 30 Ko libres les commandes sont toujours là (pas de note « mémoire insuffisante »)
 - [ ] v0.2, robustesse (18 novembre 2026, bugs T2 à T4, `.tapp` réinstallée) : l'interface s'ouvre comme avant et la mémoire `Status 4`, après `Br tasmota.gc()`, au repos et avec une interface ouverte est inchangée ou plus basse ; la liste des appareils est complète (même nombre que `ZbStatus1`) ; avec une interface ouverte sur un téléphone, couper son Wi-Fi 5 minutes pendant que des appareils envoient des événements : la mémoire ne baisse pas (le flux est fermé dès que 6 Ko attendent), et la page suit de nouveau à son retour ; « Actualiser » ne relance plus `TuyaConfig` (niveau de log 3)
 - [ ] v0.2, redémarrage de la passerelle avec une page ouverte (18 novembre 2026, bug T1, `.tapp` réinstallée) : ouvrir `/tf` (interface complète et légère), l'utiliser quelques minutes pour que des événements arrivent, puis `Restart 1` depuis la console Tasmota ; le badge passe à « reconnexion… », puis revient à « en direct » ; juste après, un appui sur un bouton Zigbee et un changement Tuya (bouton, Smart Life) apparaissent sur les cartes (et dans l'onglet Événements de l'interface complète) en moins de 2 s, sans recharger la page
 - [x] v0.1 : ce qui reste alloué après la première ouverture (6 Ko de mémoire libre, 4 Ko de Berry) : pas poursuivi, abandonné à la demande de Guillaume (12 novembre 2026)
