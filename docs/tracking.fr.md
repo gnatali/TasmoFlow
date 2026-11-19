@@ -56,6 +56,7 @@ Cahier des charges (en français, hors du dépôt) :
 
 | Date | Étape |
 | --- | --- |
+| 19 nov. | **T6, T9 corrigés** (analyse de bugs) : une quatrième interface ne fait plus s'évincer les interfaces toutes les 3 s (le plus ancien flux reçoit `event: stop`, sa page cesse de se reconnecter et propose **Reprendre**) ; le port 8384 garde 10 connexions au plus (503 au-delà), coupe une requête incomplète après 10 s et une réponse non prise 30 s après sa fin. 34 tests de bout en bout passent, `tests/tf_http_test.be` vérifie les délais et la limite. `.tapp` 29 405 octets. **La `.tapp` doit être réinstallée** (le bouton de mise à jour le fait) |
 | 18 nov. | **Plus d'interface dans la `.tapp`, copie locale** (décision de Guillaume, qui remplace celle du 9 novembre) : l'interface légère (`lite.js.gz`, 14 Ko) disparaît, la `.tapp` fait **28 927 octets** (au lieu de 42 369). L'interface se charge depuis la copie locale de la passerelle quand elle en a une pour sa version (`TasmoFlow.tapp.js`, enregistrée depuis Diagnostic, SHA-256 contrôlé avec l'`APP_SHA` de la `.tapp`), sinon depuis GitHub ; sans l'une ni l'autre, `/tf` le dit en une ligne. Le bandeau de mise à jour est dans l'interface (un clic, sans confirmation ; **Plus tard** le masque), et après une mise à jour la copie est réenregistrée d'elle-même. Zopfli et `tools/requirements.txt` supprimés. 33 tests de bout en bout passent. **La `.tapp` doit être réinstallée à la main** (le code de mise à jour a changé), puis enregistrer la copie une fois (Diagnostic) |
 | 18 nov. | **T5, T8, T11 corrigés** (analyse de bugs) : les cartes Tuya suivent `TuyaConnected` / `TuyaDisconnected` du pilote (les sous-appareils suivent leur passerelle), sans « Actualiser » ; l'interface légère est chargée en `/lite.js?v=<version>`, donc le cache du navigateur ne lance jamais l'ancienne après une mise à jour ; « Basculer » et « Appairer » (Zigbee) affichent la réponse de Tasmota quand elle n'est pas `Done`, comme les cartes Tuya. Points robustesse et redémarrage du plan de test vérifiés par Guillaume (13 Ko avec l'interface ouverte). `.tapp` 42 369 octets (131 octets de marge). **La `.tapp` doit être réinstallée** (`extension/`, le chargeur et l'interface légère) |
 | 18 nov. | **Configuration Tuya appareil par appareil** (fin de T4) : avec le firmware du même jour (`TuyaConfig <appareil>` lu entrée par entrée, sous-appareils trouvés), l'interface demande `TuyaConfig <nom>` pour chaque appareil pas encore connu ; jamais tout `tuya.json`, plus de seuil mémoire. Firmware plus ancien : configuration entière lue une fois pour les sous-appareils. `.tapp` 41 988 octets. **La `.tapp` doit être réinstallée**, et le firmware flashé (dépôt du firmware, branche `claude/awesome-planck-mow2gg`) |
@@ -120,8 +121,8 @@ Après `tasmota.gc()`, passerelle avec le pilote Tuya (9 novembre 2026) :
 
 Le budget de 15 Ko est tenu avec l'API des règles : **8 à 9 Ko au repos, 14 Ko cinq minutes après la fermeture de l'interface** (15 Ko en v0.1). Interface ouverte, le coût est de 32 Ko (25 Ko en v0.1) : `tf_rules.be` et le corps POST ajoutent 7 Ko tant que le serveur tourne. Le pilote Tuya demande 45 Ko libres pour démarrer : 52 Ko laissent 7 Ko de marge. `HeapUsed` de Berry revient à 39 Ko après la fermeture, comme en v0.1. Environ 6 Ko de mémoire libre ne sont toujours pas rendus après la première ouverture (75 à 70 Ko, comme en v0.1 : 75 à 69 Ko), cause inconnue et **pas poursuivie** (décision du 12 novembre 2026).
 
-Cible : 15 Ko. Tailles (18 novembre 2026, sans interface dans la `.tapp`) : `TasmoFlow.tapp` 28,2 Ko (28 927 octets, budget **42 500 octets**,
-relevé par Guillaume le 18 novembre depuis 41 534, la moitié des 83 Ko de la v0.2.0 : 13,6 Ko de marge), `app.js.gz` 36,1 Ko (36 971 octets, budget 120 Ko ; c'est aussi la copie locale, sur le système de fichiers de la passerelle quand elle est enregistrée). Pistes pour gagner plus : [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md) (en anglais).
+Cible : 15 Ko. Tailles (19 novembre 2026, sans interface dans la `.tapp`) : `TasmoFlow.tapp` 28,7 Ko (29 405 octets, budget **42 500 octets**,
+relevé par Guillaume le 18 novembre depuis 41 534, la moitié des 83 Ko de la v0.2.0 : 13,1 Ko de marge), `app.js.gz` 36,3 Ko (37 193 octets, budget 120 Ko ; c'est aussi la copie locale, sur le système de fichiers de la passerelle quand elle est enregistrée). Pistes pour gagner plus : [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md) (en anglais).
 
 ## Décisions encore ouvertes
 
@@ -187,7 +188,8 @@ en partie essayées sur la passerelle, voir le plan de test.
   12 constats classés par priorité et 10 pistes d'amélioration. **T1 à T4 corrigés** le 18
   novembre 2026 (T4 avec le firmware du même jour : `TuyaConfig <appareil>` lu entrée par
   entrée), vérifiés sur la passerelle par Guillaume ; **T5, T8, T11 corrigés** le même soir, à
-  vérifier (T8 est parti avec l'interface légère). Ensuite : T6, T9, puis T7, T10, T12.
+  vérifier (T8 est parti avec l'interface légère) ; **T6, T9 corrigés** le 19 novembre, à vérifier.
+  Ensuite : T7, T10, T12.
 
 - **Réduire le `.tapp`** (18 novembre 2026) :
   [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md) (en anglais) liste

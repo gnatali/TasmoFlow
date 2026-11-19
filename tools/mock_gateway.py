@@ -85,6 +85,8 @@ TUYA_CONF = {"devices": [
 events = []
 events_lock = threading.Lock()
 seq = 0
+MAX_FEEDS = 3        # like tasmoflow.be: beyond, the oldest stream gets `event: stop` and is closed
+feeds = []           # one dict per open stream: {"stop": bool}
 
 
 def push_event(addr, attrs):
@@ -456,7 +458,7 @@ class Api(BaseHTTPRequestHandler):
             self.close_connection = True
             self.connection.close()
             return
-        if self.path.startswith("/__test/reset"):     # test hook: ?version=&restart=&never=1&free=&tapp=&bak=&fail=&copy=0|1|2
+        if self.path.startswith("/__test/reset"):     # test hook: ?version=&restart=&never=1&free=&tapp=&bak=&fail=&copy=0|1|2&feeds=1
             q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))
             STATE.update(version=q.get("version", tf_version.resolve()), next_version=None,
                          down_until=0.0, restart_s=float(q.get("restart", "2")), never=q.get("never") == "1",
@@ -466,6 +468,11 @@ class Api(BaseHTTPRequestHandler):
             c = q.get("copy", "0")
             js = gzip.compress((ROOT / "dist" / "app.js").read_bytes(), compresslevel=9, mtime=0) if c != "0" else None
             STATE.update(js=js, js_sha=app_sha() if c == "1" else "another version", jsnew=b"")
+            if q.get("feeds") == "1":      # earlier pages' streams (closed or not) stop counting
+                with events_lock:
+                    for f in feeds:
+                        f["stop"] = True
+                    feeds.clear()
             self.json(200, {"ok": True})
             return
         if self.path.startswith("/__test/tuyaconn"):     # test hook: ?name=&on=0|1, a Tuya device lost or back
@@ -523,7 +530,7 @@ class Api(BaseHTTPRequestHandler):
             self.json(200, {"tasmoflow": version(), "device_name": self.server.name,
                             "firmware": {"Version": "16.0.0.2(zbgw03-matter)"}, "memory": {"heap_free": 62},
                             "ufs_size_kb": 320, "ufs_free_kb": FS["free"] // 1024, "uptime_s": int(time.monotonic() - STATE["boot"]),
-                            "zigbee": zb_up, "zigbee_state": "running" if zb_up else "starting", "zigbee_devices": len(DEVICES), "events_seq": seq, "feeds": 1, "copy": copy_state(),
+                            "zigbee": zb_up, "zigbee_state": "running" if zb_up else "starting", "zigbee_devices": len(DEVICES), "events_seq": seq, "feeds": len(feeds), "copy": copy_state(),
                             "wd": "/.extensions/TasmoFlow.tapp#"})
         elif u.path == "/api/devices":
             self.json(200, list(DEVICES.values()) if since_first_call() >= self.server.zb_delay else [])
@@ -607,8 +614,17 @@ class Api(BaseHTTPRequestHandler):
             self.head(200, "text/event-stream")
             self.wfile.write(b"retry: 3000\n\n")
             last = since
+            me = {"stop": False}
+            with events_lock:
+                feeds.append(me)
+                while len(feeds) > MAX_FEEDS:
+                    feeds.pop(0)["stop"] = True
             try:
                 while not is_down():      # a restart cuts the stream
+                    if me["stop"]:
+                        self.wfile.write(b"event: stop\ndata: {}\n\n")
+                        self.wfile.flush()
+                        return
                     with events_lock:
                         new = [e for e in events if e[0] > last]
                     for n, s in new:
@@ -618,6 +634,10 @@ class Api(BaseHTTPRequestHandler):
                     time.sleep(0.2)
             except (BrokenPipeError, ConnectionResetError):
                 return
+            finally:
+                with events_lock:
+                    if me in feeds:
+                        feeds.remove(me)
         else:
             self.json(404, {"error": "route"})
 

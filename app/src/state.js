@@ -23,6 +23,7 @@ export const S = createStore({
   recheck: 0,               // full interface: detections made again while a driver starts (drivers_full.js)
   events: [],
   live: false,
+  stopped: false,           // the gateway stopped this page's event stream: more than three were open
   error: null,
   startMs: 0,
   consoleOut: ''
@@ -148,7 +149,10 @@ function connectEvents() {
   closeEvents();
   const gw = S.get().gw;
   es = new EventSource(api.url('/api/events', { since: lastSeq }));
-  es.onopen = () => S.set({ live: true });
+  es.onopen = () => S.set({ live: true, stopped: false });
+  // the gateway keeps three streams: a newer interface took this one's place. Reconnecting would
+  // take another's, so the page waits for the user (resume())
+  es.addEventListener('stop', () => { closeEvents(); S.set({ live: false, stopped: true }); });
   es.onerror = () => {
     es.onopen = start;      // back after a cut: events were missed, read everything again
     S.set({ live: false });
@@ -226,7 +230,7 @@ function switchTo(gw) {
   closeEvents();
   api = client(gw);
   lastSeq = 0;
-  S.set({ gw, status: null, devices: null, tuya: null, drivers: {}, recheck: 0, rules: null, events: [], live: false, error: null });
+  S.set({ gw, status: null, devices: null, tuya: null, drivers: {}, recheck: 0, rules: null, events: [], live: false, stopped: false, error: null });
   start();
 }
 
@@ -236,3 +240,4 @@ export function setTab(tab) {
 }
 
 export const init = start;
+export const resume = () => { if (!es) start(); };

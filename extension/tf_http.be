@@ -11,7 +11,8 @@
 # (re1.5 `recursiveloop`) calls itself once per character matched by `\S+`, so a long URL
 # overflowed the 8 KB stack of Tasmota's loop task and restarted the gateway (see
 # docs/architecture.en.md); a request that is too long or invalid gets an error answer
-# ({"error":...}) instead of a silent close.
+# ({"error":...}) instead of a silent close; at most MAX_CNX connections (503 beyond), and a
+# request that does not arrive, or an answer that is not taken, within its delay is cut.
 #
 # Tested on standard Berry by tests/tf_http_test.be (CI).
 #
@@ -65,6 +66,7 @@ class webserver_async
     var phase                                       # parsing phase: 0/ status line, 1/ headers, 2/ payload, 3/ refused
     var linger                                      # refused request: close once quiet after this millis()
     var linger_max                                  # ... and in any case after this one
+    var deadline                                    # (TasmoFlow) closed at this millis() if the request is not complete, or its answer not sent
     # request
     var req_verb                                    # verb for request (GET, or POST with a small body)
     var req_uri                                     # URI for request
@@ -85,6 +87,7 @@ class webserver_async
       # 403: "Payment Required",      # not sure it's useful in Tasmota context
       404: "Not Found",
       413: "Content Too Large",
+      503: "Service Unavailable",
       414: "URI Too Long",
       431: "Request Header Fields Too Large",
       500: "Internal Server Error",
@@ -109,6 +112,7 @@ class webserver_async
       self.phase = 0              # 0 = status line
       self.linger = 0
       self.linger_max = 0
+      self.deadline = tasmota.millis(self.server.REQ_TIMEOUT_MS)
       self.req_len = 0
       self.dispatched = false
       # util
@@ -172,6 +176,14 @@ class webserver_async
       if self.cnx == nil    # if connection is closed, this instance is marked for deletion
         tasmota.remove_fast_loop(self.fastloop_cb)  # remove from fast_loop
         self.fastloop_cb = nil                      # fastloop_cb can be garbage collected
+        return
+      end
+
+      # TasmoFlow: a request still incomplete, or an answer still unsent, at its deadline is cut
+      # (a client that sends nothing, or stopped reading, would hold its memory for ever).
+      # An event stream (dispatched, never stopped) has none.
+      if (!self.dispatched || self.close_after_send) && tasmota.time_reached(self.deadline)
+        self.close()
         return
       end
 
@@ -479,6 +491,7 @@ class webserver_async
     #
     def content_stop()
       self.close_after_send = true    # close connection when everything was sent to client
+      self.deadline = tasmota.millis(self.server.SEND_TIMEOUT_MS)   # TasmoFlow: to send the rest
     end
 
     #############################################################
@@ -580,6 +593,10 @@ class webserver_async
   static var LINGER_MS = 200                      # refused request: read and drop until quiet for this long
   static var LINGER_MAX_MS = 2000                 # ... but never longer than this
   static var MAX_BODY = 3000                      # largest POST body accepted (a rule set: 2200)
+  static var MAX_CNX = 10                         # open connections; a new one beyond gets 503 (three event
+                                                  # streams and the requests of their interfaces fit)
+  static var REQ_TIMEOUT_MS = 10000               # a request not complete after this long is cut, unanswered
+  static var SEND_TIMEOUT_MS = 30000              # an answer not sent this long after its end is cut
 
   #############################################################
   # init
@@ -590,7 +607,6 @@ class webserver_async
     self.dispatchers = []
     self.server = tcpserver(port)                 # throws an exception if port is not available
     self.cors = false
-    # TODO what about max_clients ?
     # register cb
     tasmota.add_driver(self)
     self.fastloop_cb = def () self.loop() end
@@ -644,7 +660,9 @@ class webserver_async
     # check if any incoming connection
     while self.server.hasclient()
       # retrieve new client
-      self.connections.push(self.webserver_async_cnx(self, self.server.acceptasync()))
+      var c = self.webserver_async_cnx(self, self.server.acceptasync())
+      self.connections.push(c)
+      if size(self.connections) > self.MAX_CNX    c.refuse(503, "busy")    end   # TasmoFlow
     end
   end
 

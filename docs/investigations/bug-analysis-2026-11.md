@@ -34,10 +34,10 @@ function in a plausible situation; **P3** robustness, rare cases; **P4** minor.
 | T3 | P2 | Events pile up without limit in RAM for a client that stopped reading; the event history is limited by count, not by size | **Fixed** (18 November 2026), to measure on the gateway |
 | T4 | P2 | `/api/devices` and `TuyaConfig` build their whole answer in RAM: memory grows with the number of devices | **Fixed** (18 November 2026): devices streamed, `TuyaConfig` read device by device (firmware of the same day) |
 | T5 | P3 | The Tuya cards never learn that a device disconnected | **Fixed** (18 November 2026), to check on the gateway |
-| T6 | P3 | A fourth open interface makes the interfaces evict each other every 3 seconds | Read in the code |
+| T6 | P3 | A fourth open interface makes the interfaces evict each other every 3 seconds | **Fixed** (19 November 2026), to check on the gateway |
 | T7 | P3 | The rule write keeps one text for all clients: two interfaces saving together can store the other's text and report success | Read in the code |
 | T8 | P3 | `lite.js` is cached for a day under an address without a version: after an update a browser can run the previous light interface | **Fixed** (18 November 2026) |
-| T9 | P3 | Port 8384 has no connection limit and no timeout for an incomplete request | Read in the code |
+| T9 | P3 | Port 8384 has no connection limit and no timeout for an incomplete request | **Fixed** (19 November 2026), to check on the gateway |
 | T10 | P4 | A power cut between the two renames of an update leaves no `TasmoFlow.tapp` | Read in the code |
 | T11 | P4 | Zigbee toggle and pairing buttons show nothing when the command fails | **Fixed** (18 November 2026) |
 | T12 | P4 | `Content-Length` is only recognised in two spellings; a request without the token still keeps the server awake; every reconnection replays the whole event history | Read in the code |
@@ -204,6 +204,12 @@ replaying the history. Fix: refuse the newcomer instead (an event `{"type":"full
 close), and have the interface stop reconnecting and say that too many interfaces are open; or
 send the evicted client a last event that tells it to stop.
 
+**Fixed (19 November 2026)** the second way, so that the interface just opened (the one in use) always
+gets its stream, and a stream left by a sleeping laptop does not block it: the oldest receives
+`event: stop`, then is closed once that is sent. Its page closes its `EventSource`, says that it no
+longer receives live changes and offers **Resume**, which takes the place of the oldest of the
+others. End-to-end test with four pages.
+
 ### T7 (P3): one pending rule text for everybody
 
 `tf_rules.be` keeps the text to write in `self.buf` and its rule set in `self.n` between the
@@ -233,6 +239,11 @@ of body before any token check, and `/tf?w=1` starts the server without a passwo
 misbehaving program on the local network, or a page open in a browser on it, can exhaust the
 gateway's memory. The network is trusted by design; a limit of 8 connections and a 10-second
 timeout for an incomplete request cost little.
+
+**Fixed (19 November 2026)**: at most 10 connections (`MAX_CNX`; one more gets `503 busy`, three
+interfaces and their requests fit), a request incomplete 10 s after the connection opened is cut
+without an answer, and an answer not taken 30 s after its end too (an event stream has no delay;
+the evicted stream of T6 gets one). Checked by `tests/tf_http_test.be`.
 
 ### T10 to T12 (P4)
 

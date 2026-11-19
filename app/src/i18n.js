@@ -7,7 +7,9 @@ const TEXTS = {
   fr: {
     devices: 'Appareils', noConfig: 'Ouvrez TasmoFlow depuis la passerelle : http://<adresse de la passerelle>/tf',
     loading: 'Chargement…', noDevice: 'Aucun appareil.', live: 'en direct',
-    reconnecting: 'reconnexion…', toggle: 'Basculer', pair: 'Appairer (60 s)', lastSeen: 'vu', battery: 'batterie',
+    reconnecting: 'reconnexion…', paused: 'en pause', resume: 'Reprendre',
+    stopped: "Cette page ne reçoit plus les changements en direct : la passerelle en sert trois au plus, et une autre interface TasmoFlow vient de s'ouvrir.",
+    toggle: 'Basculer', pair: 'Appairer (60 s)', lastSeen: 'vu', battery: 'batterie',
     unreachable: 'injoignable', ago: 'il y a', s: 's', min: 'min', h: 'h', d: 'j', error: 'Erreur',
     refresh: 'Actualiser', router: 'routeur', endDevice: 'sur batterie ou terminal', connected: 'connecté',
     disconnected: 'déconnecté', on: 'allumé', off: 'éteint',
@@ -30,7 +32,8 @@ const TEXTS = {
   },
   en: {
     devices: 'Devices', noConfig: 'Open TasmoFlow from the gateway: http://<gateway address>/tf', loading: 'Loading…',
-    noDevice: 'No device.', live: 'live', reconnecting: 'reconnecting…',
+    noDevice: 'No device.', live: 'live', reconnecting: 'reconnecting…', paused: 'paused', resume: 'Resume',
+    stopped: 'This page no longer receives live changes: the gateway serves three at most, and another TasmoFlow interface has just opened.',
     toggle: 'Toggle', pair: 'Pair (60 s)', lastSeen: 'seen', battery: 'battery', unreachable: 'unreachable', ago: '',
     s: 's ago', min: 'min ago', h: 'h ago', d: 'd ago', error: 'Error', refresh: 'Refresh', router: 'router',
     endDevice: 'battery or end device', connected: 'connected', disconnected: 'disconnected', on: 'on', off: 'off',

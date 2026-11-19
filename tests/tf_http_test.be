@@ -250,6 +250,53 @@ check("handler raises after send: what was sent ends, closed", r[0] == 200 && r[
 r = run(["GET " + STATUS + " HTTP/1.1\r\nHost: gw\r\n"])
 check("incomplete request waits", r[0] == nil && !r[1].closed && size(seen) == 0, [r[0], r[1].closed])
 
+# Delays and connection limit (bug analysis T9, 19 November 2026): a connection that never
+# completes its request, or never takes its answer, used to be kept until the server stopped
+def run_for(c, limit)
+  var cnx = tf_http.webserver_async_cnx(srv, c)
+  var i = 0
+  while i < limit / 10 && !c.closed
+    cnx.loop()
+    global.tasmota.now += 10
+    i += 1
+  end
+  return i * 10                               # virtual ms before it was closed (or ms)
+end
+var cl = fake_client(["GET " + STATUS + " HTTP/1.1\r\nHost: gw\r\n"])
+var ms = run_for(cl, 20000)
+check("incomplete request: cut after 10 s, unanswered", cl.closed && cl.out == '' && ms >= 10000 && ms <= 10100, [cl.closed, ms])
+class deaf_client : fake_client                # stopped reading: nothing can be sent
+  def listening() return false end
+end
+cl = deaf_client([get("GET " + STATUS + " HTTP/1.1")])
+ms = run_for(cl, 60000)
+check("answer never taken: cut 30 s after its end", cl.closed && ms >= 30000 && ms <= 30100, [cl.closed, ms])
+srv.on("/stream", nil, def (cnx, uri, verb)
+  cnx.send(200, "text/event-stream", "retry: 3000\n\n")
+end)
+cl = fake_client([get("GET /stream HTTP/1.1")])
+run_for(cl, 60000)
+check("event stream: never cut", !cl.closed && string.find(cl.out, "HTTP/1.1 200 ") == 0, [cl.closed, cl.out[0 .. 30]])
+
+var pending = [0]                             # clients waiting to be accepted
+class many_tcpserver
+  def init(port) end
+  def hasclient() return pending[0] > 0 end
+  def acceptasync()
+    pending[0] -= 1
+    return fake_client([])
+  end
+  def close() end
+end
+global.tcpserver = many_tcpserver
+var srv2 = tf_http(8385)
+pending[0] = 11
+srv2.loop()
+var cs = srv2.connections
+check("connection limit: 10 kept, the 11th gets 503", size(cs) == 11 && cs[9].cnx.out == '' &&
+      string.find(cs[10].cnx.out, "HTTP/1.1 503 ") == 0 && string.find(cs[10].cnx.out, '{"error":"busy"}') > 0,
+      [size(cs), cs[10].cnx.out[0 .. 30]])
+
 if failures > 0
   raise "test_failed", str(failures) + " failure(s)"
 end

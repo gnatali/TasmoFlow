@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { html } from './html.js';
 import { t, L, toggleLang } from './i18n.js';
-import { S, setTab } from './state.js';
+import { S, setTab, resume } from './state.js';
 import cfg from './config.js';
 
 // Picker: the gateway picker, in the full interface only (gateways.js)
@@ -14,7 +14,7 @@ function Header({ Picker }) {
     ${Picker ? html`<${Picker}/>` : null}
     ${name ? html`<span class="gw">${name}</span>` : null}
     <span class="sp"></span>
-    <span class=${'badge ' + (s.live ? 'ok' : 'bad')}>${s.live ? t('live') : t('reconnecting')}</span>
+    <span class=${'badge ' + (s.live ? 'ok' : 'bad')}>${s.live ? t('live') : t(s.stopped ? 'paused' : 'reconnecting')}</span>
     <span class="badge">${'v' + cfg.version + ' · ' + cfg.source + (__BUILD__ ? ' · ' + __BUILD__ : '')}</span>
     <button class="b" lang=${lang === 'fr' ? 'en' : 'fr'} aria-label=${lang === 'fr' ? 'English' : 'Français'} onClick=${toggleLang}>${lang === 'fr' ? 'EN' : 'FR'}</button>
   </header>`;
@@ -32,6 +32,7 @@ export function createApp(tabs, { Banner, Picker } = {}) {
       ${ids.length > 1 ? html`<nav aria-label="TasmoFlow">${ids.map(k => html`<button key=${k} aria-current=${tab === k ? 'page' : null} onClick=${() => setTab(k)}>${t(k)}</button>`)}</nav>` : null}
       <main aria-live="polite">
         ${Banner ? html`<${Banner}/>` : null}
+        ${S.get().stopped ? html`<p class="note" role="status">${t('stopped')} <button class="b" onClick=${resume}>${t('resume')}</button></p>` : null}
         ${error ? html`<p class="badge bad">${t('error') + ' : ' + error}</p>` : null}
         <${View}/>
       </main>`;

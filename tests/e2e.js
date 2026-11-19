@@ -936,6 +936,23 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     }, !before, { timeout: 4000 });
   });
 
+  await test('a fourth interface: the oldest one stops, says why, and resumes on request (no endless turns)', async p => {
+    await fetch('http://localhost:8384/__test/reset?feeds=1');
+    const open = async q => { await q.route(CDN, r => r.fulfill(jsBody(APP))); await q.goto('http://localhost:8080/tf'); await cards(q); await q.getByText('en direct').waitFor({ timeout: 5000 }); };
+    await open(p);
+    const others = [];
+    for (let i = 0; i < 3; i++) { const q = await p.context().newPage(); await open(q); others.push(q); }
+    await p.getByText(/ne reçoit plus les changements en direct/).waitFor({ timeout: 5000 });
+    await p.getByText('en pause').waitFor();
+    await wait(4000);                                    // no automatic reconnection: the others keep their stream
+    for (const q of others) if (!(await q.getByText('en direct').isVisible())) throw new Error('another page lost its stream');
+    if (!(await p.getByText('en pause').isVisible())) throw new Error('the stopped page reconnected by itself');
+    await p.getByRole('button', { name: 'Reprendre' }).click();
+    await p.getByText('en direct').waitFor({ timeout: 5000 });
+    await others[0].getByText('en pause').waitFor({ timeout: 5000 });       // now the oldest
+    for (const q of others.slice(1)) if (!(await q.getByText('en direct').isVisible())) throw new Error('a newer page was stopped');
+  });
+
   await browser.close();
   mocks.forEach(m => m.kill());
   let failed = 0;

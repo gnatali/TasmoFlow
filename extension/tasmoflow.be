@@ -517,9 +517,13 @@ class tasmoflow
       if e[0] > since   cnx.write(e[1])   end
     end
     self.feeds.push(cnx)
+    # Beyond MAX_FEEDS the oldest stream is told to stop, then closed once that is sent: closed
+    # alone, its EventSource reconnected 3 s later and evicted the next one, for ever (bug analysis T6)
     while size(self.feeds) > self.MAX_FEEDS
-      self.feeds[0].close()
+      var old = self.feeds[0]
       self.feeds.remove(0)
+      old.write("event: stop\ndata: {}\n\n")
+      old.content_stop()
     end
   end
 

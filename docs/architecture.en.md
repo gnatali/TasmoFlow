@@ -269,6 +269,14 @@ the browser then showed `ERR_CONNECTION_RESET` instead of the 414 (seen on the g
 November 2026 with a 900-character URL; the log line `TFL: port 8384 request refused (414
 uri_too_long)` was there, and no restart). Fix not yet checked on the gateway.
 
+Since 19 November 2026 (bug analysis T6 and T9) the server also holds at most **10 connections**:
+one more gets `503 {"error":"busy"}`. A request still incomplete 10 s after the connection opened is
+cut without an answer, and so is an answer the client has not taken 30 s after it ended (a stream has
+no such delay). The extension keeps **three event streams**: a fourth makes the oldest receive
+`event: stop`, then it is closed; that interface stops reconnecting, says why and offers **Resume**
+(which in turn stops the oldest of the others). Before, the evicted stream reconnected 3 s later and
+evicted the next one, for ever.
+
 ### Request parsing without regular expressions
 
 Until 10 November 2026 `tf_http.be` parsed the request line with Tasmota's regular expression
@@ -700,6 +708,8 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] "Toggle" switches a light on and off; "Pair" opens pairing for 60 s
 - [x] Memory, each time after `tasmota.gc()` in the Berry console: 84 KB free before installation, 67 KB with the extension loaded, 65 KB with the interface open, i.e. 17 then 19 KB (target: 15 KB, see [Memory](#memory))
 - [x] Two tabs open plus a third: the gateway stays stable (3 Chrome tabs and 1 Android)
+- [ ] 19 November 2026 (T6): a fourth tab open: the first one says it no longer receives live changes, its badge reads "paused", the other three stay "live"; **Resume** brings it back and pauses the oldest of the others; the gateway log shows no reconnection every 3 s
+- [ ] 19 November 2026 (T9): `nc <gateway> 8384` left open without typing is closed after 10 s; the interface keeps working with three tabs open
 - [ ] An interface opened on gateway A reads gateway B's `/api/status` (B's token, Gateways screen); with B's API server stopped, the screen wakes it through `/tf?w=1`
 - [x] With GitHub Pages enabled (tag `v0.0.1`), `/tf` loads the GitHub copy (header: "v0.0.1 · github")
 - [x] Chrome, Firefox, Safari on iPhone: the interface loads and the event stream stays open
