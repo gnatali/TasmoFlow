@@ -754,8 +754,8 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] « Basculer » allume et éteint une lampe ; « Appairer » ouvre l'appairage 60 s
 - [x] Mémoire, chaque fois après `tasmota.gc()` dans la console Berry : 84 Ko libres avant installation, 67 Ko avec l'extension chargée, 65 Ko avec l'interface ouverte, soit 17 puis 19 Ko (cible : 15 Ko, voir [Mémoire](#mémoire))
 - [x] Deux onglets ouverts plus un troisième : la passerelle reste stable (3 onglets Chrome et 1 Android)
-- [ ] 19 novembre 2026 (T6) : un quatrième onglet ouvert : le premier dit qu'il ne reçoit plus les changements en direct, son badge indique « en pause », les trois autres restent « en direct » ; **Reprendre** le rétablit et met en pause le plus ancien des autres ; le journal de la passerelle ne montre pas de reconnexion toutes les 3 s
-- [ ] 19 novembre 2026 (T9) : `nc <passerelle> 8384` laissé ouvert sans rien taper est fermé au bout de 10 s ; l'interface fonctionne toujours avec trois onglets ouverts
+- [x] 19 novembre 2026 (T6, vérifié sur la passerelle par Guillaume) : un quatrième onglet ouvert : le premier dit qu'il ne reçoit plus les changements en direct, son badge indique « en pause », les trois autres restent « en direct » ; **Reprendre** le rétablit et met en pause le plus ancien des autres ; le journal de la passerelle ne montre pas de reconnexion toutes les 3 s
+- [x] 19 novembre 2026 (T9, vérifié sur la passerelle par Guillaume) : `nc <passerelle> 8384` (sous Windows, un `TcpClient` PowerShell) laissé ouvert sans rien envoyer est fermé au bout de 10 s ; l'interface fonctionne toujours avec trois onglets ouverts
 - [ ] Une interface ouverte sur la passerelle A lit `/api/status` de la passerelle B (jeton de B, écran Passerelles) ; avec le serveur d'API de B arrêté, l'écran le réveille par `/tf?w=1`
 - [x] GitHub Pages activé (tag `v0.0.1`), `/tf` charge la copie GitHub (en-tête : « v0.0.1 · github »)
 - [x] Chrome, Firefox, Safari sur iPhone : l'interface se charge et le flux d'événements reste ouvert

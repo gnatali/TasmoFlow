@@ -708,8 +708,8 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] "Toggle" switches a light on and off; "Pair" opens pairing for 60 s
 - [x] Memory, each time after `tasmota.gc()` in the Berry console: 84 KB free before installation, 67 KB with the extension loaded, 65 KB with the interface open, i.e. 17 then 19 KB (target: 15 KB, see [Memory](#memory))
 - [x] Two tabs open plus a third: the gateway stays stable (3 Chrome tabs and 1 Android)
-- [ ] 19 November 2026 (T6): a fourth tab open: the first one says it no longer receives live changes, its badge reads "paused", the other three stay "live"; **Resume** brings it back and pauses the oldest of the others; the gateway log shows no reconnection every 3 s
-- [ ] 19 November 2026 (T9): `nc <gateway> 8384` left open without typing is closed after 10 s; the interface keeps working with three tabs open
+- [x] 19 November 2026 (T6, checked on the gateway by Guillaume): a fourth tab open: the first one says it no longer receives live changes, its badge reads "paused", the other three stay "live"; **Resume** brings it back and pauses the oldest of the others; the gateway log shows no reconnection every 3 s
+- [x] 19 November 2026 (T9, checked on the gateway by Guillaume): `nc <gateway> 8384` (on Windows, a PowerShell `TcpClient`) left open without sending anything is closed after 10 s; the interface keeps working with three tabs open
 - [ ] An interface opened on gateway A reads gateway B's `/api/status` (B's token, Gateways screen); with B's API server stopped, the screen wakes it through `/tf?w=1`
 - [x] With GitHub Pages enabled (tag `v0.0.1`), `/tf` loads the GitHub copy (header: "v0.0.1 · github")
 - [x] Chrome, Firefox, Safari on iPhone: the interface loads and the event stream stays open

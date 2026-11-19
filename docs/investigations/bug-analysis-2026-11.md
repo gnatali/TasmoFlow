@@ -34,10 +34,10 @@ function in a plausible situation; **P3** robustness, rare cases; **P4** minor.
 | T3 | P2 | Events pile up without limit in RAM for a client that stopped reading; the event history is limited by count, not by size | **Fixed** (18 November 2026), to measure on the gateway |
 | T4 | P2 | `/api/devices` and `TuyaConfig` build their whole answer in RAM: memory grows with the number of devices | **Fixed** (18 November 2026): devices streamed, `TuyaConfig` read device by device (firmware of the same day) |
 | T5 | P3 | The Tuya cards never learn that a device disconnected | **Fixed** (18 November 2026), to check on the gateway |
-| T6 | P3 | A fourth open interface makes the interfaces evict each other every 3 seconds | **Fixed** (19 November 2026), to check on the gateway |
+| T6 | P3 | A fourth open interface makes the interfaces evict each other every 3 seconds | **Fixed** (19 November 2026), checked on the gateway |
 | T7 | P3 | The rule write keeps one text for all clients: two interfaces saving together can store the other's text and report success | Read in the code |
 | T8 | P3 | `lite.js` is cached for a day under an address without a version: after an update a browser can run the previous light interface | **Fixed** (18 November 2026) |
-| T9 | P3 | Port 8384 has no connection limit and no timeout for an incomplete request | **Fixed** (19 November 2026), to check on the gateway |
+| T9 | P3 | Port 8384 has no connection limit and no timeout for an incomplete request | **Fixed** (19 November 2026), checked on the gateway |
 | T10 | P4 | A power cut between the two renames of an update leaves no `TasmoFlow.tapp` | Read in the code |
 | T11 | P4 | Zigbee toggle and pairing buttons show nothing when the command fails | **Fixed** (18 November 2026) |
 | T12 | P4 | `Content-Length` is only recognised in two spellings; a request without the token still keeps the server awake; every reconnection replays the whole event history | Read in the code |

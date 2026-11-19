@@ -177,7 +177,7 @@ conflicts) are written and tried on the gateway in part, see the test plan.
   sorted by priority and 10 improvement ideas. **T1 to T4 fixed** on 18 November 2026 (T4 with
   the firmware of the same day: `TuyaConfig <device>` read entry by entry), checked on the
   gateway by Guillaume; **T5, T8, T11 fixed** the same evening, to check (T8 went with the light
-  interface); **T6, T9 fixed** on 19 November, to check. Next: T7, T10, T12.
+  interface); **T6, T9 fixed** on 19 November, checked on the gateway by Guillaume. Next: T7, T10, T12.
 
 - **Reducing the `.tapp`** (18 November 2026):
   [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md) lists the options

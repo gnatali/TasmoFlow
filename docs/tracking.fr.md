@@ -188,7 +188,7 @@ en partie essayées sur la passerelle, voir le plan de test.
   12 constats classés par priorité et 10 pistes d'amélioration. **T1 à T4 corrigés** le 18
   novembre 2026 (T4 avec le firmware du même jour : `TuyaConfig <appareil>` lu entrée par
   entrée), vérifiés sur la passerelle par Guillaume ; **T5, T8, T11 corrigés** le même soir, à
-  vérifier (T8 est parti avec l'interface légère) ; **T6, T9 corrigés** le 19 novembre, à vérifier.
+  vérifier (T8 est parti avec l'interface légère) ; **T6, T9 corrigés** le 19 novembre, vérifiés sur la passerelle par Guillaume.
   Ensuite : T7, T10, T12.
 
 - **Réduire le `.tapp`** (18 novembre 2026) :
