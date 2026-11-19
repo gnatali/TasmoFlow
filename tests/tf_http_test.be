@@ -78,8 +78,8 @@ def run(chunks)
                                               # request waits for its sender to be quiet (virtual time)
   while budget > 0 && !cl.closed
     cnx.loop()
-    global.tasmota.now += 10
-    budget -= 1
+    global.tasmota.now += size(cl.chunks) > 0 ? 1 : 10   # 1 ms per chunk: 4 KB byte by byte stays under
+    budget -= 1                                          # the 10 s request deadline
   end
   var code = nil
   if string.find(cl.out, "HTTP/1.1 ") == 0    code = int(cl.out[9 .. 11])    end
