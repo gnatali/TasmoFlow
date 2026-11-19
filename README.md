@@ -13,6 +13,14 @@ firmware.
 > [test plan](docs/architecture.en.md#test-plan-on-the-gateway) and
 > [tracking](docs/tracking.en.md).
 
+## 🔗 Related Repositories (Tasmota & Tuya Ecosystem)
+
+This repository is part of a broader suite of tools for local smart home control with Tasmota and Tuya:
+
+* **[tasmota32-zbgw03-matter](https://github.com/gnatali/tasmota32-zbgw03-matter)** — Custom Tasmota firmware for the eWeLink ZB-GW03 gateway supporting Zigbee (EZSP), Matter, and a built-in local Tuya driver.
+* **[TasmoFlow](https://github.com/gnatali/TasmoFlow)** — No-code web interface and automation engine for Tasmota gateways to manage Zigbee and local Tuya devices.
+* **[tuya-conso](https://github.com/gnatali/tuya-conso)** — Python utility to extract historical daily and monthly consumption data from Tuya energy meters.
+
 ## What v0.0 does
 
 - Adds a **TasmoFlow** button to the Tasmota main menu and a `/tf` page.
