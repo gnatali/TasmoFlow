@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { createStore } from './store.js';
 
-// Texts of the light interface (the copy kept in the .tapp: devices and update). The full interface
-// adds its own with addTexts() (i18n_full.js), so the light bundle only carries what it shows.
+// Texts of the devices screen and the update; the other screens add theirs with addTexts()
+// (i18n_full.js).
 const TEXTS = {
   fr: {
     devices: 'Appareils', noConfig: 'Ouvrez TasmoFlow depuis la passerelle : http://<adresse de la passerelle>/tf',
     loading: 'Chargement…', noDevice: 'Aucun appareil.', live: 'en direct',
-    reconnecting: 'reconnexion…', toggle: 'Basculer', pair: 'Appairer (60 s)', lastSeen: 'vu', battery: 'batterie',
+    reconnecting: 'reconnexion…', paused: 'en pause', resume: 'Reprendre',
+    stopped: "Cette page ne reçoit plus les changements en direct : la passerelle en sert trois au plus, et une autre interface TasmoFlow vient de s'ouvrir.",
+    toggle: 'Basculer', pair: 'Appairer (60 s)', lastSeen: 'vu', battery: 'batterie',
     unreachable: 'injoignable', ago: 'il y a', s: 's', min: 'min', h: 'h', d: 'j', error: 'Erreur',
     refresh: 'Actualiser', router: 'routeur', endDevice: 'sur batterie ou terminal', connected: 'connecté',
     disconnected: 'déconnecté', on: 'allumé', off: 'éteint',
-    liteBanner: "Version légère, servie par la passerelle : l'interface complète n'a pas pu être chargée depuis GitHub (pas d'accès à internet ?).",
     retry: 'Réessayer', speed: 'Vitesse', dimmer: 'Intensité', colortemp: 'Température de couleur',
-    updateAvailable: 'Une nouvelle version de TasmoFlow est disponible : {v}.', updateNow: 'Mettre à jour',
+    updateAvailable: 'Une nouvelle version de TasmoFlow est disponible : {v}. La passerelle redémarrera (30 secondes à 1 minute).', updateNow: 'Mettre à jour',
     updateLater: 'Plus tard',
-    updateConfirm: "TasmoFlow va être mis à jour : la passerelle va redémarrer (environ 30 secondes à 1 minute) et l'interface sera indisponible pendant ce temps. Continuer ?",
     updateDownload: 'Téléchargement de la mise à jour…', updateUpload: 'Envoi à la passerelle…',
     updateRestart: 'Redémarrage de la passerelle… {s} s (attente de {max} s au plus). Ne fermez pas cette page.',
     updateTimeout: "Le redémarrage prend plus de temps que prévu. Ouvrez l'accueil de Tasmota pour vérifier la passerelle (l'ancienne version est gardée dans /.extensions/TasmoFlow.tapp.bak).",
@@ -28,20 +28,17 @@ const TEXTS = {
     update_install: "Installation impossible : l'ancienne version est conservée.",
     update_incomplete: 'Transfert incomplet, réessayez.',
     update_path: "Chemin de l'extension inconnu : mettez à jour à la main.",
-    driverLite: "{d} n'est pas prêt : ses fonctions sont désactivées. Rechargez la page quand il est démarré.",
-    reload: 'Recharger',
     tuyaLowMem: 'Mémoire libre insuffisante pour lire la configuration Tuya : seuls les états booléens sont proposés.'
   },
   en: {
     devices: 'Devices', noConfig: 'Open TasmoFlow from the gateway: http://<gateway address>/tf', loading: 'Loading…',
-    noDevice: 'No device.', live: 'live', reconnecting: 'reconnecting…',
+    noDevice: 'No device.', live: 'live', reconnecting: 'reconnecting…', paused: 'paused', resume: 'Resume',
+    stopped: 'This page no longer receives live changes: the gateway serves three at most, and another TasmoFlow interface has just opened.',
     toggle: 'Toggle', pair: 'Pair (60 s)', lastSeen: 'seen', battery: 'battery', unreachable: 'unreachable', ago: '',
     s: 's ago', min: 'min ago', h: 'h ago', d: 'd ago', error: 'Error', refresh: 'Refresh', router: 'router',
     endDevice: 'battery or end device', connected: 'connected', disconnected: 'disconnected', on: 'on', off: 'off',
-    liteBanner: 'Light version, served by the gateway: the full interface could not be loaded from GitHub (no internet access?).',
     retry: 'Retry', speed: 'Speed', dimmer: 'Dimmer', colortemp: 'Colour temperature',
-    updateAvailable: 'A new version of TasmoFlow is available: {v}.', updateNow: 'Update', updateLater: 'Later',
-    updateConfirm: 'TasmoFlow will be updated: the gateway will restart (about 30 seconds to 1 minute) and the interface will be unavailable meanwhile. Continue?',
+    updateAvailable: 'A new version of TasmoFlow is available: {v}. The gateway will restart (30 seconds to 1 minute).', updateNow: 'Update', updateLater: 'Later',
     updateDownload: 'Downloading the update…', updateUpload: 'Sending it to the gateway…',
     updateRestart: 'Restarting the gateway… {s} s (waiting {max} s at most). Do not close this page.',
     updateTimeout: 'The restart takes longer than expected. Open the Tasmota home page to check the gateway (the old version is kept in /.extensions/TasmoFlow.tapp.bak).',
@@ -52,8 +49,6 @@ const TEXTS = {
     update_size: 'File size refused.', update_format: 'The file is not a Tasmota extension.',
     update_install: 'Installation failed: the old version is kept.',
     update_incomplete: 'Transfer incomplete, try again.', update_path: "Extension path unknown: update by hand.",
-    driverLite: '{d} is not ready: its functions are turned off. Reload the page once it has started.',
-    reload: 'Reload',
     tuyaLowMem: 'Not enough free memory to read the Tuya configuration: only boolean states are offered.'
   }
 };

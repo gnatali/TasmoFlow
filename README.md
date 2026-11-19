@@ -16,9 +16,9 @@ firmware.
 ## What v0.0 does
 
 - Adds a **TasmoFlow** button to the Tasmota main menu and a `/tf` page.
-- Loads the interface from GitHub Pages (pinned version, SRI hash), or from the extension's
-  light interface kept in the extension if GitHub does not answer within 3 s (since v0.1, the
-  full interface only lives on GitHub Pages).
+- Loads the interface from the gateway's local copy, if it has one for its version, else from
+  GitHub Pages (pinned version, SRI hash). The extension itself carries no interface (since
+  18 November 2026).
 - Lists Zigbee devices and updates them live.
 - Toggles a light, opens pairing, sends a Tasmota command, shows diagnostics (memory, file
   system, where the interface came from).
@@ -26,11 +26,10 @@ firmware.
 
 ## What v0.1 adds (in progress)
 
-- Interface rebuilt on Preact + htm, built with esbuild into two bundles from the same
-  sources: the **full** one (26.4 KB gzipped, GitHub Pages) and a **light** one (13.4 KB, in the
-  `.tapp`: device control and the update only) that the gateway serves when GitHub cannot be
-  reached. Everything else (rules, console, diagnostics, gateways) is in the full one only, so
-  the `.tapp` is about 40 KB (83 KB in v0.2.0).
+- Interface rebuilt on Preact + htm, built with esbuild into one bundle (about 36 KB gzipped,
+  GitHub Pages). The `.tapp` carries no interface: about 29 KB (83 KB in v0.2.0). For a gateway
+  without internet access, the Diagnostics screen saves a **local copy** of the interface on it
+  (about 36 KB of its file system), loaded first from then on.
 - The port 8384 API server only runs while an interface is open (RAM is the critical resource).
 - **Gateways** screen: use several gateways from one interface (copy a gateway's link, paste it
   in another one's screen).
@@ -50,11 +49,11 @@ The firmware is not modified. How it works: [docs/architecture.en.md](docs/archi
    python3 tools/pack_tapp.py
    ```
 
-   `npm run build` bundles the interface (`app/src/`) into `dist/app.js` (full, for GitHub
-   Pages) and `dist/lite.js` (light, kept in the `.tapp`). `pack_tapp.py` writes
-   `dist/TasmoFlow.tapp`, with the Berry files of `extension/` minified (no comments), and
-   prints the sizes and their budgets (a test build, `--dev` below, is minified too but has no
-   size budget).
+   `npm run build` bundles the interface (`app/src/`) into `dist/app.js` (for GitHub Pages).
+   `pack_tapp.py` writes `dist/TasmoFlow.tapp`, with the Berry files of `extension/` minified
+   (no comments), and `dist/pages/` (what GitHub Pages publishes: `app.js`, `app.js.gz` for the
+   local copy, the `.tapp` and the update manifest), and prints the sizes and their budgets (a
+   test build, `--dev` below, is minified too but has no size budget).
 
 2. In Tasmota: **Tools → Manage File system**, upload `dist/TasmoFlow.tapp` (to the root, or
    to `/.extensions/`).
@@ -64,13 +63,24 @@ The firmware is not modified. How it works: [docs/architecture.en.md](docs/archi
 The API listens on port **8384** of the gateway, only while an interface is open: opening
 `/tf` starts it, and it stops after 5 minutes without a client.
 
-To uninstall: delete `TasmoFlow.tapp` and restart.
+To uninstall: delete `TasmoFlow.tapp` (and `TasmoFlow.tapp.js`, the local copy, if there is one)
+and restart.
+
+### Without internet access: the local copy
+
+The `/tf` page loads the interface from GitHub Pages, so the browser needs internet access. For a
+gateway used without it, open **Diagnostics → Local copy of the interface → Save a local copy**
+once (with internet access): the interface of the installed version (`app.js.gz`, about 36 KB) is
+saved next to the `.tapp` as `TasmoFlow.tapp.js`, after the gateway checked its SHA-256 against the
+one written into its `.tapp`. From then on `/tf` loads it first, with or without internet. After an
+update the copy is the old version's: the page loads GitHub and saves the new version's by itself.
+**Delete the copy** goes back to GitHub only. With neither (no internet and no copy), `/tf` only
+shows a message: Tasmota's own pages and console still work.
 
 ### Updating
 
-When a newer version is published, opening `/tf` shows the **light interface** (instead of the
-GitHub one) with a banner and an **Update** button; **Later** (`/tf?u=0`) opens the usual
-interface for this visit. The button downloads the new `TasmoFlow.tapp` from GitHub Pages, sends it
+When a newer version is published, the interface shows a banner with an **Update** button
+(**Later** hides it for this visit). The button downloads the new `TasmoFlow.tapp` from GitHub Pages, sends it
 to the gateway, which checks its size and SHA-256 and installs it (the previous one is kept as
 `TasmoFlow.tapp.bak` next to it), then restarts: the page waits (2 minutes at most, then it points
 to Tasmota's home page) and reloads on the new version. A test build looks for the latest test
@@ -85,22 +95,22 @@ npm run build
 python3 tools/mock_gateway.py --full
 ```
 
-Then open <http://localhost:8080/tf> (without `--full`, only the light interface is found, as
-when GitHub cannot be reached). The simulated gateway serves the real `/tf` page,
+Then open <http://localhost:8080/tf> (without `--full`, nothing is found until a local copy is
+saved, as when GitHub cannot be reached). The simulated gateway serves the real `/tf` page,
 extracted from `extension/tasmoflow.be`, and the same API, with three fake Zigbee devices
 sending events and four fake Tuya devices answering like the firmware's driver (`--no-tuya`:
 a gateway without the driver).
 
 End-to-end tests (Playwright): `node tests/e2e.js` (builds the interface and the `.tapp`
-first). They start two simulated gateways themselves and check the loader (GitHub, wrong SRI
-hash, slow GitHub, nothing available), a walkthrough of the interface, the Tuya devices and
+first). They start simulated gateways themselves and check the loader (local copy, GitHub, wrong
+SRI hash, slow GitHub, nothing available), the local copy, the update, a walkthrough of the interface, the Tuya devices and
 the Gateways screen.
 
 ## Repository layout
 
 | Path | Content |
 | --- | --- |
-| `app/src/` | Interface (Preact + htm), bundled by `tools/build_app.js` into `dist/app.js` (full, `main.js`) and `dist/lite.js` (light, `main_lite.js`) |
+| `app/src/` | Interface (Preact + htm), bundled by `tools/build_app.js` into `dist/app.js` (`main.js`) |
 | `package.json` | Dependencies of the interface (`preact`, `htm`) and of its build (`esbuild`) |
 | `extension/tasmoflow.be` | Berry extension: button, `/tf` page, API, events |
 | `extension/tf_http.be` | Asynchronous HTTP server, copied from Tasmota |
@@ -155,15 +165,15 @@ Deploy from a branch**, branch `gh-pages`, folder `/ (root)`.
 ### Test build (no release, no tag)
 
 To try a change on the gateway without a release: **Actions → Build → Run workflow**, on the
-branch to try. After the tests, the run publishes the full interface at
+branch to try. After the tests, the run publishes the interface at
 `https://gnatali.github.io/TasmoFlow/dev/app.js` (replaced at every run; the header shows the
 build, e.g. `dev.1a2b3c4`) and a test extension at
 `https://gnatali.github.io/TasmoFlow/dev/TasmoFlow.tapp`.
 
 Install that `.tapp` once (it replaces `TasmoFlow.tapp`, then `Restart 1`). It loads the `dev/`
 interface at every opening, with no SRI pin and no cache, so a new run is enough: reload the
-page. Install the `.tapp` again only when `extension/` or the light interface changed (the
-changes tell you). Only use it for tests: the release `.tapp` stays pinned to its version and
+page. Install the `.tapp` again only when `extension/` changed (the changes tell you). A gateway
+with a local copy keeps running it: delete the copy (Diagnostics) to see a new run's interface. Only use it for tests: the release `.tapp` stays pinned to its version and
 hash.
 
 ## License

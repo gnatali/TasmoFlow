@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Card panel of the Tuya `light2` and `light3` bindings, laid out like the Tuya app (full interface only: the light
-// one keeps its size for device control and the update). Plugged into the cards through
+// Card panel of the Tuya `light2` and `light3` bindings, laid out like the Tuya app. Plugged into the cards through
 // EXTRA.refine (tuya.js). `light3`: tabs White / Colour follow the device's mode DP; the white tab has the
 // colour temperature arc (if the binding has `dp_ct`) and brightness, the colour tab a hue wheel and two
 // sliders (brightness = value, saturation). `light2` (white only): colour temperature on an open arc dial

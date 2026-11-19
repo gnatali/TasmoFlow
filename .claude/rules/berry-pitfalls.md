@@ -8,6 +8,10 @@ paths:
 
 - A line starting with `#-` opens a **block comment** (closed by `-#`): never use `#-----`
   separators. Use `#####` lines.
+- **Never name a variable, parameter or loop variable like a builtin** (`list`, `map`, `str`,
+  `type`, `size`, `bytes`, `open`...): Tasmota compiles in strict mode and refuses the whole file
+  (`strict: redefinition of builtin 'list'`, the extension did not start on 18 November 2026).
+  `tools/check_syntax.be` runs with `berry -s` in CI since then.
 - `re` is **not** a global name: `import re` before using it, including in static initialisers
   (`tf_http.be`). Tasmota's embedded copy works without it only because it is precompiled.
 - `tools/check_syntax.be` predeclares the real firmware globals (`tasmota`, `log`, `tcpserver`,
@@ -64,8 +68,8 @@ paths:
 - Uploading a new `.tapp` does not reload the running extension: restart (`Restart 1`) before
   testing, and never keep a `TasmoFlow.tapp` in both `/.extensions/` and `/` (both are loaded,
   the first one keeps `/tf` and port 8384). Every build shows the latest tag's version in the header
-  until a release is tagged, so an old build is easy to mistake for the new one: the banner of
-  the light interface, `curl "http://<gateway>/tf?w=1"` answering `ok` and the boot log line
+  until a release is tagged, so an old build is easy to mistake for the new one: the update
+  banner, `curl "http://<gateway>/tf?w=1"` answering `ok` and the boot log line
   `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened` tell them apart.
 - `bytes.tohex()` returns **upper-case** hex on Tasmota (`504B0304`, not `504b0304`): lower-case
   it before comparing (it made `tf_update.be` refuse every file, 11 November 2026).

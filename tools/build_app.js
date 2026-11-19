@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Bundles app/src/ (Preact + htm) into two files from the same sources:
-//   dist/app.js   full interface, published on GitHub Pages (pinned version, SRI hash)
-//   dist/lite.js  light interface, kept gzipped in the .tapp as the local copy
+// Bundles app/src/ (Preact + htm) into dist/app.js: the interface, published on GitHub Pages
+// (pinned version, SRI hash), and saved gzipped by the gateway as its local copy if asked
 // Usage: npm run build   (TF_BUILD=<id> npm run build tags a test build: the id shows in the header)
 const esbuild = require('esbuild');
 const fs = require('fs');
@@ -24,7 +23,7 @@ const cssText = {
 };
 
 esbuild.build({
-  entryPoints: { app: path.join(ROOT, 'app', 'src', 'main.js'), lite: path.join(ROOT, 'app', 'src', 'main_lite.js') },
+  entryPoints: { app: path.join(ROOT, 'app', 'src', 'main.js') },
   outdir: path.join(ROOT, 'dist'),
   bundle: true,
   minify: true,
@@ -36,5 +35,5 @@ esbuild.build({
   plugins: [cssText],
   logLevel: 'warning'
 }).then(() => {
-  for (const f of ['app.js', 'lite.js']) console.log(`dist/${f} ${fs.statSync(path.join(ROOT, 'dist', f)).size} B`);
+  for (const f of ['app.js']) console.log(`dist/${f} ${fs.statSync(path.join(ROOT, 'dist', f)).size} B`);
 }).catch(() => process.exit(1));

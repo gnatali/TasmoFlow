@@ -1,5 +1,8 @@
 # Checks the syntax of Berry files without running them
-# Usage : berry tools/check_syntax.be extension/*.be
+# Usage : berry -s tools/check_syntax.be extension/*.be
+#   -s: strict mode, as Tasmota compiles (it refuses, among others, a variable named like a
+#   builtin: `var list = ...` stopped the extension at boot on 18 November 2026 while the
+#   check without -s passed)
 #
 # The standard Berry interpreter refuses to compile an unknown global name: first declare
 # the globals that the Tasmota firmware really provides. Never add a module that is
@@ -11,7 +14,7 @@ global.tcpserver = true
 global.format = true
 
 var ok = true
-for path: _argv[1 ..]
+for path: global._argv[1 ..]          # through `global`: a plain name is checked at compile time
   var f = open(path)
   var src = f.read()
   f.close()

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Full interface only: while a driver of the gateway is starting (Zigbee, then the Tuya driver which
+// While a driver of the gateway is starting (Zigbee, then the Tuya driver which
 // waits for it, the network and memory), looks again every 5 seconds and enables the screen as soon
-// as it runs, up to 2 minutes (a Zigbee that never starts, no GPIO, would otherwise ask forever). The
-// light interface does none of it: it asks to reload the page (views.js, DriverNote).
+// as it runs, up to 2 minutes (a Zigbee that never starts, no GPIO, would otherwise ask forever).
 import { S, loadStatus, loadTuya, loadDevices, detect, RECHECK_MAX } from './state.js';
 import { onChange } from './store.js';
 

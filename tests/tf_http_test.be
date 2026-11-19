@@ -78,8 +78,8 @@ def run(chunks)
                                               # request waits for its sender to be quiet (virtual time)
   while budget > 0 && !cl.closed
     cnx.loop()
-    global.tasmota.now += 10
-    budget -= 1
+    global.tasmota.now += size(cl.chunks) > 0 ? 1 : 10   # 1 ms per chunk: 4 KB byte by byte stays under
+    budget -= 1                                          # the 10 s request deadline
   end
   var code = nil
   if string.find(cl.out, "HTTP/1.1 ") == 0    code = int(cl.out[9 .. 11])    end
@@ -229,9 +229,73 @@ for k: 1 .. 600    flood.push(repeat("z", 50))    end
 rr = refused_run([repeat("a", 600)] + flood, 400)
 check("refused request: a sender that never stops is cut after 2 s", rr[0].closed && rr[1] > 0 && rr[2] <= 220, [rr[0].closed, rr[1], rr[2]])
 
+# A handler that raises gets an answer: the server runs from Tasmota's unguarded fast loop, and
+# the request used to stay unanswered for ever (bug analysis T2, 15 November 2026)
+srv.on("/boom", nil, def (cnx, uri, verb)
+  if uri == "/boom/h"    cnx.send_header("Content-Encoding", "gzip")    end
+  if uri == "/boom/s"    cnx.send(200, "text/event-stream", "retry: 3000\n\n")    end
+  raise "value_error", "handler failed"
+end)
+var r = run([get("GET /boom HTTP/1.1")])
+check("handler raises: 500 with the error", r[0] == 500 && r[1].closed && string.find(r[1].out, '{"error":"value_error"}') > 0,
+      [r[0], r[1].closed, r[1].out])
+r = run([get("GET /boom/h HTTP/1.1")])
+check("handler raises after send_header: 500 without that header", r[0] == 500 && r[1].closed && string.find(r[1].out, "gzip") < 0,
+      [r[0], r[1].out])
+r = run([get("GET /boom/s HTTP/1.1")])
+check("handler raises after send: what was sent ends, closed", r[0] == 200 && r[1].closed && string.find(r[1].out, "HTTP/", 5) < 0,
+      [r[0], r[1].closed, r[1].out])
+
 # Incomplete request: no answer, the connection waits for the rest
-var r = run(["GET " + STATUS + " HTTP/1.1\r\nHost: gw\r\n"])
+r = run(["GET " + STATUS + " HTTP/1.1\r\nHost: gw\r\n"])
 check("incomplete request waits", r[0] == nil && !r[1].closed && size(seen) == 0, [r[0], r[1].closed])
+
+# Delays and connection limit (bug analysis T9, 19 November 2026): a connection that never
+# completes its request, or never takes its answer, used to be kept until the server stopped
+def run_for(c, limit)
+  var cnx = tf_http.webserver_async_cnx(srv, c)
+  var i = 0
+  while i < limit / 10 && !c.closed
+    cnx.loop()
+    global.tasmota.now += 10
+    i += 1
+  end
+  return i * 10                               # virtual ms before it was closed (or ms)
+end
+var cl = fake_client(["GET " + STATUS + " HTTP/1.1\r\nHost: gw\r\n"])
+var ms = run_for(cl, 20000)
+check("incomplete request: cut after 10 s, unanswered", cl.closed && cl.out == '' && ms >= 10000 && ms <= 10100, [cl.closed, ms])
+class deaf_client : fake_client                # stopped reading: nothing can be sent
+  def listening() return false end
+end
+cl = deaf_client([get("GET " + STATUS + " HTTP/1.1")])
+ms = run_for(cl, 60000)
+check("answer never taken: cut 30 s after its end", cl.closed && ms >= 30000 && ms <= 30100, [cl.closed, ms])
+srv.on("/stream", nil, def (cnx, uri, verb)
+  cnx.send(200, "text/event-stream", "retry: 3000\n\n")
+end)
+cl = fake_client([get("GET /stream HTTP/1.1")])
+run_for(cl, 60000)
+check("event stream: never cut", !cl.closed && string.find(cl.out, "HTTP/1.1 200 ") == 0, [cl.closed, cl.out[0 .. 30]])
+
+var pending = [0]                             # clients waiting to be accepted
+class many_tcpserver
+  def init(port) end
+  def hasclient() return pending[0] > 0 end
+  def acceptasync()
+    pending[0] -= 1
+    return fake_client([])
+  end
+  def close() end
+end
+global.tcpserver = many_tcpserver
+var srv2 = tf_http(8385)
+pending[0] = 11
+srv2.loop()
+var cs = srv2.connections
+check("connection limit: 10 kept, the 11th gets 503", size(cs) == 11 && cs[9].cnx.out == '' &&
+      string.find(cs[10].cnx.out, "HTTP/1.1 503 ") == 0 && string.find(cs[10].cnx.out, '{"error":"busy"}') > 0,
+      [size(cs), cs[10].cnx.out[0 .. 30]])
 
 if failures > 0
   raise "test_failed", str(failures) + " failure(s)"

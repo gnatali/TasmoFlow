@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Rules of the gateway: the three Tasmota rule sets (Rule1 to Rule3) and the Berry rules.
 // Every write goes through the gateway, which keeps a copy of the previous text first (see
-// extension/tf_rules.be). Full interface only: the light one (main_lite.js) has no Rules screen.
+// extension/tf_rules.be).
 import { useState, useEffect } from 'preact/hooks';
 import { html } from './html.js';
 import { t } from './i18n.js';
 import { S, cmd, get, post, current, fail, guardLeave } from './state.js';
 import { lintRule, flatRule, showRule } from './rules_lint.js';
 
-// the sentence editor, registered by the full interface only (not part of the light bundle)
+// the sentence editor, registered by main.js
 let Editor = null;
 let Banner = null;                                  // the list of rules that clash, same story
 let clashes = () => [];                             // findConflicts(), for the warning sign on a section

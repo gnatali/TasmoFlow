@@ -6,11 +6,13 @@
 # Two servers:
 #
 # - port 80, Tasmota's web server: "TasmoFlow" button in the main menu and /tf page,
-#   protected by the web password, which loads the full interface from GitHub Pages
-#   (pinned version, SRI hash) or, failing that, the light interface kept in the .tapp.
+#   protected by the web password, which loads the interface: the local copy if there is one
+#   for this version (saved by the interface next to the .tapp, see tf_update.be), else GitHub
+#   Pages (pinned version, SRI hash). The .tapp itself carries no interface (decision of
+#   18 November 2026: it was 14 KB of the .tapp's 42).
 #
 # - port 8384, Berry asynchronous server (tf_http.be): JSON API, event stream
-#   (Server-Sent Events) and light interface. The main server cannot add
+#   (Server-Sent Events) and the local copy. The main server cannot add
 #   HTTP headers from Berry (neither CORS nor Content-Encoding): this second port can,
 #   without rebuilding the firmware.
 #
@@ -48,7 +50,8 @@ class tf_streamer
   def loop()
     if !self.cnx.connected()    self.stop()   return  end
     if !self.cnx.buf_out_empty()   return   end
-    var b = self.f.readbytes(1024)
+    var b = bytes()
+    try b = self.f.readbytes(1024) except .. end     # the fast loop is not guarded: an error ends the answer
     if size(b) == 0
       self.cnx.content_stop()
       self.stop()
@@ -64,14 +67,60 @@ class tf_streamer
 end
 
 #################################################################################
+# The Zigbee devices as a JSON list read like a file by tf_streamer, one device per read:
+# with 30 or 40 devices and their attributes the answer is over 10 KB, never held whole in RAM.
+# Only the short addresses are kept (a device removed meanwhile is skipped).
+#################################################################################
+class tf_devices
+  var zb, addrs, i, sep
+
+  def init(zb)
+    self.zb = zb
+    self.addrs = []
+    self.i = 0
+    self.sep = "["
+    for d: zb    self.addrs.push(d.shortaddr)    end
+  end
+
+  def readbytes(n)
+    var a = self.addrs
+    var s = ""
+    while s == "" && self.i < size(a)
+      var d = self.zb.find(a[self.i])
+      self.i += 1
+      if d != nil
+        s = self.sep + format('{"addr":"0x%04X","name":%s,"model":%s,"manufacturer":%s,'
+                              '"lqi":%s,"battery":%s,"lastseen":%s,"reachable":%s,"router":%s,"info":%s}',
+                              d.shortaddr, json.dump(d.name), json.dump(d.model), json.dump(d.manufacturer),
+                              json.dump(d.lqi), json.dump(d.battery), json.dump(d.lastseen),
+                              json.dump(d.reachable), json.dump(d.router), str(d.info()))
+        self.sep = ","
+      end
+    end
+    if s == "" && self.sep != nil       # after the last device: the end of the list, once
+      s = self.sep == "[" ? "[]" : "]"
+      self.sep = nil
+    end
+    return bytes().fromstring(s)
+  end
+
+  def close() end
+end
+
+#################################################################################
 class tasmoflow
   static var VERSION = "@@VERSION@@"
   static var CDN = "@@CDN@@"            # GitHub Pages address ('' = local copy only)
   static var DIR = "@@APP_DIR@@"        # folder of app.js there: vX.Y.Z, or "dev" (test build, see below)
   static var SRI = "@@SRI@@"            # SRI hash (sha384) of app.js
+  static var APP_SHA = "@@APP_SHA@@"    # SHA-256 of app.js.gz: the only local copy accepted
   static var PORT = 8384
+  static var TUYA_RULES = ["Tuya", "TuyaConnected", "TuyaDisconnected"]   # rules of the firmware's Tuya driver
   static var IDLE_MS = 300000           # API server stopped after 5 minutes without a client
-  static var MAX_EVENTS = 50            # events kept for clients that reconnect
+  static var MAX_EVENTS = 50            # events kept for clients that reconnect...
+  static var MAX_EVENTS_B = 4096        # ... and their size in bytes (a Tuya status can be 1 KB)
+  static var MAX_OUT = 6144             # unsent bytes after which an event stream is closed: above
+                                        # MAX_EVENTS_B, which a new stream gets at once
   static var MAX_FEEDS = 3              # event streams open at the same time
 
   var wd                                # .tapp folder, e.g. '/.extensions/TasmoFlow.tapp#'
@@ -80,6 +129,7 @@ class tasmoflow
   var upd                               # tf_update (update API), loaded at the first /api/update request
   var token
   var events                            # [ [seq, SSE text], ... ]
+  var events_b                          # their size in bytes
   var seq
   var feeds                             # open SSE connections
   var ping
@@ -89,6 +139,7 @@ class tasmoflow
   def init()
     self.wd = tasmota.wd
     self.events = []
+    self.events_b = 0
     self.seq = 0
     self.feeds = []
     self.ping = 0
@@ -111,6 +162,23 @@ class tasmoflow
   #################################################################################
   # Helpers
   #################################################################################
+  # the installed .tapp: tasmota.wd saved at load time, without its trailing '#'; or nil
+  def tapp()
+    var wd = self.wd
+    if wd == nil || size(wd) < 2 || wd[size(wd) - 1] != '#'    return nil    end
+    return wd[0 .. size(wd) - 2]
+  end
+
+  # local copy of the interface (<tapp>.js, gzipped): 0 none, 1 this version's (its SHA-256 was
+  # checked when it was saved, see tf_update.be), 2 another version's (the .tapp was updated since)
+  def copy_state()
+    import path
+    import persist
+    var t = self.tapp()
+    if t == nil || !path.exists(t + ".js")    return 0    end
+    return persist.find('tasmoflow_js') == self.APP_SHA ? 1 : 2
+  end
+
   static def zb()
     import global
     return global.contains('zigbee') ? global.zigbee : nil
@@ -168,7 +236,7 @@ class tasmoflow
   # value returned by a Tasmota command, or nil
   static def cmdv(cmd, key)
     var r = tasmota.cmd(cmd, true)
-    return r != nil ? r.find(key) : nil
+    return isinstance(r, map) ? r.find(key) : nil     # a string when the answer is not JSON
   end
 
   def send_json(cnx, code, s)
@@ -229,9 +297,9 @@ class tasmoflow
       if self.DIR == 'dev'    url += "?t=" + str(tasmota.millis())    end
     end
     # manifest of the latest version of this channel (releases: the root, test builds: dev/); the
-    # loader compares it with VERSION. /tf?u=0 ("Later") skips the check for this visit.
+    # interface compares it with VERSION (update.js)
     var upd = ''
-    if size(self.CDN) > 0 && !webserver.has_arg("u")
+    if size(self.CDN) > 0
       upd = self.CDN + (self.DIR == 'dev' ? 'dev/' : '') + 'latest.json'
     end
     var cfg = {
@@ -240,7 +308,8 @@ class tasmoflow
       'token': self.token,
       'cdn': url,
       'sri': self.SRI,
-      'upd': upd
+      'upd': upd,
+      'copy': self.copy_state()
     }
     webserver.content_open(200, "text/html")
     webserver.content_send(
@@ -250,32 +319,19 @@ class tasmoflow
       '<div id="tasmoflow" style="font-family:system-ui,sans-serif;padding:2rem">TasmoFlow…</div>'
       '<script>window.TASMOFLOW=')
     webserver.content_send(json.dump(cfg))
+    # the local copy of this version first (no SRI: its SHA-256 was checked when it was saved),
+    # then GitHub; nothing else to try after that
     webserver.content_send(
       ';(function(c){'
         'c.api="http://"+location.hostname+":"+c.port;'
-        'var box=document.getElementById("tasmoflow"),t,fell=false;'
         'function add(src,sri,onerr){'
           'var s=document.createElement("script");s.src=src;'
           'if(sri){s.integrity=sri;s.crossOrigin="anonymous";}'
-          's.onload=function(){clearTimeout(t);};s.onerror=onerr;'
-          'document.head.appendChild(s);}'
-        'function local(){if(fell)return;fell=true;clearTimeout(t);'
-          'add(c.api+"/lite.js","",function(){'
-            'box.textContent="TasmoFlow: interface not found (port "+c.port+")";});}'
-        'var started=false;'
-        'function go(){if(started)return;started=true;'
-          'if(c.cdn){add(c.cdn,c.sri,local);t=setTimeout(local,3000);}else{local();}}'
-        'function newer(a,b){'
-          'if(/-dev/.test(b))return a!==b;'
-          'a=a.split(".");b=b.split(".");'
-          'for(var i=0;i<3;i++){var x=+a[i]||0,y=+b[i]||0;if(x!==y)return x>y;}return false;}'
-        'if(c.upd){'
-          'setTimeout(go,1500);'
-          'fetch(c.upd,{cache:"no-store"}).then(function(r){return r.json();}).then(function(j){'
-            'if(!started&&j&&j.version&&newer(j.version,c.version)){'
-              'started=true;j.url=new URL(j.tapp,c.upd).href;c.update=j;local();}else{go();}'
-          '}).catch(go);}'
-        'else{go();}'
+          's.onerror=onerr;document.head.appendChild(s);}'
+        'function none(){document.getElementById("tasmoflow").textContent='
+          '"TasmoFlow: GitHub cannot be reached and this gateway has no local copy of the interface";}'
+        'function github(){if(c.cdn)add(c.cdn,c.sri,none);else none();}'
+        'if(c.copy==1)add(c.api+"/local.js?v="+c.version,"",github);else github();'
       '})(window.TASMOFLOW);'
       '</script></body></html>')
     webserver.content_close()
@@ -324,7 +380,7 @@ class tasmoflow
       return
     end
     self.web.set_cors(true)
-    self.web.on("/lite.js", self, self.send_lite)
+    self.web.on("/local.js", self, self.send_copy)
     self.web.on("/api/status", self, self.api_status)
     self.web.on("/api/devices", self, self.api_devices)
     self.web.on("/api/cmd", self, self.api_cmd)
@@ -337,9 +393,10 @@ class tasmoflow
     end
     var zb = self.zb()
     if zb != nil    zb.add_handler(self)    end
-    # state changes of the firmware's Tuya driver ({"Tuya":{"Name":...,"Dps":{...}}}); the
-    # callback must be a closure, not a method, and the id lets stop_api() remove only ours
-    tasmota.add_rule("Tuya", / v -> self.tuya_event(v), 'tasmoflow')
+    # state changes of the firmware's Tuya driver ({"Tuya":{"Name":...,"Dps":{...}}}) and its
+    # connection changes ({"TuyaConnected":{"Name":...}}, TuyaDisconnected); the callback must be
+    # a closure, not a method, and the id lets stop_api() remove only ours
+    for r: self.TUYA_RULES   self.tuya_rule(r)   end
     log(f"TFL: API server started on port {self.PORT}", 2)
   end
 
@@ -347,10 +404,11 @@ class tasmoflow
     if self.web == nil    return    end
     var zb = self.zb()
     if zb != nil    zb.remove_handler(self)    end
-    tasmota.remove_rule("Tuya", 'tasmoflow')
+    for r: self.TUYA_RULES   tasmota.remove_rule(r, 'tasmoflow')   end
     for f: self.feeds   f.close()   end
     self.feeds = []
     self.events = []
+    self.events_b = 0
     self.web.close()
     self.web = nil
     self.rules = nil
@@ -359,14 +417,15 @@ class tasmoflow
     log("TFL: API server stopped", 2)
   end
 
-  # light interface, stored gzipped in the .tapp (the full one only lives on GitHub Pages)
-  def send_lite(cnx, uri, verb)
+  # the local copy of the interface, gzipped, next to the .tapp (its address carries the version:
+  # a cached copy of another version is never used)
+  def send_copy(cnx, uri, verb)
     self.touch()
     var f
     try
-      f = open(self.wd + "lite.js.gz", "rb")
+      f = open(self.tapp() + ".js", "rb")
     except ..
-      cnx.send(404, "text/plain", "lite.js.gz missing")
+      cnx.send(404, "text/plain", "no local copy")
       cnx.content_stop()
       return
     end
@@ -396,6 +455,7 @@ class tasmoflow
       'zigbee_devices': zb_started ? zb.size() : 0,
       'events_seq': self.seq,
       'feeds': size(self.feeds),
+      'copy': self.copy_state(),
       'wd': self.wd
     }
     self.send_json(cnx, 200, json.dump(st))
@@ -403,25 +463,18 @@ class tasmoflow
 
   def api_devices(cnx, uri, verb)
     if self.authorized(cnx, uri) == nil   return   end
-    cnx.send(200, "application/json", "[")
     var zb = self.zb()
     var started = false
     if zb != nil
       try started = bool(zb.started()) except .. end
     end
-    if started
-      var sep = ""
-      for d: zb
-        cnx.write(sep + format('{"addr":"0x%04X","name":%s,"model":%s,"manufacturer":%s,'
-                               '"lqi":%s,"battery":%s,"lastseen":%s,"reachable":%s,"router":%s,"info":%s}',
-                               d.shortaddr, json.dump(d.name), json.dump(d.model), json.dump(d.manufacturer),
-                               json.dump(d.lqi), json.dump(d.battery), json.dump(d.lastseen),
-                               json.dump(d.reachable), json.dump(d.router), str(d.info())))
-        sep = ","
-      end
+    if !started
+      self.send_json(cnx, 200, "[]")
+      return
     end
-    cnx.write("]")
-    cnx.content_stop()
+    var devs = tf_devices(zb)           # never name a variable `list`, `map`...: Tasmota compiles in
+    cnx.send(200, "application/json")   # strict mode, which refuses to redefine a builtin
+    tf_streamer(cnx, devs)              # one device per fast-loop turn, at the client's pace
   end
 
   # any Tasmota command: POST /api/cmd?t=... with the command as the body (a URL of more than
@@ -464,9 +517,13 @@ class tasmoflow
       if e[0] > since   cnx.write(e[1])   end
     end
     self.feeds.push(cnx)
+    # Beyond MAX_FEEDS the oldest stream is told to stop, then closed once that is sent: closed
+    # alone, its EventSource reconnected 3 s later and evicted the next one, for ever (bug analysis T6)
     while size(self.feeds) > self.MAX_FEEDS
-      self.feeds[0].close()
+      var old = self.feeds[0]
       self.feeds.remove(0)
+      old.write("event: stop\ndata: {}\n\n")
+      old.content_stop()
     end
   end
 
@@ -475,9 +532,23 @@ class tasmoflow
     var s = format('id: %i\ndata: {"seq":%i,"type":"%s","ts":%i,%s}\n\n',
                    self.seq, self.seq, kind, tasmota.rtc()['utc'], payload)
     self.events.push([self.seq, s])
-    if size(self.events) > self.MAX_EVENTS    self.events.remove(0)    end
+    self.events_b += size(s)
+    while size(self.events) > self.MAX_EVENTS || self.events_b > self.MAX_EVENTS_B
+      self.events_b -= size(self.events[0][1])
+      self.events.remove(0)
+    end
+    self.feed(s)
+  end
+
+  # writes to every open stream. A client that stopped reading without closing (a laptop gone to
+  # sleep, a phone that left Wi-Fi) stays connected for minutes: what it does not take piles up
+  # in RAM, so its stream is closed beyond MAX_OUT bytes (every_second() drops it; the browser
+  # reconnects and asks for what it missed)
+  def feed(s)
     for f: self.feeds
-      if f.connected()    f.write(s)    end
+      if f.connected()
+        if size(f.buf_out) > self.MAX_OUT    f.close()    else    f.write(s)    end
+      end
     end
   end
 
@@ -493,12 +564,23 @@ class tasmoflow
     self.push_event("zigbee", format('"device":"0x%04X","name":%s,"attrs":%s', idx, json.dump(name), str(attr_list)))
   end
 
-  # Tuya driver rule: v is {"Name": device, "Dps": {dp: value}}
-  def tuya_event(v)
+  # a method, so that each closure keeps its own trigger
+  def tuya_rule(r)
+    tasmota.add_rule(r, / v -> self.tuya_event(v, r), 'tasmoflow')
+  end
+
+  # Tuya driver rules: v is {"Name": device, "Dps": {dp: value}} for the trigger `Tuya`, or
+  # {"Name": device} for a connection change
+  def tuya_event(v, r)
     if self.web == nil || !isinstance(v, map)   return   end
+    var n = json.dump(v.find('Name'))
+    if r != "Tuya"
+      self.push_event("tuya", format('"name":%s,"connected":%s', n, str(r == "TuyaConnected")))
+      return
+    end
     var dps = v.find('Dps')
     if !isinstance(dps, map)   return   end
-    self.push_event("tuya", format('"name":%s,"dps":%s', json.dump(v.find('Name')), json.dump(dps)))
+    self.push_event("tuya", format('"name":%s,"dps":%s', n, json.dump(dps)))
   end
 
   def every_second()
@@ -520,7 +602,7 @@ class tasmoflow
     self.ping += 1
     if self.ping >= 15                  # SSE comment: keeps connections open
       self.ping = 0
-      for f: self.feeds   f.write(": ping\n\n")   end
+      self.feed(": ping\n\n")
     end
   end
 end

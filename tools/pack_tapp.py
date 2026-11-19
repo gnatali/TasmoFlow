@@ -5,22 +5,25 @@
 Writes into dist/:
   TasmoFlow.tapp          extension to install on the gateway (uncompressed zip, like
                           Tasmota's official extensions)
-  pages/vX.Y.Z/app.js     full interface to publish on GitHub Pages
+  pages/vX.Y.Z/app.js     the interface to publish on GitHub Pages
+  pages/vX.Y.Z/app.js.gz  the same, gzipped: what the interface saves on the gateway as its local
+                          copy (loaded before GitHub, and without internet access)
   pages/vX.Y.Z/TasmoFlow.tapp, pages/latest.json
                           the .tapp for the update button, and the manifest that says which
                           version is the latest (version, size, sha256, relative path)
 
-The .tapp holds lite.js.gz, the light interface served by the gateway when GitHub cannot be
-reached or an update is offered: device control and the update only (the full one only lives on
-GitHub Pages, to spare the 320 KB file system). Its Berry files are minified (no comments, no
+The .tapp holds no interface since 18 November 2026 (the light one was 14 KB of its 42): only the
+extension, which loads the interface. Its Berry files are minified (no comments, no
 indentation, see minify_berry()): the commented sources stay in extension/. The SRI hash of
 app.js is written into tasmoflow.be: the /tf page refuses a GitHub copy that differs from the
-installed version's.
+installed version's; and so is the SHA-256 of app.js.gz: the gateway refuses a local copy that
+differs.
 
 Test build (`--dev`): the .tapp loads https://<cdn>/dev/app.js with no SRI pin and a cache-busting
 query, so one published dev/app.js can be replaced at every run without a release or a new
-.tapp. Writes dist/dev/TasmoFlow.tapp and dist/pages/dev/{app.js,TasmoFlow.tapp,latest.json}. The .tapp
-only has to be installed again when extension/ or the light interface changed. It is minified like
+.tapp. Writes dist/dev/TasmoFlow.tapp and dist/pages/dev/{app.js,app.js.gz,TasmoFlow.tapp,latest.json}.
+The .tapp only has to be installed again when extension/ changed (a local copy is only accepted
+by the .tapp of the same run). It is minified like
 a release, but the .tapp size budget does not apply to it (the release build of the same commit is
 checked by CI).
 
@@ -42,14 +45,13 @@ import version as tf_version
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXT = ROOT / "extension"
 APP = ROOT / "dist" / "app.js"      # built by `npm run build` from app/src/
-LITE = ROOT / "dist" / "lite.js"
 DIST = ROOT / "dist"
 
-# size budgets (the specification allowed 150 KB for the .tapp, 25 KB for lite.js.gz; Guillaume
-# asked on 11 November 2026 for half of v0.2.0's 83,069 B .tapp: device control and update only)
-MAX_APP_GZ = 120 * 1024             # full interface (GitHub Pages)
-MAX_LITE_GZ = 14 * 1024             # light interface (file system of the gateway)
-MAX_TAPP = 83069 // 2
+# size budgets (the specification allowed 150 KB for the .tapp; Guillaume asked on 11 November 2026
+# for half of v0.2.0's 83,069 B .tapp, raised by him on 18 November 2026 from 41,534 to 42,500 B for
+# the robustness fixes T2 to T4; the interface left the .tapp the same day, about 29 KB since)
+MAX_APP_GZ = 120 * 1024             # the interface, gzipped (GitHub Pages, and the local copy)
+MAX_TAPP = 42500
 
 # fixed date in the zip and the gzip: two builds of the same code give the same file
 ZIP_DATE = (2026, 1, 1, 0, 0, 0)
@@ -128,11 +130,14 @@ def berry_word(c):
 
 def needs_space(a, b):
     """Must a blank stay between the characters a and b? Yes between two words (`return x`), and
-    between two signs (`= =` is not `==`, `/ ->` is a lambda). Also kept next to a string (`f 'x'`
-    is not the f-string `f'x'`) and next to a dot (`1 .. 3` is not `1. .3`). A word and a sign
-    need none (`x = 1` is `x=1`)."""
-    if a in "'\"." or b in "'\".":
+    between two signs (`= =` is not `==`, `/ ->` is a lambda). Next to a string, only when the
+    other side is a word (`f 'x'` is not the f-string `f'x'`) or another string; a string and a
+    sign need none (`s = ""` is `s=""`, 18 November 2026: -300 B). Kept next to a dot (`1 .. 3` is
+    not `1. .3`). A word and a sign need none (`x = 1` is `x=1`)."""
+    if a in "." or b in ".":
         return True
+    if a in "'\"" or b in "'\"":
+        return berry_word(a) or berry_word(b) or (a in "'\"" and b in "'\"")
     return berry_word(a) == berry_word(b)
 
 
@@ -182,12 +187,12 @@ def main():
         args.cdn += "/"
 
     version = tf_version.resolve()      # the git tag (tools/version.py)
-    for f in (APP, LITE):
-        if not f.exists():
-            sys.exit(f"{f.relative_to(ROOT)} missing: run `npm ci && npm run build` first")
+    if not APP.exists():
+        sys.exit(f"{APP.relative_to(ROOT)} missing: run `npm ci && npm run build` first")
     app = APP.read_bytes()
+    # the local copy: fixed date and level, so the same app.js always gives the same file and hash
     app_gz = gzip.compress(app, compresslevel=9, mtime=0)
-    lite_gz = gzip.compress(LITE.read_bytes(), compresslevel=9, mtime=0)
+    app_sha = hashlib.sha256(app_gz).hexdigest()
     sri = "sha384-" + base64.b64encode(hashlib.sha384(app).digest()).decode()
 
     shown = version
@@ -199,7 +204,7 @@ def main():
         if not args.cdn:
             sys.exit("--dev needs a --cdn address")
     values = {"VERSION": shown, "VERSION_HEX": version_hex(version), "CDN": args.cdn, "APP_DIR": app_dir,
-              "SRI": sri}
+              "SRI": sri, "APP_SHA": app_sha}
     # one notice for the extension, one for the code taken from Tasmota (the other files are ours)
     notice = f"TasmoFlow {shown} GPL-3.0-only, source: github.com/gnatali/TasmoFlow"
     notices = {"tasmoflow.be": notice,
@@ -217,7 +222,6 @@ def main():
         "tf_http.be": berry("tf_http.be"),
         "tf_rules.be": berry("tf_rules.be"),
         "tf_update.be": berry("tf_update.be"),
-        "lite.js.gz": lite_gz,
     }
 
     DIST.mkdir(exist_ok=True)
@@ -234,6 +238,7 @@ def main():
     pages = DIST / "pages" / app_dir
     pages.mkdir(parents=True, exist_ok=True)
     (pages / "app.js").write_bytes(app)
+    (pages / "app.js.gz").write_bytes(app_gz)
     tapp_bytes = tapp.read_bytes()
     # What the update button reads: the version of the channel's latest .tapp, its size and its
     # SHA-256 (the gateway checks both before it replaces itself), and where to get it
@@ -252,17 +257,15 @@ def main():
     print(f"TasmoFlow {shown} ({values['VERSION_HEX']})")
     for name, data in files.items():
         print(f"  {name:<14} {len(data):>7} B")
-    print(f"  app.js (GitHub Pages only) {len(app):>7} B (uncompressed), {len(app_gz)} B gzipped / budget {MAX_APP_GZ} B")
+    print(f"  app.js (GitHub Pages)      {len(app):>7} B (uncompressed), {len(app_gz)} B gzipped (local copy) / budget {MAX_APP_GZ} B")
     if args.dev:
         print(f"  {tapp.relative_to(ROOT)}: {tapp_size} B (test build: no budget)")
     else:
         print(f"  {tapp.relative_to(ROOT)}: {tapp_size} B / budget {MAX_TAPP} B")
-    print(f"  lite.js.gz: {len(lite_gz)} B / budget {MAX_LITE_GZ} B")
+    print(f"  app.js.gz SHA-256: {app_sha}")
     print(f"  SRI: {sri or '(none, test build)'}")
 
     errors = []
-    if len(lite_gz) > MAX_LITE_GZ:
-        errors.append(f"lite.js.gz exceeds its budget ({len(lite_gz)} > {MAX_LITE_GZ} B)")
     if len(app_gz) > MAX_APP_GZ:
         errors.append(f"app.js.gz exceeds its budget ({len(app_gz)} > {MAX_APP_GZ} B)")
     if tapp_size > MAX_TAPP and not args.dev:

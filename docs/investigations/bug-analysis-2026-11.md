@@ -29,17 +29,17 @@ function in a plausible situation; **P3** robustness, rare cases; **P4** minor.
 
 | Id | Priority | Finding | Status |
 | --- | --- | --- | --- |
-| T1 | P1 | After a gateway restart, an open interface shows "live" but ignores every event until the new sequence numbers pass the old ones | Reproduced (simulated gateway) |
-| T2 | P2 | An exception in `/api/status`, `/api/devices`, `/api/cmd` or `/api/events` leaves the request unanswered for ever; the interface then stays on "loading" | Read in the code and Tasmota's source |
-| T3 | P2 | Events pile up without limit in RAM for a client that stopped reading; the event history is limited by count, not by size | Read in the code |
-| T4 | P2 | `/api/devices` and `TuyaConfig` build their whole answer in RAM: memory grows with the number of devices | Read in the code, to measure |
-| T5 | P3 | The Tuya cards never learn that a device disconnected | Read in the code |
-| T6 | P3 | A fourth open interface makes the interfaces evict each other every 3 seconds | Read in the code |
+| T1 | P1 | After a gateway restart, an open interface shows "live" but ignores every event until the new sequence numbers pass the old ones | **Fixed** (18 November 2026), to check on the gateway |
+| T2 | P2 | An exception in `/api/status`, `/api/devices`, `/api/cmd` or `/api/events` leaves the request unanswered for ever; the interface then stays on "loading" | **Fixed** (18 November 2026), to check on the gateway |
+| T3 | P2 | Events pile up without limit in RAM for a client that stopped reading; the event history is limited by count, not by size | **Fixed** (18 November 2026), to measure on the gateway |
+| T4 | P2 | `/api/devices` and `TuyaConfig` build their whole answer in RAM: memory grows with the number of devices | **Fixed** (18 November 2026): devices streamed, `TuyaConfig` read device by device (firmware of the same day) |
+| T5 | P3 | The Tuya cards never learn that a device disconnected | **Fixed** (18 November 2026), to check on the gateway |
+| T6 | P3 | A fourth open interface makes the interfaces evict each other every 3 seconds | **Fixed** (19 November 2026), checked on the gateway |
 | T7 | P3 | The rule write keeps one text for all clients: two interfaces saving together can store the other's text and report success | Read in the code |
-| T8 | P3 | `lite.js` is cached for a day under an address without a version: after an update a browser can run the previous light interface | Read in the code |
-| T9 | P3 | Port 8384 has no connection limit and no timeout for an incomplete request | Read in the code |
+| T8 | P3 | `lite.js` is cached for a day under an address without a version: after an update a browser can run the previous light interface | **Fixed** (18 November 2026) |
+| T9 | P3 | Port 8384 has no connection limit and no timeout for an incomplete request | **Fixed** (19 November 2026), checked on the gateway |
 | T10 | P4 | A power cut between the two renames of an update leaves no `TasmoFlow.tapp` | Read in the code |
-| T11 | P4 | Zigbee toggle and pairing buttons show nothing when the command fails | Read in the code |
+| T11 | P4 | Zigbee toggle and pairing buttons show nothing when the command fails | **Fixed** (18 November 2026) |
 | T12 | P4 | `Content-Length` is only recognised in two spellings; a request without the token still keeps the server awake; every reconnection replays the whole event history | Read in the code |
 
 ## Findings
@@ -77,6 +77,21 @@ below `lastSeq`. In both cases reload the device list after a reconnection, sinc
 missed while the gateway was away. Test: make the simulated restart reset `seq`, then check
 that a card follows an event sent after it.
 
+**Fixed on 18 November 2026** (interface only, `app/src/state.js`, shared by both interfaces;
+`extension/` unchanged). When the event stream comes back after an error, the interface runs its
+opening sequence again (`start()`: status, devices, event stream, current screen, Tuya, drivers),
+since events were missed during the cut; if the status' `events_seq` is below the last number
+seen, the gateway restarted and `lastSeq` goes back to 0, so the new stream replays its history
+from the first event. If a restarted gateway has already sent more events than before the
+restart by the time the page is back (rare: the stream retries every 3 s), only those in between
+are missing from the Events list; the cards are right since the devices were read again. Side
+effect: the load time of the Diagnostics screen then counts from the page's opening to the
+reconnection. A random start id in the
+extension would cover that case too, but did not fit: the `.tapp` had 35 B left (now 41,526 B of
+41,534). The simulated gateway now numbers its events from 1 after a restart and cuts the
+stream (`/__test/restart`); the end-to-end test "gateway restart while a page is open" fails
+without the fix and passes with it.
+
 ### T2 (P2): an exception in an API handler leaves the request unanswered
 
 The port 8384 server runs from Tasmota's fast loop, which is deliberately not guarded
@@ -97,6 +112,15 @@ Fix: one guard for all routes, in `webserver_async.dispatch` or in a small wrapp
 Make `cmdv()` test `isinstance(r, map)`. On the client, an `AbortController` timeout in
 `api.js` (10 s) turns a silent wait into a visible error.
 
+**Fixed on 18 November 2026.** `tf_http.be`: `dispatch()` runs each handler in `try`; on an
+exception it logs the route (not the URI, which holds the token) and calls the new
+`cnx.fail(err)`, which answers `500 {"error":"<exception>"}` if nothing was sent yet (headers
+set with `send_header()` are dropped) and else ends what was sent. `cmdv()` tests
+`isinstance(r, map)`. `tf_streamer.loop()` (fast loop) catches a read error and ends the answer.
+`api.js`: every request gives up after 15 s (`AbortSignal.timeout`; 15 s rather than 10 for
+slow commands), and `get` and `post` share one function. `tests/tf_http_test.be` checks the three
+cases (raise before sending, after `send_header()`, after `send()`).
+
 ### T3 (P2): event buffers without a size limit
 
 - `push_event` (line 473) writes each event to every open stream. `_write` in `tf_http.be`
@@ -113,6 +137,13 @@ On this gateway an allocation failure is not a slow page, it is a restart.
 Fix: close a stream whose `buf_out` exceeds a few KB (the browser reconnects and asks for what
 it missed), and limit the history by bytes (for instance 6 KB) as well as by count. Worth a
 heap measurement with a paused client before and after.
+
+**Fixed on 18 November 2026** (`tasmoflow.be`). Every write to the streams goes through
+`feed()`: a stream holding more than `MAX_OUT = 6144` unsent bytes is closed instead
+(`every_second()` drops it, the browser reconnects and, with the T1 fix, reads everything
+again). The history keeps at most 50 events **and** `MAX_EVENTS_B = 4096` bytes. `MAX_OUT` is
+above `MAX_EVENTS_B` on purpose: a new stream gets the whole history at once, and a slow client
+must not be closed by it, reconnect and get it again in a loop. Not measured on the gateway yet.
 
 ### T4 (P2): answers built whole in RAM
 
@@ -132,6 +163,23 @@ pattern with an iterator instead of a file). For Tuya, ask the configuration dev
 (`TuyaConfig <name>`; the firmware report suggests making that command read one entry instead
 of the whole file) and keep it for the session instead of reading it again at every Refresh.
 
+**Partly fixed on 18 November 2026.** `/api/devices` is streamed: `tf_devices` keeps only the
+short addresses and gives `tf_streamer` one device per read, when the output buffer is empty,
+so the answer is never held whole (a device removed meanwhile is skipped). The interface reads
+`TuyaConfig` once per gateway and again only when a device of `TuyaStatus` is missing from it
+(`loadTuya()` in `state.js`): Refresh, reconnections and the drivers' checks no longer reload
+`tuya.json`. Trade-off: a binding changed on the `/tuya` page for an existing device shows after
+a page reload.
+
+**Then, the same day:** the firmware's `TuyaConfig <device>` reads `tuya.json` entry by entry
+(`each_device()`, no memory threshold) and also finds a sub-device of a Tuya gateway (firmware
+repository, its scenario 28). The interface asks `TuyaConfig <name>` for each device of
+`TuyaStatus` it does not know yet (a gateway's entry brings its sub-devices), so the whole file
+is never loaded and the cards keep their controls whatever the free memory. With an older
+firmware, sub-devices are not found alone: the whole configuration is then read once. The
+simulated gateway answers `TuyaConfig <name>` and counts the requests: the Tuya end-to-end test
+checks that no bare `TuyaConfig` is sent.
+
 ### T5 (P3): a Tuya device that disconnects stays "connected"
 
 The stream only carries DP changes. `state.js` (lines 149 to 152) sets `connected: true` on each of
@@ -139,6 +187,13 @@ them and nothing ever sets it back to false, so a lamp cut at the wall switch ke
 "connected" label and its enabled buttons until Refresh; pressing one shows
 `Device not connected`. Needs the driver to publish connection changes (firmware report, F5);
 until then, a `TuyaStatus` every minute or so while the Devices screen is shown would do.
+
+**Fixed (18 November 2026).** The driver already announced it: `{"TuyaConnected":{"Name":...}}` once
+a device is ready, `TuyaDisconnected` when a ready one is lost (`announce()` in
+`berry/tuya_local.be`). `tasmoflow.be` now registers these two triggers too and sends
+`{"type":"tuya","name":...,"connected":true|false}`; the card follows, and so do the sub-devices of
+a Tuya gateway (the driver announces the gateway only). A name the interface does not know reads
+the Tuya devices again, as before.
 
 ### T6 (P3): more than three interfaces
 
@@ -148,6 +203,12 @@ oldest, and so on: with four tabs or devices open, they take turns for ever, eac
 replaying the history. Fix: refuse the newcomer instead (an event `{"type":"full"}` then
 close), and have the interface stop reconnecting and say that too many interfaces are open; or
 send the evicted client a last event that tells it to stop.
+
+**Fixed (19 November 2026)** the second way, so that the interface just opened (the one in use) always
+gets its stream, and a stream left by a sleeping laptop does not block it: the oldest receives
+`event: stop`, then is closed once that is sent. Its page closes its `EventSource`, says that it no
+longer receives live changes and offers **Resume**, which takes the place of the oldest of the
+others. End-to-end test with four pages.
 
 ### T7 (P3): one pending rule text for everybody
 
@@ -166,6 +227,10 @@ therefore run the previous light interface against the new extension: when GitHu
 reached, or when another update is offered (the update code itself is in `lite.js`). Fix:
 `add(c.api + "/lite.js?v=" + c.version, ...)`; the server already ignores the query.
 
+**Fixed (18 November 2026)** that way; the end-to-end test checks the address. The same evening
+the light interface left the `.tapp`: the local copy that replaces it is loaded as
+`/local.js?v=<version>`, for the same reason.
+
 ### T9 (P3): no connection limit, no request timeout on port 8384
 
 A connection that sends nothing, or half a request, is kept until the server stops
@@ -175,6 +240,11 @@ misbehaving program on the local network, or a page open in a browser on it, can
 gateway's memory. The network is trusted by design; a limit of 8 connections and a 10-second
 timeout for an incomplete request cost little.
 
+**Fixed (19 November 2026)**: at most 10 connections (`MAX_CNX`; one more gets `503 busy`, three
+interfaces and their requests fit), a request incomplete 10 s after the connection opened is cut
+without an answer, and an answer not taken 30 s after its end too (an event stream has no delay;
+the evicted stream of T6 gets one). Checked by `tests/tf_http_test.be`.
+
 ### T10 to T12 (P4)
 
 - **T10**: `tf_update.apply` renames `<tapp>` to `.bak`, then `.new` to `<tapp>`
@@ -182,7 +252,10 @@ timeout for an incomplete request cost little.
   no extension at the next boot, reinstall by hand. The window is a few milliseconds; a line in
   the user guide about renaming `TasmoFlow.tapp.bak` is enough.
 - **T11**: `ZbSend` toggle and `ZbPermitJoin` (`views.js`) ignore the command's answer and have
-  no `.catch`: a refused or failed command shows nothing, unlike the Tuya cards.
+  no `.catch`: a refused or failed command shows nothing, unlike the Tuya cards. **Fixed
+  (18 November 2026)**: the three buttons share `run()` (`state.js`), which keeps an answer other
+  than `Done` (or the request's error) and shows it under the card or the button, until a command
+  that works clears it.
 - **T12**: three small things in the server. `event_http_header` only recognises
   `Content-Length` and `content-length` (header names are case-insensitive: any other spelling
   makes a POST body look empty). `authorized()` calls `touch()` before it checks the token, so

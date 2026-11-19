@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Application state: current gateway, devices, event stream. Shared by both interfaces: what only
-// the full one shows (rules, other gateways, diagnostics) is loaded by its own modules, so the
-// light bundle (main_lite.js) does not carry it.
+// Application state: current gateway, devices, event stream. What the other screens show (rules,
+// other gateways, diagnostics) is loaded by their own modules.
 import { createStore } from './store.js';
 import { client } from './api.js';
 import cfg from './config.js';
-import { indexConfig, MIN_HEAP_KB } from './tuya_model.js';
+import { indexConfig } from './tuya_model.js';
 
 const T0 = performance.now();
 export const RECHECK_MAX = 24;                      // x 5 s: the full interface gives up after 2 minutes
@@ -24,6 +23,7 @@ export const S = createStore({
   recheck: 0,               // full interface: detections made again while a driver starts (drivers_full.js)
   events: [],
   live: false,
+  stopped: false,           // the gateway stopped this page's event stream: more than three were open
   error: null,
   startMs: 0,
   consoleOut: ''
@@ -39,6 +39,14 @@ export const get = (path, params) => api.get(path, params);
 export const post = (path, params, body) => api.post(path, params, body);
 export const current = gw => S.get().gw === gw;
 export const fail = (gw, e) => { if (current(gw)) S.set({ error: e.message }); };
+
+// A card's or a button's command: the answer, when it is not "Done" (refused, failed), is kept to
+// show next to it, { key: text }; a command that succeeds clears it.
+export const M = createStore({});
+export const run = (key, c) => cmd(c).then(r => {
+  const x = r[c.split(' ')[0]];
+  M.set({ [key]: x === 'Done' ? null : typeof x === 'string' ? x : JSON.stringify(x || r) });
+}).catch(e => M.set({ [key]: e.message }));
 
 // what a screen loads when it is shown, { tab: function }: registered by the full interface
 // (diagnostics, rules), so the light one does not carry it
@@ -63,6 +71,11 @@ export function loadDevices() {
 
 // Local Tuya devices: state of the firmware's driver, devices, then (memory permitting) their
 // configuration, which tells what each DP means. Sequential: each command loads the driver's data.
+// The configuration is read device by device (`TuyaConfig <name>`: since the firmware of 18 November
+// 2026 the driver reads tuya.json entry by entry, with no memory threshold; a Tuya gateway's entry
+// also brings its sub-devices), once per gateway, and again only for a device missing from it
+// (added since). An older firmware loads the whole file for each and refuses below 30 KB free
+// (lowMem), and finds no sub-device alone: then the whole configuration is read once.
 export async function loadTuya() {
   const gw = S.get().gw;
   const a = api;
@@ -78,11 +91,17 @@ export async function loadTuya() {
       const d = st[n];
       nodes[n] = { connected: !!d.Connected, ip: d.Ip || '', version: d.Version || '', dps: d.Dps || {} };
     }
-    const status = await a.get('/api/status');
-    const heap = status.memory && status.memory.heap_free;
-    let conf = null;
-    if (heap == null || heap >= MIN_HEAP_KB) conf = indexConfig((await a.cmd('TuyaConfig')).TuyaConfig);
-    set({ state: 'running', nodes, conf, lowMem: !conf });
+    const conf = { ...(S.get().tuya || {}).conf };
+    let lowMem = false;
+    const missing = () => Object.keys(nodes).filter(n => !conf[n]);
+    for (const n of missing()) {
+      if (conf[n]) continue;                              // brought by its gateway's entry
+      const c = (await a.cmd('TuyaConfig ' + n)).TuyaConfig || {};
+      if (c.name) Object.assign(conf, indexConfig({ devices: [c] }));
+      else if (/memory/.test(c.Error)) lowMem = true;
+    }
+    if (!lowMem && missing().length) Object.assign(conf, indexConfig((await a.cmd('TuyaConfig')).TuyaConfig));
+    set({ state: 'running', nodes, conf, lowMem });
   } catch (err) { fail(gw, err); }
 }
 
@@ -130,8 +149,12 @@ function connectEvents() {
   closeEvents();
   const gw = S.get().gw;
   es = new EventSource(api.url('/api/events', { since: lastSeq }));
-  es.onopen = () => S.set({ live: true });
+  es.onopen = () => S.set({ live: true, stopped: false });
+  // the gateway keeps three streams: a newer interface took this one's place. Reconnecting would
+  // take another's, so the page waits for the user (resume())
+  es.addEventListener('stop', () => { closeEvents(); S.set({ live: false, stopped: true }); });
   es.onerror = () => {
+    es.onopen = start;      // back after a cut: events were missed, read everything again
     S.set({ live: false });
     if (Date.now() - lastWake > 10000) { lastWake = Date.now(); wake(gw); }   // restarted gateway
   };
@@ -146,10 +169,16 @@ function connectEvents() {
       const events = [ev, ...s.events].slice(0, 100);
       let devices = s.devices;
       let tuya = s.tuya;
+      // a DP change, or (since 18 November 2026) a connection change: the driver's TuyaConnected and
+      // TuyaDisconnected, which a Tuya gateway's sub-devices follow
       if (ev.type === 'tuya' && tuya && tuya.nodes) {
         const n = tuya.nodes[ev.name];
-        if (n) tuya = { ...tuya, nodes: { ...tuya.nodes, [ev.name]: { ...n, connected: true, dps: { ...n.dps, ...ev.dps } } } };
-        else unknownTuya = true;
+        const on = ev.connected !== false;
+        if (n) {
+          const nodes = { ...tuya.nodes, [ev.name]: { ...n, connected: on, dps: { ...n.dps, ...ev.dps } } };
+          for (const c of ((tuya.conf || {})[ev.name] || {}).children || []) if (nodes[c.name]) nodes[c.name] = { ...nodes[c.name], connected: on };
+          tuya = { ...tuya, nodes };
+        } else unknownTuya = true;
       }
       if (ev.type === 'zigbee' && devices) {
         const d = devices[ev.device];
@@ -165,10 +194,15 @@ function connectEvents() {
   };
 }
 
+// Also run again when the event stream comes back after a cut. A restarted gateway numbers its
+// events from 1 again: they would all be dropped as repeats until they pass the last number seen,
+// so the stream starts over from 0 when the counter went back (if it already passed it, only the
+// events in between are missing from the list; the devices are read again anyway).
 function start() {
   const gw = S.get().gw;
   return reach(gw).then(status => {
     if (!current(gw)) return;
+    if (status.events_seq < lastSeq) lastSeq = 0;
     S.set({ status, error: null });
     return loadDevices();
   }).then(() => {
@@ -196,7 +230,7 @@ function switchTo(gw) {
   closeEvents();
   api = client(gw);
   lastSeq = 0;
-  S.set({ gw, status: null, devices: null, tuya: null, drivers: {}, recheck: 0, rules: null, events: [], live: false, error: null });
+  S.set({ gw, status: null, devices: null, tuya: null, drivers: {}, recheck: 0, rules: null, events: [], live: false, stopped: false, error: null });
   start();
 }
 
@@ -206,3 +240,4 @@ export function setTab(tab) {
 }
 
 export const init = start;
+export const resume = () => { if (!es) start(); };

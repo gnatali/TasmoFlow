@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Sentence editor of a rule set: "When ... If ... Then ... Else ...". Full interface only (main.js
-// registers it with rules.js; the light interface does not carry it). It owns the list of blocks
+// Sentence editor of a rule set: "When ... If ... Then ... Else ...". Registered with rules.js
+// by main.js. It owns the list of blocks
 // while it is open and hands the written text to the card after every change.
 import { useState, useRef, useEffect } from 'preact/hooks';
 import { html } from './html.js';

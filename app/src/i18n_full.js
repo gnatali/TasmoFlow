@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Texts of the full interface's own screens (rules, events, console, gateways, diagnostics),
-// added by main.js: the light interface (main_lite.js) does not carry them.
+// Texts of the other screens (rules, events, console, gateways, diagnostics), added by main.js.
 export const FULL_TEXTS = {
   fr: {
     driverAuto: "{d} démarre : ses fonctions sont désactivées, la page se met à jour toute seule dès qu'il est prêt.",
@@ -12,6 +11,16 @@ export const FULL_TEXTS = {
     cmdPlaceholder: 'Commande Tasmota, ex. ZbInfo', noEvent: "Aucun événement depuis l'ouverture.",
     source: 'Interface chargée depuis', loadTime: "Démarrage de l'interface", heap: 'Mémoire libre',
     ufs: 'Système de fichiers libre', gateway: 'Passerelle', thisGateway: 'Cette passerelle',
+    copyTitle: 'Copie locale de l\'interface',
+    copyNone: "Aucune copie : l'interface vient de GitHub, et ne se charge pas sans accès à internet. Une copie locale (environ 35 Ko sur la passerelle) se charge en premier et fonctionne sans internet.",
+    copyOk: "La passerelle a une copie de cette version : elle se charge en premier, et sans accès à internet.",
+    copyOld: "La copie de la passerelle est celle d'une autre version de TasmoFlow : elle n'est pas utilisée. Enregistrez celle de cette version.",
+    copySave: 'Enregistrer une copie locale', copyAgain: 'Enregistrer de nouveau', copyDrop: 'Supprimer la copie',
+    copyBusy: 'Enregistrement de la copie sur la passerelle…',
+    copy_hash: "La copie téléchargée n'est pas celle de la version installée de TasmoFlow : mettez d'abord TasmoFlow à jour.",
+    copy_space: 'Pas assez de place sur la passerelle pour la copie.',
+    copySpaceDetail: 'Il faut {need} Ko ({size} Ko de copie et 20 Ko de marge), {free} Ko sont disponibles.',
+    copy_format: "Le fichier téléchargé n'est pas une copie de l'interface.",
     thisGatewayHelp: "Pour utiliser cette passerelle depuis l'interface d'une autre, copiez ce lien et collez-le dans l'écran Passerelles de l'autre.",
     link: 'Lien de connexion', show: 'Afficher', hide: 'Masquer', copy: 'Copier', copied: 'Copié',
     others: 'Autres passerelles', noOthers: 'Aucune autre passerelle enregistrée.', use: 'Utiliser', test: 'Tester',
@@ -81,6 +90,16 @@ export const FULL_TEXTS = {
     events: 'Events', console: 'Console', gateways: 'Gateways', diag: 'Diagnostics', send: 'Send',
     cmdPlaceholder: 'Tasmota command, e.g. ZbInfo', noEvent: 'No event since opening.',
     source: 'Interface loaded from', loadTime: 'Interface start-up', heap: 'Free memory', ufs: 'Free file system',
+    copyTitle: 'Local copy of the interface',
+    copyNone: 'No copy: the interface comes from GitHub, and does not load without internet access. A local copy (about 35 KB on the gateway) loads first and works without internet.',
+    copyOk: 'The gateway has a copy of this version: it loads first, and without internet access.',
+    copyOld: "The gateway's copy is another version's of TasmoFlow: it is not used. Save this version's.",
+    copySave: 'Save a local copy', copyAgain: 'Save it again', copyDrop: 'Delete the copy',
+    copyBusy: 'Saving the copy on the gateway…',
+    copy_hash: 'The downloaded copy is not the installed version of TasmoFlow: update TasmoFlow first.',
+    copy_space: 'Not enough room on the gateway for the copy.',
+    copySpaceDetail: '{need} KB are needed ({size} KB of copy and a 20 KB margin), {free} KB are available.',
+    copy_format: 'The downloaded file is not a copy of the interface.',
     gateway: 'Gateway', thisGateway: 'This gateway',
     thisGatewayHelp: "To use this gateway from another one's interface, copy this link and paste it in the other's Gateways screen.",
     link: 'Connection link', show: 'Show', hide: 'Hide', copy: 'Copy', copied: 'Copied', others: 'Other gateways',

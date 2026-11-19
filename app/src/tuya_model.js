@@ -3,9 +3,6 @@
 // TasmoFlow never shows, stores or sends a local key: TuyaConfig already masks it.
 import { t } from './i18n.js';
 
-// TuyaConfig loads the whole of tuya.json: the driver itself refuses below 30 KB free
-export const MIN_HEAP_KB = 32;
-
 // { name: entry } for the devices and the sub-devices of a Tuya gateway
 export function indexConfig(conf) {
   const map = {};

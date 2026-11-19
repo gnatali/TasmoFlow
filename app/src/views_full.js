@@ -5,13 +5,14 @@ import { html } from './html.js';
 import { t, L } from './i18n.js';
 import { S, cmd } from './state.js';
 import cfg from './config.js';
+import { CopyPanel } from './update.js';
 
 export function EventsView() {
   const { events } = S.get();
   if (!events.length) return html`<p>${t('noEvent')}</p>`;
   const lang = L.get().lang;
   return html`<ol class="ev">${events.map(ev => html`<li key=${ev.seq}>
-    <span class="q">${new Date(ev.ts * 1000).toLocaleTimeString(lang)} · </span><b>${ev.name || ev.device || ev.type}</b> ${JSON.stringify(ev.attrs || ev.dps || ev)}
+    <span class="q">${new Date(ev.ts * 1000).toLocaleTimeString(lang)} · </span><b>${ev.name || ev.device || ev.type}</b> ${ev.connected != null ? t(ev.connected ? 'connected' : 'disconnected') : JSON.stringify(ev.attrs || ev.dps || ev)}
   </li>`)}</ol>`;
 }
 
@@ -48,6 +49,7 @@ export function DiagView() {
       <dt>${t('heap')}</dt><dd>${mem.heap_free != null ? mem.heap_free + ' Ko' : '?'}</dd>
       <dt>${t('ufs')}</dt><dd>${st.ufs_free_kb != null ? st.ufs_free_kb + ' / ' + st.ufs_size_kb + ' Ko' : '?'}</dd>
     </dl>
+    <${CopyPanel}/>
     <h3>/api/status</h3>
     <pre>${JSON.stringify(st, null, 2)}</pre>`;
 }
