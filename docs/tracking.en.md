@@ -49,6 +49,7 @@ Specification (French, outside the repository):
 
 | Date | Step |
 | --- | --- |
+| 20 Nov | **Cost at rest measured** (Guillaume, 5 minutes after `Restart 1`, after `Br tasmota.gc()`): 82 KB free without TasmoFlow, 69 KB with it: **13 KB at rest**, within the 15 KB budget. The 58 KB at rest of the row below was taken too soon after the restart. Against 69 KB, the 51 KB after closing would leave 18 KB not given back (6 KB before): to measure again in one run (rest, open, more than 5 minutes after closing every tab, `TFL: API server stopped` in the log) |
 | 20 Nov | **Memory measured** (Guillaume, after `Br tasmota.gc()`, firmware with the solidified Tuya driver): 58 KB free at rest, 46 KB with the interface open (12 KB), 51 KB five minutes after closing it (7 KB not given back, 5-6 KB before: the known leftover, not pursued). Not comparable with the 75 KB of 11 November: the firmware changed since (Tuya driver of 18 November); the cost at rest needs a reading without TasmoFlow on this firmware. With the interface open, 46 KB free is 1 KB above what the Tuya driver needs to start (45 KB), 16 KB above its `tuya.json` threshold (30 KB) |
 | 20 Nov | **Local copy checked on the gateway** (Guillaume): offline, delete and memory pass. Berry `HeapUsed`: 46 KB with the interface closed, 63 KB just after it loaded (39 and 55 KB in v0.2 step 1); free heap (`Status 4`) not taken, so the TasmoFlow cost is not computed |
 | 19 Nov | **Checked on the gateway** (Guillaume): the T6/T9 `.tapp` installed by the update button (update with a local copy: passed), T6 and T9 pass, the local copy is saved. Left for the local copy: offline, delete, memory |
@@ -114,6 +115,8 @@ After `tasmota.gc()`, gateway running the Tuya driver (9 November 2026):
 | **v0.2** step 1 (Rules, POST), extension loaded, no interface open (11 November) | 75 KB, 76 KB | 39 KB, 39 KB | **8 to 9 KB** |
 | **v0.2** step 1, interface open (10 November) | 52 KB | 55 KB | 32 KB |
 | **v0.2** step 1, 5 minutes after closing it (11 November, two runs) | 70 KB, 70 KB | 39 KB, 39 KB | **14 KB** |
+| **v0.2**, without TasmoFlow, 5 minutes after `Restart 1` (20 November) | 82 KB | | |
+| **v0.2**, with TasmoFlow, 5 minutes after `Restart 1` (20 November) | 69 KB | | **13 KB** |
 | **v0.2**, no interface in the `.tapp`, at rest after `Restart 1` (20 November, firmware with the solidified Tuya driver) | 58 KB | not taken | |
 | **v0.2**, no interface in the `.tapp`, interface open (20 November) | 46 KB | 63 KB | 12 KB over rest |
 | **v0.2**, no interface in the `.tapp`, 5 minutes after closing it (20 November) | 51 KB | 46 KB | 7 KB over rest |
