@@ -49,6 +49,7 @@ Specification (French, outside the repository):
 
 | Date | Step |
 | --- | --- |
+| 20 Nov | **T5 checked on the gateway** (Guillaume). **Tuya command not answered** (his second try: a lamp unplugged, then switched on before the driver noticed): `TuyaSend` answered `Done` and nothing showed for 35 s. The Tuya cards now wait 5 s for an event from the device after a command answered `Done`, else "The device did not answer the command." under the card (also for a sub-device of a Tuya gateway, which the driver cannot watch); its next event clears it. With it, the firmware's driver takes a device that does not answer a command within 5 s as lost (`no reply to command`, `TuyaDisconnected`; firmware repository, branch `ccr-a1ed84c3-jng9nv`, 30/30 scenarios, firmware built: **to flash**). Interface only here, no `.tapp` to install again. 34 end-to-end tests |
 | 20 Nov | **Zigbee device that does not answer** (Guillaume's report, T11 tried on a cut Zigbee plug): Toggle showed Tasmota's raw answer `{"0xF397":{"Reachable":false}}`, and a mains plug showed "battery -1 %". Now the card says "The device does not answer (unreachable)" under it and "unreachable" in its line as soon as Tasmota publishes `Reachable:false` (`attributes_final`, `Z_Unreachable` in `xdrv_23_zigbee_6_0_commands.ino`), back to normal at the device's next message; a battery of -1 (unknown, `zd_battery` in `xdrv_52_3_berry_zigbee.ino`) is not shown. Interface only, no `.tapp` to install again. T5 is still to try with a **Tuya Wi-Fi** device (the plug cut was Zigbee). 34 end-to-end tests |
 | 20 Nov | **Memory measured in one run** (Guillaume, after `Br tasmota.gc()`; 82 KB free without TasmoFlow): 69 KB at rest (**13 KB**), 53 KB with the interface open (**29 KB**, 16 KB over rest; 8 KB above the 45 KB the Tuya driver needs to start), 66 KB after closing every tab and `TFL: API server stopped` (**16 KB**, 3 KB not given back, 6 KB before). The earlier 46 / 51 KB readings came from mixed runs. The budget of 15 KB holds at rest; after the first opening it is 1 KB over |
 | 20 Nov | **Cost at rest measured** (Guillaume, 5 minutes after `Restart 1`, after `Br tasmota.gc()`): 82 KB free without TasmoFlow, 69 KB with it: **13 KB at rest**, within the 15 KB budget. The 58 KB at rest of the row below was taken too soon after the restart. Against 69 KB, the 51 KB after closing would leave 18 KB not given back (6 KB before): to measure again in one run (rest, open, more than 5 minutes after closing every tab, `TFL: API server stopped` in the log) |
@@ -190,7 +191,7 @@ conflicts) are written and tried on the gateway in part, see the test plan.
   sorted by priority and 10 improvement ideas. **T1 to T4 fixed** on 18 November 2026 (T4 with
   the firmware of the same day: `TuyaConfig <device>` read entry by entry), checked on the
   gateway by Guillaume; **T5, T8, T11 fixed** the same evening, to check (T8 went with the light
-  interface); **T6, T9 fixed** on 19 November, checked on the gateway by Guillaume. Next: T7, T10, T12.
+  interface); **T6, T9 fixed** on 19 November, checked on the gateway by Guillaume; T5 and T11 checked on 20 November. Next: T7, T10, T12.
 
 - **Reducing the `.tapp`** (18 November 2026):
   [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md) lists the options

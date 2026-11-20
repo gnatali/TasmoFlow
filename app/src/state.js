@@ -51,6 +51,22 @@ export const run = (key, c) => cmd(c).then(r => {
   M.set({ [key]: x === 'Done' ? null : gone ? t('noAnswer') : typeof x === 'string' ? x : JSON.stringify(x || r) });
 }).catch(e => M.set({ [key]: e.message }));
 
+// A Tuya command answered Done is only written to the device: the driver may not know yet that it was
+// cut (it notices after 35 s without a frame, or 5 s without an answer with the firmware of 20 November
+// 2026), and a sub-device of a Tuya gateway is never answered for. Without any event from the device
+// NO_REPLY ms later, the card says it did not answer; its next event clears that.
+const NO_REPLY = 5000;
+const waits = {};                      // { device name: timer }
+export const runTuya = (name, c) => run(name, c).then(() => {
+  if (M.get()[name]) return;           // refused: the answer is already shown
+  clearTimeout(waits[name]);
+  waits[name] = setTimeout(() => { delete waits[name]; M.set({ [name]: t('noReply') }); }, NO_REPLY);
+});
+const heard = name => {
+  if (waits[name]) { clearTimeout(waits[name]); delete waits[name]; }
+  if (M.get()[name] === t('noReply')) M.set({ [name]: null });
+};
+
 // what a screen loads when it is shown, { tab: function }: registered by the full interface
 // (diagnostics, rules), so the light one does not carry it
 const loaders = {};
@@ -195,6 +211,7 @@ function connectEvents() {
       }
       return { events, devices, tuya };
     });
+    if (ev.type === 'tuya') heard(ev.name);
     if (unknown) loadDevices();                         // new or renamed device
     if (unknownTuya) loadTuya();
   };

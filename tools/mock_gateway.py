@@ -177,6 +177,8 @@ def tuya_command(c):
                 new = json.loads(value)
             except ValueError:      # not JSON: the driver takes the text as it is (`colour`)
                 new = value
+        if real == STATE.get("tuya_silent"):    # the driver still takes it as connected: Done, then nothing
+            return {"TuyaSend": "Done"}
         d["Dps"][dp] = new
         # a real driver reports the new value a moment after the command (network round trip)
         threading.Timer(0.4, push_tuya, (real, {dp: new})).start()
@@ -479,6 +481,11 @@ class Api(BaseHTTPRequestHandler):
             q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))
             TUYA[q["name"]]["Connected"] = q.get("on") == "1"
             push_tuya(q["name"], connected=q.get("on") == "1")
+            self.json(200, {"ok": True})
+            return
+        if self.path.startswith("/__test/tuyasilent"):   # test hook: ?name= a Tuya device that takes commands
+            q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))   # and never answers (cut at
+            STATE["tuya_silent"] = q.get("name", "")                                   # the wall, not known yet)
             self.json(200, {"ok": True})
             return
         if self.path.startswith("/__test/tuyaconfig"):   # test hook: TuyaConfig requests so far

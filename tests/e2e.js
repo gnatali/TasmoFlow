@@ -743,6 +743,21 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     if (!await fan.getByRole('button').first().isDisabled()) throw new Error('controls enabled on a disconnected device');
     await fetch('http://localhost:8384/__test/tuyaconn?name=Ventilateur&on=1');
     await fan.getByText(/· connecté$/).waitFor({ timeout: 4000 });
+    // cut at the wall, not known by the driver yet: Done, then no event; the card says so after 5 s,
+    // and the next command the device answers clears it
+    await new Promise(r => setTimeout(r, 600));       // the slider's event (0.4 s) is in: it would count as an answer
+    await fetch('http://localhost:8384/__test/tuyasilent?name=Ventilateur');
+    await fan.getByRole('button', { name: /^Lumière ventilateur/ }).click();
+    if (await fan.getByRole('alert').count()) throw new Error('no-reply message before the delay');
+    await fan.getByRole('alert').filter({ hasText: "n'a pas répondu" }).waitFor({ timeout: 7000 });
+    await fetch('http://localhost:8384/__test/tuyasilent?name=');
+    await fan.getByRole('button', { name: /^Lumière ventilateur/ }).click();
+    await p.waitForFunction(() => {
+      const c = [...document.querySelectorAll('article.card')].find(a => a.querySelector('h3') && a.querySelector('h3').textContent === 'Ventilateur');
+      return !c.querySelector('[role=alert]');
+    }, null, { timeout: 4000 });
+    await new Promise(r => setTimeout(r, 5500));      // answered: no message once the delay is over
+    if (await fan.getByRole('alert').count()) throw new Error('no-reply message for a device that answered');
     const lamp = p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe bureau' }) });
     // light2, white only: brightness and colour temperature in one panel (no tabs, no wheel); a change
     // while the lamp is in a scene sends the white mode first
