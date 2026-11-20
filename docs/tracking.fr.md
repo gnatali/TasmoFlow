@@ -56,6 +56,7 @@ Cahier des charges (en français, hors du dépôt) :
 
 | Date | Étape |
 | --- | --- |
+| 20 nov. | **Mémoire mesurée en une seule série** (Guillaume, après `Br tasmota.gc()` ; 82 Ko libres sans TasmoFlow) : 69 Ko au repos (**13 Ko**), 53 Ko interface ouverte (**29 Ko**, 16 Ko de plus qu'au repos ; 8 Ko au-dessus des 45 Ko qu'il faut au driver Tuya pour démarrer), 66 Ko après la fermeture de tous les onglets et `TFL: API server stopped` (**16 Ko**, 3 Ko non rendus, 6 Ko avant). Les relevés précédents de 46 / 51 Ko venaient de séries mélangées. Le budget de 15 Ko tient au repos ; après la première ouverture il est dépassé d'1 Ko |
 | 20 nov. | **Coût au repos mesuré** (Guillaume, 5 minutes après `Restart 1`, après `Br tasmota.gc()`) : 82 Ko libres sans TasmoFlow, 69 Ko avec : **13 Ko au repos**, dans le budget de 15 Ko. Les 58 Ko au repos de la ligne ci-dessous ont été relevés trop tôt après le redémarrage. Rapportés à 69 Ko, les 51 Ko après fermeture laisseraient 18 Ko non rendus (6 Ko avant) : à mesurer à nouveau en une seule série (repos, ouverte, plus de 5 minutes après la fermeture de tous les onglets, `TFL: API server stopped` dans le journal) |
 | 20 nov. | **Mémoire mesurée** (Guillaume, après `Br tasmota.gc()`, firmware avec le driver Tuya solidifié) : 58 Ko libres au repos, 46 Ko interface ouverte (12 Ko), 51 Ko cinq minutes après sa fermeture (7 Ko non rendus, 5-6 Ko avant : le reliquat connu, non poursuivi). Pas comparable aux 75 Ko du 11 novembre : le firmware a changé depuis (driver Tuya du 18 novembre) ; le coût au repos demande un relevé sans TasmoFlow sur ce firmware. Interface ouverte, 46 Ko libres, c'est 1 Ko au-dessus de ce qu'il faut au driver Tuya pour démarrer (45 Ko), 16 Ko au-dessus de son seuil `tuya.json` (30 Ko) |
 | 20 nov. | **Copie locale vérifiée sur la passerelle** (Guillaume) : hors ligne, suppression et mémoire passent. `HeapUsed` Berry : 46 Ko interface fermée, 63 Ko juste après son chargement (39 et 55 Ko à l'étape 1 de la v0.2) ; heap libre (`Status 4`) non relevé, le coût de TasmoFlow n'est donc pas calculé |
@@ -124,6 +125,8 @@ Après `tasmota.gc()`, passerelle avec le pilote Tuya (9 novembre 2026) :
 | **v0.2** étape 1, 5 minutes après sa fermeture (11 novembre, deux essais) | 70 Ko, 70 Ko | 39 Ko, 39 Ko | **14 Ko** |
 | **v0.2**, sans TasmoFlow, 5 minutes après `Restart 1` (20 novembre) | 82 Ko | | |
 | **v0.2**, avec TasmoFlow, 5 minutes après `Restart 1` (20 novembre) | 69 Ko | | **13 Ko** |
+| **v0.2**, avec TasmoFlow, interface ouverte (20 novembre, même série) | 53 Ko | | **29 Ko** |
+| **v0.2**, avec TasmoFlow, après fermeture de tous les onglets, serveur API arrêté (20 novembre, même série) | 66 Ko | | **16 Ko** |
 | **v0.2**, pas d'interface dans la `.tapp`, au repos après `Restart 1` (20 novembre, firmware avec le driver Tuya solidifié) | 58 Ko | non relevé | |
 | **v0.2**, pas d'interface dans la `.tapp`, interface ouverte (20 novembre) | 46 Ko | 63 Ko | 12 Ko de plus qu'au repos |
 | **v0.2**, pas d'interface dans la `.tapp`, 5 minutes après sa fermeture (20 novembre) | 51 Ko | 46 Ko | 7 Ko de plus qu'au repos |
