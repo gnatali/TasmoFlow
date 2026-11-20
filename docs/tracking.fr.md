@@ -56,6 +56,7 @@ Cahier des charges (en français, hors du dépôt) :
 
 | Date | Étape |
 | --- | --- |
+| 20 nov. | **Mémoire mesurée** (Guillaume, après `Br tasmota.gc()`, firmware avec le driver Tuya solidifié) : 58 Ko libres au repos, 46 Ko interface ouverte (12 Ko), 51 Ko cinq minutes après sa fermeture (7 Ko non rendus, 5-6 Ko avant : le reliquat connu, non poursuivi). Pas comparable aux 75 Ko du 11 novembre, mesurés avec le driver Tuya chargé depuis le système de fichiers ; le coût au repos demande un relevé sans TasmoFlow sur ce firmware. Interface ouverte, 46 Ko libres, c'est 1 Ko au-dessus de ce qu'il faut au driver Tuya pour démarrer (45 Ko), 16 Ko au-dessus de son seuil `tuya.json` (30 Ko) |
 | 20 nov. | **Copie locale vérifiée sur la passerelle** (Guillaume) : hors ligne, suppression et mémoire passent. `HeapUsed` Berry : 46 Ko interface fermée, 63 Ko juste après son chargement (39 et 55 Ko à l'étape 1 de la v0.2) ; heap libre (`Status 4`) non relevé, le coût de TasmoFlow n'est donc pas calculé |
 | 19 nov. | **Vérifié sur la passerelle** (Guillaume) : la `.tapp` T6/T9 installée par le bouton de mise à jour (mise à jour avec copie locale : réussie), T6 et T9 passent, la copie locale est enregistrée. Reste pour la copie locale : hors ligne, suppression, mémoire |
 | 19 nov. | **T6, T9 corrigés** (analyse de bugs) : une quatrième interface ne fait plus s'évincer les interfaces toutes les 3 s (le plus ancien flux reçoit `event: stop`, sa page cesse de se reconnecter et propose **Reprendre**) ; le port 8384 garde 10 connexions au plus (503 au-delà), coupe une requête incomplète après 10 s et une réponse non prise 30 s après sa fin. 34 tests de bout en bout passent, `tests/tf_http_test.be` vérifie les délais et la limite. `.tapp` 29 405 octets. **La `.tapp` doit être réinstallée** (le bouton de mise à jour le fait) |
@@ -120,8 +121,9 @@ Après `tasmota.gc()`, passerelle avec le pilote Tuya (9 novembre 2026) :
 | **v0.2** étape 1 (Règles, POST), extension chargée, aucune interface ouverte (11 novembre) | 75 Ko, 76 Ko | 39 Ko, 39 Ko | **8 à 9 Ko** |
 | **v0.2** étape 1, interface ouverte (10 novembre) | 52 Ko | 55 Ko | 32 Ko |
 | **v0.2** étape 1, 5 minutes après sa fermeture (11 novembre, deux essais) | 70 Ko, 70 Ko | 39 Ko, 39 Ko | **14 Ko** |
-| **v0.2**, pas d'interface dans la `.tapp`, interface fermée (20 novembre) | non relevé | 46 Ko | |
-| **v0.2**, pas d'interface dans la `.tapp`, interface juste chargée (20 novembre) | non relevé | 63 Ko | |
+| **v0.2**, pas d'interface dans la `.tapp`, au repos après `Restart 1` (20 novembre, firmware avec le driver Tuya solidifié) | 58 Ko | non relevé | |
+| **v0.2**, pas d'interface dans la `.tapp`, interface ouverte (20 novembre) | 46 Ko | 63 Ko | 12 Ko de plus qu'au repos |
+| **v0.2**, pas d'interface dans la `.tapp`, 5 minutes après sa fermeture (20 novembre) | 51 Ko | 46 Ko | 7 Ko de plus qu'au repos |
 
 Le budget de 15 Ko est tenu avec l'API des règles : **8 à 9 Ko au repos, 14 Ko cinq minutes après la fermeture de l'interface** (15 Ko en v0.1). Interface ouverte, le coût est de 32 Ko (25 Ko en v0.1) : `tf_rules.be` et le corps POST ajoutent 7 Ko tant que le serveur tourne. Le pilote Tuya demande 45 Ko libres pour démarrer : 52 Ko laissent 7 Ko de marge. `HeapUsed` de Berry revient à 39 Ko après la fermeture, comme en v0.1. Environ 6 Ko de mémoire libre ne sont toujours pas rendus après la première ouverture (75 à 70 Ko, comme en v0.1 : 75 à 69 Ko), cause inconnue et **pas poursuivie** (décision du 12 novembre 2026).
 

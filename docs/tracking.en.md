@@ -49,6 +49,7 @@ Specification (French, outside the repository):
 
 | Date | Step |
 | --- | --- |
+| 20 Nov | **Memory measured** (Guillaume, after `Br tasmota.gc()`, firmware with the solidified Tuya driver): 58 KB free at rest, 46 KB with the interface open (12 KB), 51 KB five minutes after closing it (7 KB not given back, 5-6 KB before: the known leftover, not pursued). Not comparable with the 75 KB of 11 November, measured with the Tuya driver loaded from the file system; the cost at rest needs a reading without TasmoFlow on this firmware. With the interface open, 46 KB free is 1 KB above what the Tuya driver needs to start (45 KB), 16 KB above its `tuya.json` threshold (30 KB) |
 | 20 Nov | **Local copy checked on the gateway** (Guillaume): offline, delete and memory pass. Berry `HeapUsed`: 46 KB with the interface closed, 63 KB just after it loaded (39 and 55 KB in v0.2 step 1); free heap (`Status 4`) not taken, so the TasmoFlow cost is not computed |
 | 19 Nov | **Checked on the gateway** (Guillaume): the T6/T9 `.tapp` installed by the update button (update with a local copy: passed), T6 and T9 pass, the local copy is saved. Left for the local copy: offline, delete, memory |
 | 19 Nov | **T6, T9 fixed** (bug analysis): a fourth interface no longer makes them evict each other every 3 s (the oldest stream receives `event: stop`, its page stops reconnecting and offers **Resume**); port 8384 holds at most 10 connections (503 beyond), cuts a request incomplete after 10 s and an answer not taken 30 s after its end. 34 end-to-end tests pass, `tests/tf_http_test.be` checks the delays and the limit. `.tapp` 29,405 B. **The `.tapp` must be installed again** (the update button does it) |
@@ -113,8 +114,9 @@ After `tasmota.gc()`, gateway running the Tuya driver (9 November 2026):
 | **v0.2** step 1 (Rules, POST), extension loaded, no interface open (11 November) | 75 KB, 76 KB | 39 KB, 39 KB | **8 to 9 KB** |
 | **v0.2** step 1, interface open (10 November) | 52 KB | 55 KB | 32 KB |
 | **v0.2** step 1, 5 minutes after closing it (11 November, two runs) | 70 KB, 70 KB | 39 KB, 39 KB | **14 KB** |
-| **v0.2**, no interface in the `.tapp`, interface closed (20 November) | not taken | 46 KB | |
-| **v0.2**, no interface in the `.tapp`, interface just loaded (20 November) | not taken | 63 KB | |
+| **v0.2**, no interface in the `.tapp`, at rest after `Restart 1` (20 November, firmware with the solidified Tuya driver) | 58 KB | not taken | |
+| **v0.2**, no interface in the `.tapp`, interface open (20 November) | 46 KB | 63 KB | 12 KB over rest |
+| **v0.2**, no interface in the `.tapp`, 5 minutes after closing it (20 November) | 51 KB | 46 KB | 7 KB over rest |
 
 The budget of 15 KB holds with the rule API: **8 to 9 KB at rest, 14 KB five minutes after the interface was closed** (15 KB in v0.1). With an interface open the cost is 32 KB (25 KB in v0.1): `tf_rules.be` and the POST body add 7 KB while the server runs. The Tuya driver needs 45 KB free to start: 52 KB leaves 7 KB. Berry `HeapUsed` is back at 39 KB after closing, as in v0.1. About 6 KB of free heap are still not given back after the first opening (75 to 70 KB, same as v0.1: 75 to 69 KB), cause unknown and **not pursued** (decision of 12 November 2026).
 
