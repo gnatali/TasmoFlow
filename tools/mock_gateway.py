@@ -48,7 +48,7 @@ DEVICES = {
                "lqi": 120, "battery": 87, "lastseen": 12, "reachable": True, "router": False,
                "info": {"BatteryPercentage": 87}},
     "0x3C4D": {"addr": "0x3C4D", "name": "Lampe salon", "model": "TRADFRI bulb E27", "manufacturer": "IKEA of Sweden",
-               "lqi": 200, "battery": None, "lastseen": 3, "reachable": True, "router": True,
+               "lqi": 200, "battery": -1, "lastseen": 3, "reachable": True, "router": True,
                "info": {"Power": 0, "Dimmer": 180}},
     "0x5E6F": {"addr": "0x5E6F", "name": "Capteur bureau", "model": "WSDCGQ11LM", "manufacturer": "LUMI",
                "lqi": 95, "battery": 64, "lastseen": 40, "reachable": True, "router": False,
@@ -458,11 +458,11 @@ class Api(BaseHTTPRequestHandler):
             self.close_connection = True
             self.connection.close()
             return
-        if self.path.startswith("/__test/reset"):     # test hook: ?version=&restart=&never=1&free=&tapp=&bak=&fail=&copy=0|1|2&feeds=1
+        if self.path.startswith("/__test/reset"):     # test hook: ?version=&restart=&never=1&free=&tapp=&bak=&fail=&unreachable=<addr>&copy=0|1|2&feeds=1
             q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))
             STATE.update(version=q.get("version", tf_version.resolve()), next_version=None,
                          down_until=0.0, restart_s=float(q.get("restart", "2")), never=q.get("never") == "1",
-                         new=b"", total=0, boot=time.monotonic(), fail=q.get("fail", ""))
+                         new=b"", total=0, boot=time.monotonic(), fail=q.get("fail", ""), unreachable=q.get("unreachable", ""))
             FS.update({k: int(q.get(k, v)) for k, v in FS_DEFAULT.items()})
             # a local copy: none, this version's, or another version's
             c = q.get("copy", "0")
@@ -602,7 +602,12 @@ class Api(BaseHTTPRequestHandler):
                 self.json(200, {"ZbPermitJoin": "Done"})
                 return
             m = re.match(r'ZbSend \{"device":"(0x[0-9A-F]{4})","send":\{"Power":"Toggle"\}\}', c)
-            if m and m.group(1) in DEVICES:
+            if m and m.group(1) == STATE.get("unreachable"):
+                # no answer from the device: Tasmota publishes {"Reachable":false} (Z_Unreachable), which
+                # is also what the command answers
+                push_event(m.group(1), {"Reachable": False})
+                self.json(200, {m.group(1): {"Reachable": False}})
+            elif m and m.group(1) in DEVICES:
                 info = DEVICES[m.group(1)]["info"]
                 info["Power"] = 1 - info.get("Power", 0)
                 push_event(m.group(1), {"Power": info["Power"], "Endpoint": 1})

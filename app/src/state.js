@@ -5,6 +5,7 @@ import { createStore } from './store.js';
 import { client } from './api.js';
 import cfg from './config.js';
 import { indexConfig } from './tuya_model.js';
+import { t } from './i18n.js';
 
 const T0 = performance.now();
 export const RECHECK_MAX = 24;                      // x 5 s: the full interface gives up after 2 minutes
@@ -45,7 +46,9 @@ export const fail = (gw, e) => { if (current(gw)) S.set({ error: e.message }); }
 export const M = createStore({});
 export const run = (key, c) => cmd(c).then(r => {
   const x = r[c.split(' ')[0]];
-  M.set({ [key]: x === 'Done' ? null : typeof x === 'string' ? x : JSON.stringify(x || r) });
+  // ZbSend to a device that does not answer: Tasmota's answer is {"0x1234":{"Reachable":false}}
+  const gone = x == null && Object.values(r || {}).some(v => v && v.Reachable === false);
+  M.set({ [key]: x === 'Done' ? null : gone ? t('noAnswer') : typeof x === 'string' ? x : JSON.stringify(x || r) });
 }).catch(e => M.set({ [key]: e.message }));
 
 // what a screen loads when it is shown, { tab: function }: registered by the full interface
@@ -182,8 +185,11 @@ function connectEvents() {
       }
       if (ev.type === 'zigbee' && devices) {
         const d = devices[ev.device];
-        if (d) {
-          devices = { ...devices, [ev.device]: { ...d, attrs: { ...d.attrs, ...ev.attrs },
+        // {"Reachable":false} comes from Tasmota itself when a command got no answer (Z_Unreachable,
+        // xdrv_23_zigbee_6_0_commands.ino): not a sign of life; any other message is one
+        if (d && ev.attrs.Reachable === false) devices = { ...devices, [ev.device]: { ...d, reachable: false } };
+        else if (d) {
+          devices = { ...devices, [ev.device]: { ...d, attrs: { ...d.attrs, ...ev.attrs }, reachable: true,
             lqi: ev.attrs.LinkQuality != null ? ev.attrs.LinkQuality : d.lqi, seenAt: Date.now() } };
         } else unknown = true;
       }

@@ -119,8 +119,19 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await fetch('http://localhost:8384/__test/reset?fail=ZbPermitJoin');
     await p.getByRole('button', { name: /^Appairer/ }).click();
     await p.getByRole('alert').filter({ hasText: 'Unknown device' }).nth(1).waitFor({ timeout: 4000 });
+    // a device that does not answer: readable message, the card says so until the device talks again
+    // (a mains device: Berry's battery -1 is not shown)
+    if (/batterie/.test(await lamp().innerText())) throw new Error('battery shown for a mains device');
+    await fetch('http://localhost:8384/__test/reset?unreachable=0x3C4D');
+    await lamp().getByRole('button', { name: 'Basculer' }).click();
+    await lamp().getByRole('alert').filter({ hasText: 'ne répond pas' }).waitFor({ timeout: 4000 });
+    await lamp().locator('.q', { hasText: 'injoignable' }).waitFor({ timeout: 4000 });
     await fetch('http://localhost:8384/__test/reset');
     await lamp().getByRole('button', { name: 'Basculer' }).click();
+    await p.waitForFunction(() => {
+      const c = [...document.querySelectorAll('article.card')].find(a => a.textContent.includes('Lampe salon'));
+      return !/injoignable/.test(c.innerText);
+    }, null, { timeout: 4000 });
     await p.getByRole('button', { name: /^Appairer/ }).click();
     await p.waitForFunction(() => !document.querySelector('[role=alert]'), null, { timeout: 4000 });
     // Tuya: switch and slider
