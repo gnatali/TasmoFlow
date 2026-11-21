@@ -56,6 +56,7 @@ Cahier des charges (en français, hors du dépôt) :
 
 | Date | Étape |
 | --- | --- |
+| 21 nov. | **T10 corrigé** (analyse de bugs) : la mise à jour copie `TasmoFlow.tapp` en `.bak`, puis renomme le nouveau fichier par-dessus en une seule étape (littlefs remplace un fichier existant en un seul commit, vérifié dans les sources sur tout le chemin) : une coupure laisse l'ancienne ou la nouvelle version, jamais aucune ; les deux renommages d'avant restent en secours ; ligne du README sur le renommage du `.bak`. **La `.tapp` doit être installée à la main une fois** (le code de mise à jour a changé), puis une mise à jour dit quelle voie elle a prise (`TFL: update installed (one rename)`) |
 | 21 nov. | **T7, T12 corrigés** (analyse de bugs) : un enregistrement de règle reçoit un numéro de `rule_set`, et les étapes d'un enregistrement plus ancien répondent `busy` (l'interface dit qu'une autre interface enregistre, n'écrit et ne restaure rien) ; noms d'en-têtes sans tenir compte de la casse, seule une requête avec le jeton garde le serveur éveillé, un EventSource qui se reconnecte reprend à son `Last-Event-ID` au lieu de rejouer l'historique. 34 tests de bout en bout. **La `.tapp` doit être réinstallée** (`extension/`) |
 | 21 nov. | **Commande Tuya sans réponse : vérifiée sur la passerelle** (Guillaume), avec le firmware du 21 novembre (commit `fd7f7cc`, run 44893756664). Le premier build du firmware de ce correctif (20 novembre) ne démarrait pas : un membre de plus dans une classe solidifiée du driver ; réécrit sans (dépôt firmware, `berry-pitfalls.md`) |
 | 20 nov. | **T5 vérifié sur la passerelle** (Guillaume). **Commande Tuya sans réponse** (son second essai : une lampe débranchée puis allumée avant que le driver ne s'en aperçoive) : `TuyaSend` répondait `Done` et rien ne s'affichait pendant 35 s. Les cartes Tuya attendent maintenant 5 s un événement de l'appareil après une commande répondue `Done`, sinon « L'appareil n'a pas répondu à la commande. » sous la carte (aussi pour un sous-appareil d'une passerelle Tuya, que le driver ne peut pas surveiller) ; son événement suivant l'efface. En plus, le driver du firmware considère comme perdu un appareil qui ne répond pas à une commande en 5 s (`no reply to command`, `TuyaDisconnected` ; dépôt firmware, branche `ccr-a1ed84c3-jng9nv`, 30/30 scénarios, firmware compilé : **à flasher**). Ici, interface seule, pas de `.tapp` à réinstaller. 34 tests de bout en bout |
@@ -204,7 +205,7 @@ en partie essayées sur la passerelle, voir le plan de test.
   12 constats classés par priorité et 10 pistes d'amélioration. **T1 à T4 corrigés** le 18
   novembre 2026 (T4 avec le firmware du même jour : `TuyaConfig <appareil>` lu entrée par
   entrée), vérifiés sur la passerelle par Guillaume ; **T5, T8, T11 corrigés** le même soir, à
-  vérifier (T8 est parti avec l'interface légère) ; **T6, T9 corrigés** le 19 novembre, vérifiés sur la passerelle par Guillaume ; T5 et T11 vérifiés le 20 novembre ; T7 et T12 corrigés le 21 novembre, à vérifier. Suite : T10.
+  vérifier (T8 est parti avec l'interface légère) ; **T6, T9 corrigés** le 19 novembre, vérifiés sur la passerelle par Guillaume ; T5 et T11 vérifiés le 20 novembre ; T7, T10 et T12 corrigés le 21 novembre, à vérifier : tous les points sont corrigés.
   Ensuite : T7, T10, T12.
 
 - **Réduire le `.tapp`** (18 novembre 2026) :

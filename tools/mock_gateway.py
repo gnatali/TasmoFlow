@@ -364,7 +364,9 @@ def update_route(path, q, body):
         return 400, {"error": "hash"}
     ver = re.search(rb'static var VERSION\s*=\s*"([^"]+)"', zipfile.ZipFile(io.BytesIO(new)).read("tasmoflow.be"))
     STATE["next_version"] = ver.group(1).decode() if ver else STATE["version"]
-    FS["free"] += FS["bak"]                     # the old .bak goes, the installed .tapp becomes the .bak
+    # the old .bak goes, the installed .tapp becomes the .bak (copied, then the new file renamed onto it:
+    # tf_update.be since T10; the space used in the end is the same as with the two renames of before)
+    FS["free"] += FS["bak"]
     FS["bak"], FS["tapp"] = FS["tapp"], len(new)
     STATE["new"] = b""
     if STATE["js"] is not None:

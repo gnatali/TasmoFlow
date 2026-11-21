@@ -95,6 +95,12 @@ to Tasmota's home page) and reloads on the new version. A test build looks for t
 build instead (a different commit counts as an update). The first update to a version that has
 this function is done by hand as above.
 
+The new file replaces the old one in a single step, so a power cut during the update leaves either
+version installed. Should `TasmoFlow.tapp` ever be missing (a cut during an update made by a version
+older than 21 November 2026), rename `TasmoFlow.tapp.bak` back from Tasmota's console (the folder is
+`/.extensions/` when it was installed with the extension manager, else `/`), then restart:
+`Br import path path.rename("/.extensions/TasmoFlow.tapp.bak", "/.extensions/TasmoFlow.tapp")`.
+
 ## Development without a gateway
 
 ```sh

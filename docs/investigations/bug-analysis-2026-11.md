@@ -38,7 +38,7 @@ function in a plausible situation; **P3** robustness, rare cases; **P4** minor.
 | T7 | P3 | The rule write keeps one text for all clients: two interfaces saving together can store the other's text and report success | **Fixed** (21 November 2026): `rule_set` gives an id, the steps of an older save answer `busy` |
 | T8 | P3 | `lite.js` is cached for a day under an address without a version: after an update a browser can run the previous light interface | **Fixed** (18 November 2026) |
 | T9 | P3 | Port 8384 has no connection limit and no timeout for an incomplete request | **Fixed** (19 November 2026), checked on the gateway |
-| T10 | P4 | A power cut between the two renames of an update leaves no `TasmoFlow.tapp` | Read in the code |
+| T10 | P4 | A power cut between the two renames of an update leaves no `TasmoFlow.tapp` | **Fixed** (21 November 2026): copy to `.bak`, then one rename onto the installed file |
 | T11 | P4 | Zigbee toggle and pairing buttons show nothing when the command fails | **Fixed** (18 November 2026) |
 | T12 | P4 | `Content-Length` is only recognised in two spellings; a request without the token still keeps the server awake; every reconnection replays the whole event history | **Fixed** (21 November 2026): header names in any case, `touch()` after the token, `Last-Event-ID` read |
 
@@ -254,7 +254,12 @@ the evicted stream of T6 gets one). Checked by `tests/tf_http_test.be`.
 - **T10**: `tf_update.apply` renames `<tapp>` to `.bak`, then `.new` to `<tapp>`
   (`tf_update.be` lines 152 and 153). A power cut between the two leaves only `.bak` and `.new`:
   no extension at the next boot, reinstall by hand. The window is a few milliseconds; a line in
-  the user guide about renaming `TasmoFlow.tapp.bak` is enough.
+  the user guide about renaming `TasmoFlow.tapp.bak` is enough. **Fixed (21 November 2026)**: a
+  rename onto an existing file replaces it in one commit (littlefs `lfs_rename`; checked along
+  `be_port.cpp`, `ZipReadFS.h`, arduino-esp32 `VFSImpl::rename`, esp_littlefs `vfs_littlefs_rename`),
+  so `tf_update.apply` copies `<tapp>` to `.bak` (through `.bak.new`) and renames `.new` onto
+  `<tapp>`; the two renames stay as a fallback (no room for the copy, rename refused). Line added to
+  the README about renaming the `.bak` by hand.
 - **T11**: `ZbSend` toggle and `ZbPermitJoin` (`views.js`) ignore the command's answer and have
   no `.catch`: a refused or failed command shows nothing, unlike the Tuya cards. **Fixed
   (18 November 2026)**: the three buttons share `run()` (`state.js`), which keeps an answer other

@@ -89,6 +89,13 @@ au plus, puis elle renvoie à l'accueil de Tasmota) et se recharge sur la nouvel
 de test cherche le dernier build de test (un commit différent compte comme une mise à jour). La
 première mise à jour vers une version qui a cette fonction se fait à la main, comme ci-dessus.
 
+Le nouveau fichier remplace l'ancien en une seule étape : une coupure de courant pendant la mise à
+jour laisse l'une ou l'autre version installée. Si `TasmoFlow.tapp` venait à manquer (coupure pendant
+une mise à jour faite par une version antérieure au 21 novembre 2026), renommez `TasmoFlow.tapp.bak`
+depuis la console de Tasmota (le dossier est `/.extensions/` si elle a été installée avec le
+gestionnaire d'extensions, sinon `/`), puis redémarrez :
+`Br import path path.rename("/.extensions/TasmoFlow.tapp.bak", "/.extensions/TasmoFlow.tapp")`.
+
 ## Développement sans passerelle
 
 ```sh
