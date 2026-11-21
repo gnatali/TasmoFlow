@@ -50,7 +50,7 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
 - This environment cannot push tags (HTTP 403): Guillaume creates release tags `vX.Y.Z` on `main`, with
   git or by publishing a release with a new tag on github.com; the workflow then creates (or completes)
   the release and publishes GitHub Pages.
-- Tests without a release: Guillaume (or I, with the GitHub `actions_run_trigger` tool) runs the
+- Tests without a release: Guillaume (or I, with `gh api -X POST repos/gnatali/TasmoFlow/actions/workflows/build.yml/dispatches -f ref=<branch>`) runs the
   `Build` workflow by hand on the branch (`workflow_dispatch`, job `preview`): it publishes the
   full interface at `.../TasmoFlow/dev/app.js` and a test `.tapp` (`dev/TasmoFlow.tapp`, no SRI).
   **Tell Guillaume when the `.tapp` must be installed again**: any change in `extension/` (the
@@ -70,3 +70,19 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
   diffs carefully.
 - Check Tasmota internals in its source (firmware commit `TASMOTA_REF` of the firmware
   repository's workflow) before relying on them; cite the file in `docs/architecture.en.md`.
+
+## Reporting a build (permanent rule, asked for by Guillaume on 21 November 2026)
+
+After every `Build` run, give Guillaume the **`.tapp` URL** and the **version to check**:
+
+- test build (`preview` job): `https://gnatali.github.io/TasmoFlow/dev/TasmoFlow.tapp`; version
+  `<last tag>-dev.<commit>` (e.g. `0.2.0-dev.a4552d5`), read from
+  `https://gnatali.github.io/TasmoFlow/dev/latest.json` once the run is over (`version`);
+- release: `https://github.com/gnatali/TasmoFlow/releases/download/vX.Y.Z/TasmoFlow.tapp`
+  (also `https://gnatali.github.io/TasmoFlow/vX.Y.Z/TasmoFlow.tapp`); version `X.Y.Z`
+  (`https://gnatali.github.io/TasmoFlow/latest.json`).
+
+Say where he checks it on the gateway: the header badge of `/tf` (`v<version> · local|github`) and
+the boot log line `TFL: TasmoFlow <version>, API on port 8384 once an interface is opened`. Also
+give the run number and result, the branch and commit, and whether the `.tapp` must be installed
+again (`extension/` changed) or the update banner is enough.

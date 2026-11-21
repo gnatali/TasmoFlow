@@ -48,7 +48,7 @@ DEVICES = {
                "lqi": 120, "battery": 87, "lastseen": 12, "reachable": True, "router": False,
                "info": {"BatteryPercentage": 87}},
     "0x3C4D": {"addr": "0x3C4D", "name": "Lampe salon", "model": "TRADFRI bulb E27", "manufacturer": "IKEA of Sweden",
-               "lqi": 200, "battery": None, "lastseen": 3, "reachable": True, "router": True,
+               "lqi": 200, "battery": -1, "lastseen": 3, "reachable": True, "router": True,
                "info": {"Power": 0, "Dimmer": 180}},
     "0x5E6F": {"addr": "0x5E6F", "name": "Capteur bureau", "model": "WSDCGQ11LM", "manufacturer": "LUMI",
                "lqi": 95, "battery": 64, "lastseen": 40, "reachable": True, "router": False,
@@ -177,6 +177,8 @@ def tuya_command(c):
                 new = json.loads(value)
             except ValueError:      # not JSON: the driver takes the text as it is (`colour`)
                 new = value
+        if real == STATE.get("tuya_silent"):    # the driver still takes it as connected: Done, then nothing
+            return {"TuyaSend": "Done"}
         d["Dps"][dp] = new
         # a real driver reports the new value a moment after the command (network round trip)
         threading.Timer(0.4, push_tuya, (real, {dp: new})).start()
@@ -194,7 +196,7 @@ AUTOEXEC = """import tuya_local
 var tl = tuya_local.TuyaLocal()
 tasmota.add_rule("Button1#State", def (v) print("button", v) end, "my_script")
 """
-RULE_BUF = {"n": 0, "text": ""}
+RULE_BUF = {"n": 0, "text": "", "id": 0}     # like tf_rules.be: one text, owned by the last rule_set (T7)
 
 
 def rule_view(n):
@@ -362,7 +364,9 @@ def update_route(path, q, body):
         return 400, {"error": "hash"}
     ver = re.search(rb'static var VERSION\s*=\s*"([^"]+)"', zipfile.ZipFile(io.BytesIO(new)).read("tasmoflow.be"))
     STATE["next_version"] = ver.group(1).decode() if ver else STATE["version"]
-    FS["free"] += FS["bak"]                     # the old .bak goes, the installed .tapp becomes the .bak
+    # the old .bak goes, the installed .tapp becomes the .bak (copied, then the new file renamed onto it:
+    # tf_update.be since T10; the space used in the end is the same as with the two renames of before)
+    FS["free"] += FS["bak"]
     FS["bak"], FS["tapp"] = FS["tapp"], len(new)
     STATE["new"] = b""
     if STATE["js"] is not None:
@@ -458,11 +462,11 @@ class Api(BaseHTTPRequestHandler):
             self.close_connection = True
             self.connection.close()
             return
-        if self.path.startswith("/__test/reset"):     # test hook: ?version=&restart=&never=1&free=&tapp=&bak=&fail=&copy=0|1|2&feeds=1
+        if self.path.startswith("/__test/reset"):     # test hook: ?version=&restart=&never=1&free=&tapp=&bak=&fail=&unreachable=<addr>&copy=0|1|2&feeds=1
             q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))
             STATE.update(version=q.get("version", tf_version.resolve()), next_version=None,
                          down_until=0.0, restart_s=float(q.get("restart", "2")), never=q.get("never") == "1",
-                         new=b"", total=0, boot=time.monotonic(), fail=q.get("fail", ""))
+                         new=b"", total=0, boot=time.monotonic(), fail=q.get("fail", ""), unreachable=q.get("unreachable", ""))
             FS.update({k: int(q.get(k, v)) for k, v in FS_DEFAULT.items()})
             # a local copy: none, this version's, or another version's
             c = q.get("copy", "0")
@@ -479,6 +483,11 @@ class Api(BaseHTTPRequestHandler):
             q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))
             TUYA[q["name"]]["Connected"] = q.get("on") == "1"
             push_tuya(q["name"], connected=q.get("on") == "1")
+            self.json(200, {"ok": True})
+            return
+        if self.path.startswith("/__test/tuyasilent"):   # test hook: ?name= a Tuya device that takes commands
+            q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))   # and never answers (cut at
+            STATE["tuya_silent"] = q.get("name", "")                                   # the wall, not known yet)
             self.json(200, {"ok": True})
             return
         if self.path.startswith("/__test/tuyaconfig"):   # test hook: TuyaConfig requests so far
@@ -546,7 +555,7 @@ class Api(BaseHTTPRequestHandler):
                             "berry": BERRY_RULES})
         elif u.path == "/api/rule_apply":
             n = int(q.get("n", "0") or 0)
-            err = "chunk" if n != RULE_BUF["n"] else None
+            err = "busy" if int(q.get("id", "0") or 0) != RULE_BUF["id"] else "chunk" if n != RULE_BUF["n"] else None
             if err is None and q.get("step") == "bak":
                 RULES[n]["bak"] = RULES[n]["text"]
             elif err is None and q.get("step") == "put":
@@ -562,15 +571,17 @@ class Api(BaseHTTPRequestHandler):
             if n not in RULES:
                 err = "rule"
             elif u.path == "/api/rule_restore":
+                RULE_BUF["id"] += 1           # a save under way loses its text, like tf_rules.apply()
                 err = "nobackup" if RULES[n]["bak"] is None else rule_apply(n, RULES[n]["bak"])
             else:
                 if int(q.get("i", "0") or 0) == 0:
-                    RULE_BUF.update(n=n, text="")
+                    RULE_BUF.update(n=n, text="", id=RULE_BUF["id"] + 1)
                 RULE_BUF["text"] += q.get("x", "")
                 if len(RULE_BUF["text"]) > 2200:
                     RULE_BUF["text"] = ""
                     err = "length"
-            self.json(400 if err else 200, {"error": err} if err else {"ok": True})
+            ok = {"ok": True, "id": RULE_BUF["id"]} if u.path == "/api/rule_set" else {"ok": True}
+            self.json(400 if err else 200, {"error": err} if err else ok)
         elif u.path == "/api/cmd":
             c = q.get("c", "")
             if not c:
@@ -602,7 +613,12 @@ class Api(BaseHTTPRequestHandler):
                 self.json(200, {"ZbPermitJoin": "Done"})
                 return
             m = re.match(r'ZbSend \{"device":"(0x[0-9A-F]{4})","send":\{"Power":"Toggle"\}\}', c)
-            if m and m.group(1) in DEVICES:
+            if m and m.group(1) == STATE.get("unreachable"):
+                # no answer from the device: Tasmota publishes {"Reachable":false} (Z_Unreachable), which
+                # is also what the command answers
+                push_event(m.group(1), {"Reachable": False})
+                self.json(200, {m.group(1): {"Reachable": False}})
+            elif m and m.group(1) in DEVICES:
                 info = DEVICES[m.group(1)]["info"]
                 info["Power"] = 1 - info.get("Power", 0)
                 push_event(m.group(1), {"Power": info["Power"], "Endpoint": 1})
@@ -611,6 +627,11 @@ class Api(BaseHTTPRequestHandler):
                 self.json(200, {"Command": c, "Simulated": True})
         elif u.path == "/api/events":
             since = int(q.get("since", "0") or 0)
+            # like tasmoflow.be (T12): an EventSource that reconnects by itself sends the last id it got
+            le = self.headers.get("Last-Event-ID", "")
+            le = int(le) if le.isdigit() else 0
+            if since < le <= seq:
+                since = le
             self.head(200, "text/event-stream")
             self.wfile.write(b"retry: 3000\n\n")
             last = since

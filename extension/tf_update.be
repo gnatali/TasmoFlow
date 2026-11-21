@@ -25,10 +25,17 @@
 # then loads it before GitHub. /api/update_drop deletes it. After an update of the .tapp the copy
 # is another version's: never loaded, the interface saves the new one (update.js).
 #
-# Installing: <tapp> becomes <tapp>.bak, <tapp>.new becomes <tapp>, and if that fails the copy is
-# put back. Never name a copy *.tapp: Tasmota loads every file ending in .tapp at boot, and two
-# TasmoFlow.tapp (in / and in /.extensions/) both run. The new version runs after `Restart 1`:
-# replacing the file does not touch the code already running.
+# Installing (since 21 November 2026, bug analysis T10): <tapp> is copied to <tapp>.bak (through
+# <tapp>.bak.new, renamed once complete), then <tapp>.new is renamed onto <tapp> in one step. A
+# rename onto an existing file replaces it in one commit (littlefs lfs_rename: "If the destination
+# exists, it must match the source in type"; nothing on the way refuses an existing destination:
+# be_port.cpp -> ZipReadFS.h -> arduino-esp32 VFSImpl::rename -> esp_littlefs vfs_littlefs_rename),
+# so a power cut leaves the old or the new <tapp>, never none. Before, <tapp> was renamed to .bak and
+# then .new to <tapp>: a cut between the two left no <tapp>, and TasmoFlow did not load. That way is
+# still taken when the copy cannot be made (no room for it) or the single rename fails; if it fails
+# too, the copy is put back. Never name a copy *.tapp: Tasmota loads every file ending in .tapp at
+# boot, and two TasmoFlow.tapp (in / and in /.extensions/) both run. The new version runs after
+# `Restart 1`: replacing the file does not touch the code already running.
 #
 # Source: tasmota/tasmota_xdrv_driver/xdrv_52_3_berry_webclient.ino, embedded/extension_manager.be
 # and be_path_tasmota_lib.c of Tasmota (firmware commit a281cece): path.rename/remove/exists
@@ -145,6 +152,30 @@ class tf_update
     self.answer(cnx, true, ',"written":' + str(self.written))
   end
 
+  # copies src to dst 1 KB at a time (no PSRAM: never the whole file); false if it did not work
+  # (no room...), with nothing left of dst
+  def copy(src, dst)
+    var fi
+    var fo
+    try
+      fi = open(src, "r")
+      fo = open(dst, "w")
+      var b = fi.readbytes(1024)
+      while size(b) > 0
+        fo.write(b)
+        b = fi.readbytes(1024)
+      end
+      fi.close()
+      fo.close()
+      if self.fsize(dst) == self.fsize(src)    return true    end
+    except ..
+      try    fi.close()    except ..    end
+      try    fo.close()    except ..    end
+    end
+    if path.exists(dst)    path.remove(dst)    end
+    return false
+  end
+
   # SHA-256 of a file as hex, read 1 KB at a time (no PSRAM: never the whole file)
   def sha256(name)
     var f = open(name, "r")
@@ -184,13 +215,22 @@ class tf_update
       log("TFL: local copy of the interface saved", 2)
       return self.answer(cnx, true)
     end
+    # the previous .bak goes first (room for the copy), and a copy left by a cut
+    var part = bak + ".new"
+    if path.exists(part)    path.remove(part)    end
     if path.exists(bak)    path.remove(bak)    end
-    if !path.rename(base, bak)    return self.answer(cnx, false, "install")    end
-    if !path.rename(tmp, base)
-      path.rename(bak, base)                            # put the working copy back
-      return self.answer(cnx, false, "install")
+    var how = "one rename"
+    if !(self.copy(base, part) && path.rename(part, bak) && path.rename(tmp, base))
+      # no room for the copy, or a rename refused: the two renames of before
+      if path.exists(part)    path.remove(part)    end
+      how = "two renames"
+      if !path.rename(base, bak)    return self.answer(cnx, false, "install")    end
+      if !path.rename(tmp, base)
+        path.rename(bak, base)                          # put the working copy back
+        return self.answer(cnx, false, "install")
+      end
     end
-    log("TFL: update installed, restarting", 2)
+    log(f"TFL: update installed ({how}), restarting", 2)
     self.answer(cnx, true, ',"restart":true')
     tasmota.set_timer(1500, def () tasmota.cmd("Restart 1") end)      # after the answer left
   end

@@ -3,7 +3,7 @@
 // TasmoFlow never shows, stores or sends a local key: TuyaConfig already masks it.
 import { html } from './html.js';
 import { t } from './i18n.js';
-import { M, run } from './state.js';
+import { M, runTuya } from './state.js';
 import { controlsFor, sendName } from './tuya_model.js';
 
 // what a refused or failed command answered (state.js, run()), under its card or button
@@ -33,7 +33,7 @@ function Control({ c, node, send }) {
 
 export function TuyaCard({ name, node, entry }) {
   const addr = sendName(name, entry);
-  const send = (dp, value) => run(name, 'TuyaSend ' + addr + ',' + dp + ',' + value);
+  const send = (dp, value) => runTuya(name, 'TuyaSend ' + addr + ',' + dp + ',' + value);
   // a name with a comma and no known id (sub-device, or TuyaConfig not read): read only
   const base = controlsFor(node, entry);
   const cs = (EXTRA.refine ? EXTRA.refine(base, entry) : base).filter(c => addr || c.kind === 'read');

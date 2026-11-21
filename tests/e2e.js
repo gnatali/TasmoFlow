@@ -119,8 +119,19 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await fetch('http://localhost:8384/__test/reset?fail=ZbPermitJoin');
     await p.getByRole('button', { name: /^Appairer/ }).click();
     await p.getByRole('alert').filter({ hasText: 'Unknown device' }).nth(1).waitFor({ timeout: 4000 });
+    // a device that does not answer: readable message, the card says so until the device talks again
+    // (a mains device: Berry's battery -1 is not shown)
+    if (/batterie/.test(await lamp().innerText())) throw new Error('battery shown for a mains device');
+    await fetch('http://localhost:8384/__test/reset?unreachable=0x3C4D');
+    await lamp().getByRole('button', { name: 'Basculer' }).click();
+    await lamp().getByRole('alert').filter({ hasText: 'ne répond pas' }).waitFor({ timeout: 4000 });
+    await lamp().locator('.q', { hasText: 'injoignable' }).waitFor({ timeout: 4000 });
     await fetch('http://localhost:8384/__test/reset');
     await lamp().getByRole('button', { name: 'Basculer' }).click();
+    await p.waitForFunction(() => {
+      const c = [...document.querySelectorAll('article.card')].find(a => a.textContent.includes('Lampe salon'));
+      return !/injoignable/.test(c.innerText);
+    }, null, { timeout: 4000 });
     await p.getByRole('button', { name: /^Appairer/ }).click();
     await p.waitForFunction(() => !document.querySelector('[role=alert]'), null, { timeout: 4000 });
     // Tuya: switch and slider
@@ -278,6 +289,26 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await r1.getByRole('button', { name: 'Restaurer cette copie' }).click();
     await r1.getByText('Copie restaurée.').waitFor({ timeout: 4000 });
     if ((await box.inputValue()) !== original) throw new Error('restored text differs');
+    // two interfaces saving together (T7): the second one sends its text while the first is between
+    // rule_set and its first step; the first is told, writes nothing and restores nothing
+    const T = '0123456789abcdef0123456789abcdef', other = 'on Time#Minute=7 do Power1 0 endon';
+    await p.route('**/api/rule_apply**', async route => {
+      await p.unroute('**/api/rule_apply**');
+      const a = 'http://localhost:8384/api/';
+      const { id } = await (await fetch(a + 'rule_set?n=1&t=' + T, { method: 'POST', body: other })).json();
+      for (const s of ['bak', 'put', 'check']) await fetch(a + 'rule_apply?n=1&id=' + id + '&step=' + s + '&t=' + T);
+      await route.continue();
+    });
+    await box.fill('on Time#Minute=6 do Power1 0 endon');
+    await r1.getByRole('button', { name: 'Enregistrer' }).click();
+    await r1.getByText(/Une autre interface enregistre/).waitFor({ timeout: 4000 });
+    const kept = await (await fetch('http://localhost:8384/api/rules?t=' + T)).json();
+    if (kept.rules[0].text !== other) throw new Error('the other interface\'s text was not kept: ' + kept.rules[0].text);
+    {                                                    // Rule1 as it was, for the next tests
+      const a = 'http://localhost:8384/api/';
+      const { id } = await (await fetch(a + 'rule_set?n=1&t=' + T, { method: 'POST', body: original })).json();
+      for (const s of ['bak', 'put', 'check']) await fetch(a + 'rule_apply?n=1&id=' + id + '&step=' + s + '&t=' + T);
+    }
     // flags and Berry rules
     await (await rule(p, 2)).getByRole('checkbox', { name: 'une seule fois' }).click();
     await p.waitForFunction(async t => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[1].once,
@@ -732,6 +763,21 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     if (!await fan.getByRole('button').first().isDisabled()) throw new Error('controls enabled on a disconnected device');
     await fetch('http://localhost:8384/__test/tuyaconn?name=Ventilateur&on=1');
     await fan.getByText(/· connecté$/).waitFor({ timeout: 4000 });
+    // cut at the wall, not known by the driver yet: Done, then no event; the card says so after 5 s,
+    // and the next command the device answers clears it
+    await new Promise(r => setTimeout(r, 600));       // the slider's event (0.4 s) is in: it would count as an answer
+    await fetch('http://localhost:8384/__test/tuyasilent?name=Ventilateur');
+    await fan.getByRole('button', { name: /^Lumière ventilateur/ }).click();
+    if (await fan.getByRole('alert').count()) throw new Error('no-reply message before the delay');
+    await fan.getByRole('alert').filter({ hasText: "n'a pas répondu" }).waitFor({ timeout: 7000 });
+    await fetch('http://localhost:8384/__test/tuyasilent?name=');
+    await fan.getByRole('button', { name: /^Lumière ventilateur/ }).click();
+    await p.waitForFunction(() => {
+      const c = [...document.querySelectorAll('article.card')].find(a => a.querySelector('h3') && a.querySelector('h3').textContent === 'Ventilateur');
+      return !c.querySelector('[role=alert]');
+    }, null, { timeout: 4000 });
+    await new Promise(r => setTimeout(r, 5500));      // answered: no message once the delay is over
+    if (await fan.getByRole('alert').count()) throw new Error('no-reply message for a device that answered');
     const lamp = p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe bureau' }) });
     // light2, white only: brightness and colour temperature in one panel (no tabs, no wheel); a change
     // while the lamp is in a scene sends the white mode first

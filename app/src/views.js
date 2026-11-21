@@ -38,7 +38,7 @@ function ZigbeeCard({ d }) {
     <div class="q">${[d.model, d.manufacturer].filter(Boolean).join(' · ') || d.addr}</div>
     <div class="st">${shown.map(k => html`<span>${k} <b>${typeof d.attrs[k] === 'object' ? JSON.stringify(d.attrs[k]) : String(d.attrs[k])}</b></span>`)}</div>
     <div class="q">${'LQI ' + (d.lqi != null ? d.lqi : '?') + ' · ' + t('lastSeen') + ' ' + ago(since) +
-      (d.battery != null ? ' · ' + t('battery') + ' ' + d.battery + ' %' : '') +
+      (d.battery != null && d.battery >= 0 ? ' · ' + t('battery') + ' ' + d.battery + ' %' : '') +
       (d.reachable === false ? ' · ' + t('unreachable') : '') +
       ' · ' + (d.router ? t('router') : t('endDevice'))}</div>
     ${hasPower(d) ? html`<div class="row tight">

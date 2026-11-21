@@ -74,6 +74,7 @@ class webserver_async
     var req_len                                     # Content-Length of the request (POST body), 0 if none
     var dispatched                                  # true once the request was handed to its handler
     var header_host                                 # 'Host' header - useful for redirections
+    var last_event_id                               # (TasmoFlow) 'Last-Event-ID' header: the last event an EventSource got before it reconnected, '' if none
     # response
     var resp_headers                                # (string) aggregate headers
     # conversion
@@ -114,6 +115,7 @@ class webserver_async
       self.linger_max = 0
       self.deadline = tasmota.millis(self.server.REQ_TIMEOUT_MS)
       self.req_len = 0
+      self.last_event_id = ''
       self.dispatched = false
       # util
       self.close_after_send = false
@@ -376,13 +378,18 @@ class webserver_async
     #   header_key: string
     #   header_value: string
     #
+    # Header names are case-insensitive (RFC 9110): only two spellings of Content-Length were
+    # recognised, any other made a POST body look empty (bug analysis T12)
     def event_http_header(header_key, header_value)
+      import string
       # log(f"WEB: header key '{header_key}' = '{header_value}'")
-
-      if (header_key == "Host")
+      var k = string.tolower(header_key)
+      if (k == "host")
         self.header_host = header_value
-      elif (header_key == "Content-Length" || header_key == "content-length")
+      elif (k == "content-length")
         self.req_len = int(header_value)
+      elif (k == "last-event-id")
+        self.last_event_id = header_value
       end
     end
 
