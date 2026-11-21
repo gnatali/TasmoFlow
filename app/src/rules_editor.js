@@ -6,7 +6,7 @@ import { useState, useRef, useEffect } from 'preact/hooks';
 import { html } from './html.js';
 import { t } from './i18n.js';
 import { S } from './state.js';
-import { zbTriggers, zbActions, tuyaActions, tuyaTriggers, describeSubject, describeCommand, describeTrigger, describeConnection, keyMismatch } from './rules_devices.js';
+import { zbTriggers, zbActions, tuyaActions, tuyaTriggers, describeSubject, describeCommand, describeTrigger, describeConnection, keyMismatch, seenAttrs } from './rules_devices.js';
 import { Modal } from './rules_modal.js';
 import { Guided } from './rules_guided.js';
 import { parseRuleSet, serializeRuleSet, newBlock, edited, triggersOf, OPERATORS } from './rules_model.js';
@@ -26,7 +26,7 @@ const keyWarn = (tr, s) => { const k = keyMismatch(tr.subject, s.devices, s.zbNa
 // What each list offers: the common ones, then the gateway's own devices
 const conn = () => ({ connected: t('rule_connected'), disconnected: t('rule_disconnected') });
 function triggerGroups(s) {
-  const z = zbTriggers(s.devices, s.zbNames, conn());
+  const z = zbTriggers(s.devices, s.zbNames, conn(), seenAttrs(s.devices, s.events, s.rules));
   return { skipped: z.skipped, groups: [{ group: t('rule_gwEvents'), items: items(TRIGGERS) },
     ...z.groups.map(g => ({ ...g, group: 'Zigbee · ' + g.group })), ...tuyaTriggers(s.tuya, conn())] };
 }

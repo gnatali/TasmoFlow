@@ -19,7 +19,7 @@ globalThis.document = { documentElement: {} };
 globalThis.window = { addEventListener() {} };      // rules.js (reached through tuya.js, rename.js) listens for beforeunload
 const m = { exports: {} };
 new Function('module', 'exports', out)(m, m.exports);
-const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, keyMismatch, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
+const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, keyMismatch, seenAttrs, zbTriggerAttrs, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
 
 let n = 0;
 const ok = (name, f) => { f(); n++; };
@@ -175,6 +175,24 @@ ok('Zigbee triggers: attributes, addresses, names with a space kept', () => {
   assert.ok(usableKey('Capteur bureau') && usableKey('Bouton') && usableKey('Lumière entrée'));
   for (const k of ['Prise#2', 'A=B', 'a<b', 'x|y', 'say "hi"', "l'entrée", ' Lampe', 'Lampe ', 'Lampe  salon', 'Lampe do salon', 'Haut or bas', 'Fin endon'])
     assert.ok(!usableKey(k), k);
+});
+ok('Zigbee triggers of a button: Power though ZbInfo keeps only its battery, and what was seen', () => {
+  // an SNZB-01P as Tasmota's ZbInfo gives it (Guillaume's gateway, 21 November 2026)
+  const btn = { '0x922D': { addr: '0x922D', name: 'Interrupteur Entrée', attrs: { Device: '0x922D', Name: 'Interrupteur Entrée', IEEEAddr: '0xF044D3FFFE9BE8C4',
+    ModelId: 'SNZB-01P', Manufacturer: 'eWeLink', Endpoints: [1], Config: [], Reachable: false, BatteryPercentage: 100,
+    BatteryLastSeenEpoch: 1795278874, LastSeen: 727, LastSeenEpoch: 1795297826, LinkQuality: 102 } } };
+  assert.deepStrictEqual(zbTriggerAttrs(btn['0x922D']), ['Power', 'BatteryPercentage']);
+  const r = zbTriggers(btn, true, { connected: 'connecté' });
+  assert.deepStrictEqual(r.groups[0].items.map(i => i.value), ['ZbReceived#Interrupteur Entrée#Power', 'ZbReceived#Interrupteur Entrée#BatteryPercentage', 'ZbState#ShortAddr']);
+  // seen in the event stream and in the rule sets (by address or by name, any case)
+  const seen = seenAttrs(btn, [{ type: 'zigbee', device: '0x922D', attrs: { Device: '0x922D', Action: 'single', LinkQuality: 90 } }, { type: 'tuya', device: 'x' }],
+    { rules: [{ text: 'on ZbReceived#0x922d#Power=1 do Power1 on endon on ZbReceived#interrupteur entrée#Hold do Power2 on endon on ZbReceived#0x1111#Power do x endon' }] });
+  assert.deepStrictEqual([...seen['0x922d']].sort(), ['Action', 'Hold', 'Power']);
+  assert.deepStrictEqual(zbTriggerAttrs(btn['0x922D'], seen), ['BatteryPercentage', 'Action', 'Power', 'Hold']);
+  assert.deepStrictEqual(guidedDevices(btn, false, seen).list[0].attrs, zbTriggerAttrs(btn['0x922D'], seen));   // the guided mode offers the same
+  // a sensor keeps its readings, without Power; nothing reported: Power
+  assert.deepStrictEqual(zbTriggerAttrs({ addr: '0x1', attrs: { Temperature: 20, BatteryPercentage: 50 } }), ['Temperature', 'BatteryPercentage']);
+  assert.deepStrictEqual(zbTriggerAttrs({ addr: '0x2', attrs: {} }), ['Power']);
 });
 ok('Zigbee trigger with a space in the name: read as a sentence, written back the same', () => {
   const t = 'on ZbReceived#Capteur bureau#Temperature>25 do Power1 on endon';

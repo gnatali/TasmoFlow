@@ -638,7 +638,10 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   réécriture. **Sélecteurs
   d'appareils** (`rules_devices.js`) : à côté de chaque champ de déclencheur et de commande, une liste
   propose les valeurs courantes, puis les appareils de la passerelle. *Déclencheurs Zigbee* :
-  `ZbReceived#<clé>#<attribut>` pour chaque attribut qu'un appareil a signalé ; d'après le code de
+  `ZbReceived#<clé>#<attribut>` pour chaque attribut du dernier état d'un appareil (`ZbInfo`), puis chacun de
+  ceux vus dans le flux d'événements ou dans les déclencheurs `ZbReceived` des jeux de règles (`seenAttrs()` ;
+  le mode guidé propose la même liste) ; un appareil qui n'a que sa batterie (un bouton : `ZbInfo` ne garde
+  pas de `Power` pour un SNZB-01P) ou rien du tout reçoit `Power` en premier ; d'après le code de
   Tasmota (`tasmota/tasmota_xdrv_driver/xdrv_23_zigbee_2a_devices_impl.ino`,
   `Z_Device::jsonPublishAttrList`, commit du firmware `a281cece`), `<clé>` est le nom convivial
   seulement si `SetOption83` est actif et que l'appareil en a un, sinon l'adresse courte

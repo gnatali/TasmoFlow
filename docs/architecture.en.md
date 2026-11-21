@@ -602,7 +602,10 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   (`src` kept). Triggers and commands use one **choice field**: closed it reads like the tile (`Lampe salon · Power`), open it lists everything as a tree (a group per device) with the current item highlighted; The list floats over everything (`position: fixed`, placed from the field, above it when there is more room there, following it while the dialog scrolls): inside the scrolling dialog an absolute list was cut off. *Custom...* turns it into a text field, so any Tasmota trigger or command can still be written. A `<select>` shows the same text open and closed, and a `<datalist>` only offers what matches the text already typed, so neither fits. `tests/rules_model_test.js`
   (CI) checks parsing, the writing of every shape, and that nothing is rewritten. **Device pickers** (`rules_devices.js`):
   next to each trigger and command field a list offers the common ones, then the gateway's own
-  devices. *Zigbee triggers*: `ZbReceived#<key>#<attribute>` for each attribute a device reported;
+  devices. *Zigbee triggers*: `ZbReceived#<key>#<attribute>` for each attribute of a device's last state (`ZbInfo`), then each one seen in
+  the event stream or in the rule sets' `ZbReceived` triggers (`seenAttrs()`; the guided mode offers the same
+  list); a device with nothing but its battery (a button: `ZbInfo` keeps no `Power` for an SNZB-01P) or
+  nothing at all gets `Power` first;
   per Tasmota's source (`tasmota/tasmota_xdrv_driver/xdrv_23_zigbee_2a_devices_impl.ino`,
   `Z_Device::jsonPublishAttrList`, firmware commit `a281cece`) `<key>` is the friendly name only
   if `SetOption83` is on and the device has one, else the short address `0x%04X`, so the editor

@@ -20,7 +20,7 @@ import { controlsFor, sendName } from './tuya_model.js';
 
 // attributes that are not something a rule waits for
 const NOT_ATTRS = new Set(['Device', 'Endpoint', 'Endpoints', 'LinkQuality', 'Name', 'Quality', 'Zone', 'ZoneStatus',
-  'IEEEAddr', 'ModelId', 'Manufacturer', 'Reachable', 'LastSeen', 'LastSeenEpoch', 'Status', 'Config', 'Time']);
+  'IEEEAddr', 'ModelId', 'Manufacturer', 'Reachable', 'LastSeen', 'LastSeenEpoch', 'BatteryLastSeenEpoch', 'Status', 'Config', 'Time']);
 
 export const isAddr = s => /^0x[0-9a-f]{4}$/i.test(s);
 // A name a rule trigger can carry. Tasmota takes the trigger as all the text between "ON " and " DO "
@@ -43,18 +43,47 @@ export const sorted = devices => Object.values(devices || {}).sort(byName);
 export const triggerAttrs = attrs => Object.keys(attrs || {}).filter(k => !NOT_ATTRS.has(k));
 export const zbAttrs = d => triggerAttrs(d.attrs);
 
+// What each device was seen sending, beyond its last state: Tasmota's ZbInfo keeps a button's battery
+// but not the `Power` it sends when pressed (an SNZB-01P: {"ZbInfo":{"0x922D":{"BatteryPercentage":100,
+// "BatteryLastSeenEpoch":...}}} only). Taken from the events received and from the ZbReceived triggers
+// the rule sets already have. { '<addr lower case>': Set of attributes }
+export function seenAttrs(devices, events, rules) {
+  const out = {};
+  const put = (addr, a) => { if (!NOT_ATTRS.has(a)) (out[addr.toLowerCase()] = out[addr.toLowerCase()] || new Set()).add(a); };
+  for (const ev of events || []) if (ev.type === 'zigbee' && ev.device && ev.attrs) for (const a of Object.keys(ev.attrs)) put(ev.device, a);
+  const list = Object.values(devices || {});
+  const re = /ZbReceived#([^#]+)#([A-Za-z0-9_]+)/gi;
+  for (const r of (rules && rules.rules) || []) {
+    for (const m of String(r.text || '').matchAll(re)) {
+      const k = m[1].trim().toLowerCase();
+      const d = list.find(x => x.addr.toLowerCase() === k || (named(x) && x.name.toLowerCase() === k));
+      if (d) put(d.addr, m[2]);
+    }
+  }
+  return out;
+}
+
+// The attributes a rule can wait for from a device: its last state, then what it was seen sending.
+// A device with nothing but its battery (a button) or nothing at all is offered `Power` first: what
+// Tasmota publishes for an OnOff command (a light's state, a remote's press).
+export function zbTriggerAttrs(d, seen) {
+  const attrs = zbAttrs(d);
+  for (const a of (seen && seen[d.addr.toLowerCase()]) || []) if (!attrs.includes(a)) attrs.push(a);
+  if (!attrs.includes('Power') && attrs.every(a => /^Battery/.test(a))) attrs.unshift('Power');
+  return attrs;
+}
+
 // [{ group, items: [{ label, value }] }]: one group per Zigbee device, one item per attribute
 // it reported. `skipped`: how many devices had a name no trigger can carry.
 // `labels` = { connected }: adds "device connected" to each device. An item with `op` and `val` sets
-// the comparison too (the trigger is the subject, the operator and the value together).
-export function zbTriggers(devices, useNames, labels) {
+// the comparison too (the trigger is the subject, the operator and the value together). `seen`: seenAttrs().
+export function zbTriggers(devices, useNames, labels, seen) {
   const groups = [];
   let skipped = 0;
   for (const d of sorted(devices)) {
     const key = zbKey(d, useNames);
     if (!usableKey(key)) { skipped++; continue; }
-    const attrs = zbAttrs(d);
-    const items = (attrs.length ? attrs : ['Power']).map(a => ({ label: a, value: 'ZbReceived#' + key + '#' + a }));
+    const items = zbTriggerAttrs(d, seen).map(a => ({ label: a, value: 'ZbReceived#' + key + '#' + a }));
     if (labels) items.push({ label: labels.connected, value: 'ZbState#ShortAddr', op: '=', val: d.addr });
     groups.push({ group: shown(d), items });
   }

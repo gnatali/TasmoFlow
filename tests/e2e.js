@@ -405,7 +405,9 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.keyboard.press('Escape');                                    // closes the list, not the dialog
     await pop.waitFor({ state: 'hidden' });
     await dlg.waitFor();
-    await choose(dlg, 'Quand', 'Power');                                 // a Zigbee device attribute
+    // a Zigbee device attribute: the lamp's Power (the button offers Power too)
+    await dlg.getByRole('button', { name: /^Quand :/ }).click();
+    await dlg.locator('xpath=.//div[@class="pgroup"][normalize-space()="Zigbee · Lampe salon"]/following-sibling::button[normalize-space()="Power"][1]').click();
     await dlg.getByRole('button', { name: /^Quand : Lampe salon · Power/ }).waitFor();   // closed, it reads like the tile
     await dlg.getByLabel('Comparaison').selectOption('=');
     await dlg.getByLabel('Valeur').fill('1');

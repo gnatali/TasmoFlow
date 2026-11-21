@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Guided mode, the logic without the screen: which devices can start a rule, what a device can
 // be seen doing, what a message just received teaches, and the block that comes out of the choices.
-import { zbKey, usableKey, zbAttrs, triggerAttrs, shown, sorted } from './rules_devices.js';
+import { zbKey, usableKey, zbTriggerAttrs, triggerAttrs, shown, sorted } from './rules_devices.js';
 
 // readings a device sends by itself: when the interface listens to every device, these are not
 // "what the user just did"
@@ -13,15 +13,14 @@ const WORD = /^[\w.+-]+$/;
 const scalar = v => (typeof v === 'string' || typeof v === 'number') && WORD.test(String(v)) ? String(v) : null;
 
 // The Zigbee devices that can start a rule: [{ addr, label, key, attrs }], and how many were left
-// out (a name with a space cannot be written in a trigger).
-export function guidedDevices(devices, useNames) {
+// out (a name no trigger can carry). `seen`: seenAttrs(), as for the pickers, so both offer the same.
+export function guidedDevices(devices, useNames, seen) {
   const list = [];
   let skipped = 0;
   for (const d of sorted(devices)) {
     const key = zbKey(d, useNames);
     if (!usableKey(key)) { skipped++; continue; }
-    const attrs = zbAttrs(d);
-    list.push({ addr: d.addr, label: shown(d), key, attrs: attrs.length ? attrs : ['Power'] });
+    list.push({ addr: d.addr, label: shown(d), key, attrs: zbTriggerAttrs(d, seen) });
   }
   return { list, skipped };
 }

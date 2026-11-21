@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'preact/hooks';
 import { html } from './html.js';
 import { t } from './i18n.js';
-import { describeSubject, describeCommand } from './rules_devices.js';
+import { describeSubject, describeCommand, seenAttrs } from './rules_devices.js';
 import { guidedDevices, seenValues, triggerOptions, learn, guidedBlock } from './rules_guided_model.js';
 import { Modal } from './rules_modal.js';
 
@@ -50,7 +50,7 @@ function Doing({ groups, rows, set }) {
 // s: state (devices, events, Tuya, SetOption83); groups: what can be controlled (rules_editor.js);
 // verbs: { On, Off, Toggle } in the user's language. onCreate(block), onFree(): the free form.
 export function Guided({ s, groups, verbs, onCreate, onFree, onClose }) {
-  const { list, skipped } = guidedDevices(s.devices, s.zbNames);
+  const { list, skipped } = guidedDevices(s.devices, s.zbNames, seenAttrs(s.devices, s.events, s.rules));
   const [addr, setAddr] = useState('');
   const [attr, setAttr] = useState('');
   const [opt, setOpt] = useState(null);                 // { op, value } chosen
