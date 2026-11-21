@@ -44,6 +44,9 @@ This repository is part of a broader suite of tools for local smart home control
 - Local Tuya devices next to the Zigbee ones, through the firmware's Tuya driver: switches,
   dimmers, colour temperature, fan speed, readings, live updates; hidden when the driver is
   absent or disabled.
+- **Rename** a Zigbee or Tuya device from its card; the rules that name it are offered for
+  updating (a copy of each previous version is kept). Tuya needs the firmware of 21 November
+  2026 or later (`TuyaRename` command); Matter endpoints keep their name.
 
 The firmware is not modified. How it works: [docs/architecture.en.md](docs/architecture.en.md).
 

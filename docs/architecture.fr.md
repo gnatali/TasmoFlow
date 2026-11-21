@@ -735,6 +735,32 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
 - **Protection anti-plantage.** Après plusieurs plantages rapides, Tasmota démarre sans Berry
   et désactive toutes les règles : TasmoFlow le signale et propose de les réactiver.
 
+## Renommer des appareils
+
+Le bouton **Renommer** d'une carte (`rename.js`, modèle dans `rename_model.js`) change le nom
+avec la commande de la passerelle, puis propose de réécrire les jeux de règles qui nomment
+l'appareil, jeu par jeu (`saveRule()`, donc la copie précédente est gardée). Un nom est plus
+qu'une étiquette, d'où les vérifications :
+
+| Où le nom sert | Zigbee (`ZbName <adr>,<nom>`) | Tuya (`TuyaRename <nom>,<nouveau nom>`) |
+|---|---|---|
+| Déclencheurs de règles | `ZbReceived#<clé>#...` : la clé est le nom seulement avec `SetOption83` activé, sinon l'adresse (rien à changer) ; un nom avec un espace ou `#=<>!\|"` ne peut pas servir de déclencheur (avertissement) | `TuyaConnected#Name=<nom>`, `TuyaDisconnected#Name=<nom>` |
+| Commandes des règles | `ZbSend {"device":"<nom>"...}` (un nom vidé : l'adresse) | `TuyaSend <nom>,...` (un nom avec une virgule passe par son id : inchangé) |
+| Règles Berry, `autoexec.be` | en lecture seule ici : les règles Berry qui nomment l'appareil sont listées | pareil |
+| Matter | un endpoint Zigbee peut nommer son appareil (`zigbee_device`, adresse courte ou nom, résolu par `zigbee.find()` dans `Matter_z_Zigbee.be`) : un avertissement dit de le changer là | une liaison sans `"ep"` prenait le nom de l'appareil : `TuyaRename` écrit l'ancien nom comme `"ep"`, l'endpoint et Google Home le gardent |
+| Interface | `devices` est indexé par adresse : `loadDevices()` | `tuya.nodes` et `tuya.conf` sont indexés par nom : l'ancienne entrée (et celle de sa passerelle) est retirée, `loadTuya()` les relit |
+
+Noms refusés : le même nom pris par un autre appareil (sans tenir compte de la casse), une
+virgule (`ZbName` et `TuyaSend` coupent leur argument aux virgules), un point-virgule
+(`Backlog`), un guillemet (le JSON de `ZbSend`) ; pour Zigbee plus de 32 caractères et un nom qui
+ressemble à une adresse, pour Tuya un nom vide. Constats dans le source de Tasmota (commit
+`43d9409e` du workflow du firmware) : `CmndZbName` (`xdrv_23_zigbee_A_impl.ino`) coupe aux
+virgules (`ZbName <appareil>,<nom>,<endpoint>`), tronque le nom à 32 caractères, un nom vide le
+retire, et répond `{"0x1234":{"Name":"..."}}` ; les données Zigbee sont sauvegardées 2 s plus tard
+(`ZIGBEE_SAVE_DELAY_SECONDS`, `xdrv_23_zigbee_2_devices.ino`). `TuyaRename` est dans
+`berry/tuya_local.be` du dépôt du firmware (scénario 30 de son banc) ; un firmware plus ancien
+répond `{"Command":"Unknown"}`, ce que le dialogue explique.
+
 ## Plan de test sur la passerelle
 
 Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` validé, `[ ]` à faire. La v0.0 est terminée ; les points ouverts ci-dessous relèvent de la v0.1.
@@ -796,4 +822,5 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] v0.2, appareil Zigbee qui ne répond pas (20 novembre 2026, build de test, pas de `.tapp` à réinstaller ; vérifié par Guillaume le même jour) : couper une prise Zigbee, **Basculer** : « L'appareil ne répond pas (injoignable). » sous la carte et « injoignable » dans sa ligne ; la rebrancher, **Basculer** : la prise bascule, les deux disparaissent ; un appareil sur secteur n'affiche pas de batterie
 - [x] v0.2, T10 (21 novembre 2026, `.tapp` de test installée **à la main** une fois, `Restart 1` ; vérifié par Guillaume le même jour, deux mises à jour, `one rename` les deux fois, `.bak` correct, aucun `.new` restant ; mémoire : 67 Ko au repos, 43 Ko ouverte, 63 Ko après fermeture, voir le suivi) : relancer `Build`, puis **Mettre à jour** deux fois de suite : chaque fois le journal affiche `TFL: update installed (one rename), restarting`, la page revient sur le nouveau build, `TasmoFlow.tapp.bak` (la version précédente, de la taille de l'ancienne `.tapp`) est à côté de `TasmoFlow.tapp`, et aucun `.new` ni `.bak.new` ne reste ; mémoire inchangée
 - [x] v0.2, T7 et T12 (21 novembre 2026, `.tapp` réinstallée ; vérifié par Guillaume le même jour avec la recette : `curl` comme seconde interface, `CONTENT-LENGTH`, requêtes sans jeton, hors ligne dans les outils de développement) : deux navigateurs sur l'écran Règles, modifier Rule1 dans les deux, Enregistrer vite dans les deux : l'un dit « Enregistré », l'autre « Une autre interface enregistre des règles en même temps », et Rule1 contient le texte de celui qui a dit Enregistré ; interface fermée, `curl "http://<passerelle>:8384/api/status"` (sans jeton) toutes les minutes : le serveur s'arrête quand même 5 minutes après la fermeture de l'interface (`TFL: API server stopped`) ; débrancher le câble réseau de la passerelle 10 s avec une interface ouverte : le flux revient sans que l'onglet Événements remontre les anciens événements
+- [ ] v0.2, renommage (21 novembre 2026, build de test, pas de `.tapp` à réinstaller ; Tuya demande le firmware avec `TuyaRename`) : renommer un appareil Zigbee depuis sa carte : la carte et `ZbInfo` montrent le nouveau nom, toujours là après `Restart 1` ; avec `SetOption83 1`, une règle `ZbReceived#<ancien nom>#Power` est proposée, réécrite, et se déclenche toujours ; renommer un appareil Tuya lié à Matter : Google Home le garde (endpoint inchangé dans la page du driver), sa carte garde ses commandes, une règle `TuyaSend <ancien nom>,1,true` est réécrite et fonctionne ; un nom déjà pris et une virgule sont refusés
 - [x] v0.1 : ce qui reste alloué après la première ouverture (6 Ko de mémoire libre, 4 Ko de Berry) : pas poursuivi, abandonné à la demande de Guillaume (12 novembre 2026)

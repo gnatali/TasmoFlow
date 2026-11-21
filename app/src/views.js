@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Devices screen (the other screens are in views_full.js)
+import { useState } from 'preact/hooks';
 import { html } from './html.js';
 import { t } from './i18n.js';
 import { S, run, loadStatus, loadDevices, loadTuya, detect, RECHECK_MAX } from './state.js';
 import { TuyaSection, Msg } from './tuya.js';
+import { RenameDialog } from './rename.js';
+import { isAddr } from './rules_devices.js';
 
 function ago(sec) {
   if (sec == null) return '?';
@@ -33,6 +36,8 @@ function DriverNote({ id }) {
 function ZigbeeCard({ d }) {
   const since = d.seenAt ? Math.round((Date.now() - d.seenAt) / 1000) : d.lastseen;
   const shown = MAIN_ATTRS.filter(k => d.attrs[k] != null);
+  const [ren, setRen] = useState(false);
+  const name = d.name && !isAddr(d.name) ? d.name : '';
   return html`<article class="card">
     <h3>${d.name || d.addr}</h3>
     <div class="q">${[d.model, d.manufacturer].filter(Boolean).join(' · ') || d.addr}</div>
@@ -41,10 +46,12 @@ function ZigbeeCard({ d }) {
       (d.battery != null && d.battery >= 0 ? ' · ' + t('battery') + ' ' + d.battery + ' %' : '') +
       (d.reachable === false ? ' · ' + t('unreachable') : '') +
       ' · ' + (d.router ? t('router') : t('endDevice'))}</div>
-    ${hasPower(d) ? html`<div class="row tight">
-      <button class="b" onClick=${() => run(d.addr, 'ZbSend {"device":"' + d.addr + '","send":{"Power":"Toggle"}}')}>${t('toggle')}</button>
-    </div>` : null}
+    <div class="row tight">
+      ${hasPower(d) ? html`<button class="b" onClick=${() => run(d.addr, 'ZbSend {"device":"' + d.addr + '","send":{"Power":"Toggle"}}')}>${t('toggle')}</button>` : null}
+      <button class="b" aria-label=${t('rn_title') + ' ' + (name || d.addr)} onClick=${() => setRen(true)}>${t('rn_title')}</button>
+    </div>
     <${Msg} k=${d.addr}/>
+    ${ren ? html`<${RenameDialog} kind="zigbee" addr=${d.addr} name=${name} onClose=${() => setRen(false)}/>` : null}
   </article>`;
 }
 

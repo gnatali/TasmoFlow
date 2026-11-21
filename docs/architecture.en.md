@@ -689,6 +689,30 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
 - **Crash protection.** After several quick crashes, Tasmota starts without Berry and disables
   every rule: TasmoFlow reports it and offers to enable them again.
 
+## Renaming devices
+
+The **Rename** button of a card (`rename.js`, model in `rename_model.js`) changes the name with
+the gateway's own command, then offers to rewrite the rule sets that name the device, set by set
+(`saveRule()`, so the previous copy is kept). A name is more than a label, hence the checks:
+
+| Where the name is used | Zigbee (`ZbName <addr>,<name>`) | Tuya (`TuyaRename <name>,<new name>`) |
+|---|---|---|
+| Rule triggers | `ZbReceived#<key>#...`: the key is the name only with `SetOption83` on, else the address (nothing to change); a name with a space or `#=<>!\|"` cannot be a trigger (warning) | `TuyaConnected#Name=<name>`, `TuyaDisconnected#Name=<name>` |
+| Rule commands | `ZbSend {"device":"<name>"...}` (an emptied name: the address) | `TuyaSend <name>,...` (a name with a comma goes by its id: unchanged) |
+| Berry rules, `autoexec.be` | read only here: the Berry rules naming the device are listed | same |
+| Matter | a Zigbee endpoint may name its device (`zigbee_device`, short address or name, resolved by `zigbee.find()` in `Matter_z_Zigbee.be`): a warning says to change it there | a binding without `"ep"` took the device name: `TuyaRename` writes the old name as its `"ep"`, so the endpoint and Google Home keep it |
+| Interface | `devices` is keyed by address: `loadDevices()` | `tuya.nodes` and `tuya.conf` are keyed by name: the old entry (and its gateway's) is dropped, `loadTuya()` reads them again |
+
+Refused names: the same name used by another device (case-insensitive), a comma (`ZbName` and
+`TuyaSend` split their argument at commas), a semicolon (`Backlog`), a double quote (`ZbSend`'s
+JSON); for Zigbee more than 32 characters and an address-like name, for Tuya an empty name.
+Findings from Tasmota's source (commit `43d9409e` of the firmware workflow): `CmndZbName`
+(`xdrv_23_zigbee_A_impl.ino`) splits at commas (`ZbName <device>,<name>,<endpoint>`), cuts the
+name at 32 characters, an empty name removes it, and answers `{"0x1234":{"Name":"..."}}`; the
+Zigbee data is saved 2 s later (`ZIGBEE_SAVE_DELAY_SECONDS`, `xdrv_23_zigbee_2_devices.ino`).
+`TuyaRename` is in `berry/tuya_local.be` of the firmware repository (scenario 30 of its bench);
+an older firmware answers `{"Command":"Unknown"}`, which the dialog explains.
+
 ## Test plan on the gateway
 
 Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `[ ]` to do. v0.0 is complete; the open checks below belong to v0.1.
@@ -750,4 +774,5 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] v0.2, Zigbee device that does not answer (20 November 2026, test build, no `.tapp` to install again; checked by Guillaume the same day): cut a Zigbee plug, **Toggle**: "The device does not answer (unreachable)." under the card and "unreachable" in its line; plug it back, **Toggle**: the plug switches, both go away; a mains device shows no battery
 - [x] v0.2, T10 (21 November 2026, test `.tapp` installed **by hand** once, `Restart 1`; checked by Guillaume the same day, two updates, `one rename` both times, `.bak` right, no `.new` left; memory: 67 KB at rest, 43 KB open, 63 KB after closing, see the tracking): run `Build` again, then **Update** twice in a row: each time the log shows `TFL: update installed (one rename), restarting`, the page comes back on the new build, `TasmoFlow.tapp.bak` (the previous version, same size as the old `.tapp`) is next to `TasmoFlow.tapp`, and no `.new` or `.bak.new` is left; memory unchanged
 - [x] v0.2, T7 and T12 (21 November 2026, `.tapp` installed again; checked by Guillaume the same day with the recipe: `curl` as the second interface, `CONTENT-LENGTH`, requests without token, DevTools offline): two browsers on the Rules screen, edit Rule1 in both, Save in both quickly: one says "Saved", the other "Another interface is saving rules at the same time", and Rule1 holds the text of the one that said Saved; with the interface closed, `curl "http://<gateway>:8384/api/status"` (no token) every minute: the server still stops 5 minutes after the interface was closed (`TFL: API server stopped`); unplug the gateway's network cable for 10 s with an interface open: the stream comes back without the Events tab showing the old events again
+- [ ] v0.2, renaming (21 November 2026, test build, no `.tapp` to install again; Tuya needs the firmware with `TuyaRename`): rename a Zigbee device from its card: the card and `ZbInfo` show the new name, still there after `Restart 1`; with `SetOption83 1`, a rule `ZbReceived#<old name>#Power` is offered, rewritten, and still fires; rename a Tuya device bound to Matter: Google Home keeps it (endpoint unchanged in the driver's page), its card keeps its controls, a rule `TuyaSend <old name>,1,true` is rewritten and works; a name already used and a comma are refused
 - [x] v0.1: what stays allocated after the first opening (6 KB free heap, 4 KB Berry): not pursued, dropped at Guillaume's request (12 November 2026)

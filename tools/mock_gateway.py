@@ -152,6 +152,26 @@ def tuya_command(c):
                 if arg.lower() == e["name"].lower() or arg == e.get("id"):
                     return {"TuyaConfig": e}
         return {"TuyaConfig": {"Error": "unknown device"}}
+    if word == "TuyaRename":
+        # like the driver (firmware of 21 November 2026): split at the last comma, a device or a
+        # sub-device by name (any case) or id; a binding without "ep" keeps the old name
+        ref, _, new = arg.rpartition(",")
+        ref, new = ref.strip(), new.strip()
+        if not ref or not new:
+            return {"TuyaRename": {"Error": "syntax: TuyaRename <device>,<new name>"}}
+        entries = [e for d in TUYA_CONF["devices"] for e in [d] + d.get("children", [])]
+        hit = next((e for e in entries if e.get("id") == ref or e["name"].lower() == ref.lower()), None)
+        if hit is None:
+            return {"TuyaRename": {"Error": "unknown device"}}
+        if any(e is not hit and (e["name"].lower() == new.lower() or e.get("id") == new) for e in entries):
+            return {"TuyaRename": {"Error": "name or id already used"}}
+        old = hit["name"]
+        for m in hit.get("matter", []):
+            m.setdefault("ep", old)
+        hit["name"] = new
+        if old in TUYA:
+            TUYA[new] = TUYA.pop(old)
+        return {"TuyaRename": {"Old": old, "New": new}}
     if word == "TuyaStatus":
         return {"TuyaStatus": {n: d for n, d in TUYA.items() if not arg or n.lower() == arg.lower()}}
     if word == "TuyaSend":
@@ -608,6 +628,15 @@ class Api(BaseHTTPRequestHandler):
             word = c.split(" ")[0]
             if word == STATE.get("fail"):       # /__test/reset?fail=<command>: what Tasmota answers a refused command
                 self.json(200, {word: "Unknown device"})
+                return
+            m = re.fullmatch(r"ZbName (0x[0-9A-Fa-f]{4}),(.*)", c, re.S)
+            if m:      # like CmndZbName: {"0x1234":{"Name":"..."}}; an empty name removes it
+                d = DEVICES.get(m.group(1).upper().replace("0X", "0x"))
+                if d is None:
+                    self.json(200, {"ZbName": "Unknown device"})
+                    return
+                d["name"] = m.group(2)[:32] or None
+                self.json(200, {d["addr"]: {"Name": m.group(2)[:32]}})
                 return
             if word == "ZbPermitJoin":
                 self.json(200, {"ZbPermitJoin": "Done"})

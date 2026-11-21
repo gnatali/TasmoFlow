@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Local Tuya devices, through the firmware's Tuya driver only (Tuya* commands, `Tuya` event).
 // TasmoFlow never shows, stores or sends a local key: TuyaConfig already masks it.
+import { useState } from 'preact/hooks';
 import { html } from './html.js';
 import { t } from './i18n.js';
 import { M, runTuya } from './state.js';
 import { controlsFor, sendName } from './tuya_model.js';
+import { RenameDialog } from './rename.js';
 
 // what a refused or failed command answered (state.js, run()), under its card or button
 export const Msg = ({ k }) => M.get()[k] ? html`<div class="msg bad" role="alert">${M.get()[k]}</div>` : null;
@@ -39,12 +41,15 @@ export function TuyaCard({ name, node, entry }) {
   const cs = (EXTRA.refine ? EXTRA.refine(base, entry) : base).filter(c => addr || c.kind === 'read');
   const reads = cs.filter(c => c.kind === 'read');
   const acts = cs.filter(c => c.kind !== 'read');
+  const [ren, setRen] = useState(false);
   return html`<article class="card">
     <h3>${name}</h3>
     <div class="q">${'Tuya · ' + node.ip + ' · ' + node.version + ' · ' + (node.connected ? t('connected') : t('disconnected'))}</div>
     ${reads.length ? html`<div class="st">${reads.map(c => html`<${Control} c=${c} node=${node} send=${send}/>`)}</div>` : null}
     ${acts.length ? html`<div class="row tight">${acts.map(c => html`<${Control} c=${c} node=${node} send=${send}/>`)}</div>` : null}
+    <div class="row tight"><button class="b" aria-label=${t('rn_title') + ' ' + name} onClick=${() => setRen(true)}>${t('rn_title')}</button></div>
     <${Msg} k=${name}/>
+    ${ren ? html`<${RenameDialog} kind="tuya" name=${name} onClose=${() => setRen(false)}/>` : null}
   </article>`;
 }
 
