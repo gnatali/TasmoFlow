@@ -8,7 +8,7 @@ const esbuild = require('esbuild');
 const SRC = path.join(__dirname, '..', 'app', 'src');
 // the modules are plain ES modules: bundle them to CommonJS for Node
 const out = esbuild.buildSync({
-  stdin: { contents: "export * from './rules_model.js'; export * from './rules_lint.js'; export * from './rules_devices.js'; export * from './rules_conflicts.js'; export * from './rules_guided_model.js'; export * from './tuya_model.js'; export * from './tuya_colour.js';", resolveDir: SRC },
+  stdin: { contents: "export * from './rules_model.js'; export * from './rules_lint.js'; export * from './rules_devices.js'; export * from './rules_conflicts.js'; export * from './rules_guided_model.js'; export * from './tuya_model.js'; export * from './tuya_colour.js'; export * from './rename_model.js';", resolveDir: SRC },
   loader: { '.css': 'text' }, define: { __BUILD__: '""' },
   bundle: true, format: 'cjs', write: false, logLevel: 'silent'
 }).outputFiles[0].text;
@@ -16,10 +16,10 @@ const out = esbuild.buildSync({
 globalThis.localStorage = { getItem: () => null, setItem() {} };
 globalThis.document = { documentElement: {} };
 // tuya_colour.js reaches tuya.js and state.js, which read the page's config when they load
-globalThis.window = {};
+globalThis.window = { addEventListener() {} };      // rules.js (reached through tuya.js, rename.js) listens for beforeunload
 const m = { exports: {} };
 new Function('module', 'exports', out)(m, m.exports);
-const { controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
+const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
 
 let n = 0;
 const ok = (name, f) => { f(); n++; };
@@ -365,6 +365,40 @@ ok('conflicts: a sentence with several triggers fires on each, branches count', 
   assert.strictEqual(c.length, 1);
   assert.deepStrictEqual([c[0].kind, c[0].target, c[0].subject, c[0].where.map(w => w.n + ':' + w.i)], ['cancel', 'Power2', 'Button2#State', ['1:0', '2:0']]);
   assert.strictEqual(findConflicts([{ n: 1, on: true, text: 'on a#b do Power1 on endon on c#d do Power1 on endon' }]).length, 0);   // two triggers of one sentence do not clash with each other
+});
+
+ok('rename: Zigbee triggers (SetOption83 on) and ZbSend, whole names only', () => {
+  const text = 'on ZbReceived#Lampe#Power=1 do ZbSend {"device":"Lampe","send":{"Power":0}} endon on ZbReceived#Lampe2#Power do Power1 on endon on ZbReceived#lampe do Power2 on endon';
+  const r = renameRefs(text, 'zigbee', { trigFrom: 'Lampe', trigTo: 'Plafonnier', from: 'Lampe', to: 'Plafonnier' });
+  assert.strictEqual(r.n, 3);
+  assert.strictEqual(r.text, 'on ZbReceived#Plafonnier#Power=1 do ZbSend {"device":"Plafonnier","send":{"Power":0}} endon on ZbReceived#Lampe2#Power do Power1 on endon on ZbReceived#Plafonnier do Power2 on endon');
+  // SetOption83 off: triggers carry the address, only ZbSend by name changes; a name removed: the address
+  const off = renameRefs(text, 'zigbee', { trigFrom: '0x1A2B', trigTo: '0x1A2B', from: 'Lampe', to: '0x1A2B' });
+  assert.strictEqual(off.n, 1);
+  assert.ok(off.text.includes('"device":"0x1A2B"') && off.text.includes('ZbReceived#Lampe#Power=1'));
+  // a device named for the first time with SetOption83 on: its address triggers take the name
+  assert.strictEqual(renameRefs('on ZbReceived#0x1A2B#Power=1 do Power1 on endon', 'zigbee', { trigFrom: '0x1A2B', trigTo: 'Lampe', from: '', to: 'Lampe' }).text, 'on ZbReceived#Lampe#Power=1 do Power1 on endon');
+  // no trigger can carry the new name: triggers left alone
+  assert.strictEqual(renameRefs('on ZbReceived#Lampe#Power do Power1 on endon', 'zigbee', { trigFrom: 'Lampe', trigTo: null, from: 'Lampe', to: 'Lampe salon' }).n, 0);
+});
+ok('rename: Tuya TuyaSend and connection triggers, regex characters escaped', () => {
+  const text = 'on TuyaConnected#Name=Pince (garage) do TuyaSend Pince (garage),1,true endon on TuyaDisconnected#Name=Pince (garage) do Backlog TuyaSend Pince (garage), 1,false; TuyaSend Pince (garage) 2,1,true endon';
+  const r = renameRefs(text, 'tuya', { from: 'Pince (garage)', to: 'Pince' });
+  assert.strictEqual(r.n, 4);
+  assert.strictEqual(r.text, 'on TuyaConnected#Name=Pince do TuyaSend Pince,1,true endon on TuyaDisconnected#Name=Pince do Backlog TuyaSend Pince, 1,false; TuyaSend Pince (garage) 2,1,true endon');
+  assert.strictEqual(renameRefs('on Power1#State do TuyaSend Pincette,1,true endon', 'tuya', { from: 'Pince', to: 'X' }).n, 0);
+});
+ok('rename: names refused', () => {
+  const s = { devices: { '0x1A2B': { addr: '0x1A2B', name: 'Lampe' }, '0x3C4D': { addr: '0x3C4D', name: 'Bouton' } }, tuya: { nodes: { Pince: {}, Ventilateur: {} } } };
+  assert.strictEqual(nameError('zigbee', 'bouton', 'Lampe', '0x1A2B', s), 'rn_used');
+  assert.strictEqual(nameError('zigbee', 'a,b', 'Lampe', '0x1A2B', s), 'rn_chars');
+  assert.strictEqual(nameError('zigbee', '0x9999', 'Lampe', '0x1A2B', s), 'rn_addr');
+  assert.strictEqual(nameError('zigbee', 'x'.repeat(33), 'Lampe', '0x1A2B', s), 'rn_long');
+  assert.strictEqual(nameError('zigbee', '', 'Lampe', '0x1A2B', s), null);          // removes the name
+  assert.strictEqual(nameError('zigbee', 'LAMPE', 'Lampe', '0x1A2B', s), null);     // a case change
+  assert.strictEqual(nameError('tuya', '', 'Pince', null, s), 'rn_empty');
+  assert.strictEqual(nameError('tuya', 'ventilateur', 'Pince', null, s), 'rn_used');
+  assert.strictEqual(nameError('tuya', 'Pince garage', 'Pince', null, s), null);
 });
 
 console.log(`ok     rule model (${n} checks)`);

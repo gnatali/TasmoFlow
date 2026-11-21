@@ -37,6 +37,10 @@ eWeLink ZB-GW03 avec le firmware
 - Appareils Tuya locaux à côté des appareils Zigbee, par le pilote Tuya du firmware :
   interrupteurs, variateurs, température de couleur, vitesse de ventilateur, mesures, mise à
   jour en direct ; masqués si le pilote est absent ou désactivé.
+- **Renommer** un appareil Zigbee ou Tuya depuis sa carte ; la mise à jour des règles qui le
+  nomment est proposée (une copie de chaque version précédente est gardée). Tuya demande le
+  firmware du 21 novembre 2026 ou plus récent (commande `TuyaRename`) ; les endpoints Matter
+  gardent leur nom.
 
 Le firmware n'est pas modifié. Fonctionnement : [docs/architecture.fr.md](docs/architecture.fr.md).
 

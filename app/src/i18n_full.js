@@ -80,7 +80,19 @@ export const FULL_TEXTS = {
     g_pickAction: 'Choisir une action', g_value: 'Valeur', g_addAction: 'Ajouter une autre action',
     g_removeAction: 'Retirer cette action', g_noActions: "Aucun appareil à commander (Zigbee avec Power, ou Tuya démarré).",
     g_summaryTitle: 'Résumé :', g_summary: 'Quand {w}, alors {t}.', g_create: 'Créer la règle',
-    g_toFree: 'Passer en règle libre', g_help: 'Vous pourrez la compléter ensuite avec « Modifier » (condition, autres commandes).'
+    g_toFree: 'Passer en règle libre', g_help: 'Vous pourrez la compléter ensuite avec « Modifier » (condition, autres commandes).',
+    rn_title: 'Renommer', rn_new: 'Nouveau nom', rn_do: 'Renommer',
+    rn_same: 'Même nom.', rn_chars: 'Pas de virgule, de point-virgule ni de guillemet dans un nom (ZbName, TuyaSend et Backlog les coupent).',
+    rn_long: '32 caractères au plus (Tasmota coupe au-delà).', rn_addr: "Un nom ne peut pas ressembler à une adresse (0x1234).",
+    rn_used: 'Ce nom est déjà pris par un autre appareil.', rn_empty: 'Un appareil Tuya doit avoir un nom.',
+    rn_zbClear: "Nom vide : le nom est retiré, l'appareil est désigné par son adresse.",
+    rn_zbKey: 'SetOption83 est activé : un nom avec un espace ou # = < > ! | " ne peut pas servir de déclencheur. Les déclencheurs de cet appareil ne seront plus utilisables.',
+    rn_zbMatter: "Un endpoint Matter qui désigne cet appareil par son nom (zigbee_device) est à modifier dans la configuration Matter de Tasmota ; par son adresse, rien à faire.",
+    rn_tuyaMatter: "Les endpoints Matter gardent leur nom : Google Home ne perd pas l'appareil.",
+    rn_berry: 'Règles Berry (en lecture seule ici) qui citent cet appareil, à modifier dans leur script :',
+    rn_rules: 'Règles mises à jour avec le nouveau nom (copie de la version précédente gardée)', rn_noRule: 'Aucune règle ne cite cet appareil.',
+    rn_rulesFailed: "Appareil renommé, mais ces règles n'ont pas été mises à jour :",
+    rn_tooOld: 'Le firmware ne connaît pas TuyaRename : mettez à jour le firmware de la passerelle (build du 21 novembre 2026 ou plus récent).'
   },
   en: {
     driverAuto: '{d} is starting: its functions are turned off, this page updates by itself as soon as it is ready.',
@@ -159,6 +171,18 @@ export const FULL_TEXTS = {
     g_pickAction: 'Pick an action', g_value: 'Value', g_addAction: 'Add another action',
     g_removeAction: 'Remove this action', g_noActions: 'No device to control (Zigbee with Power, or Tuya running).',
     g_summaryTitle: 'Summary:', g_summary: 'When {w}, then {t}.', g_create: 'Create the rule',
-    g_toFree: 'Switch to a free-form rule', g_help: 'You can complete it afterwards with "Edit" (condition, other commands).'
+    g_toFree: 'Switch to a free-form rule', g_help: 'You can complete it afterwards with "Edit" (condition, other commands).',
+    rn_title: 'Rename', rn_new: 'New name', rn_do: 'Rename',
+    rn_same: 'Same name.', rn_chars: 'No comma, semicolon or double quote in a name (ZbName, TuyaSend and Backlog cut them).',
+    rn_long: '32 characters at most (Tasmota cuts beyond).', rn_addr: 'A name cannot look like an address (0x1234).',
+    rn_used: 'This name is already used by another device.', rn_empty: 'A Tuya device must have a name.',
+    rn_zbClear: 'Empty name: the name is removed, the device goes by its address.',
+    rn_zbKey: 'SetOption83 is on: a name with a space or # = < > ! | " cannot be a trigger. The triggers of this device will no longer work.',
+    rn_zbMatter: "A Matter endpoint that names this device (zigbee_device) must be changed in Tasmota's Matter configuration; by its address, nothing to do.",
+    rn_tuyaMatter: 'Matter endpoints keep their name: Google Home keeps the device.',
+    rn_berry: 'Berry rules (read only here) that name this device, to change in their script:',
+    rn_rules: 'Rules updated with the new name (copy of the previous version kept)', rn_noRule: 'No rule names this device.',
+    rn_rulesFailed: 'Device renamed, but these rules were not updated:',
+    rn_tooOld: 'The firmware does not know TuyaRename: update the gateway firmware (build of 21 November 2026 or later).'
   }
 };

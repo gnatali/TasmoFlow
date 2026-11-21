@@ -41,7 +41,9 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     mock(['--web', '8084', '--api', '8388', '--cdn', CDN, '--sri', SRI, '--zb-delay', '3', '--tuya-delay', '7']),
     mock(['--web', '8085', '--api', '8389', '--cdn', CDN, '--sri', SRI, '--tuya-disabled']),
     // restarted while a page is open (its event counter starts again at 1)
-    mock(['--web', '8087', '--api', '8391', '--cdn', CDN, '--sri', SRI])];
+    mock(['--web', '8087', '--api', '8391', '--cdn', CDN, '--sri', SRI]),
+    // renaming devices (its devices and rules change): SetOption83 on
+    mock(['--web', '8088', '--api', '8392', '--cdn', CDN, '--sri', SRI, '--zb-names'])];
   await wait(1000);
   const browser = await chromium.launch();
   const results = [];
@@ -236,7 +238,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.waitForSelector('.badge.ok', { timeout: 5000 });
     const lamp = () => p.locator('article.card', { hasText: 'Lampe salon' });
     const before = /Power 1/.test((await lamp().innerText()).replace(/\n/g, ' '));
-    await lamp().getByRole('button').click();
+    await lamp().getByRole('button', { name: 'Basculer' }).click();
     await p.waitForFunction(on => {
       const c = [...document.querySelectorAll('article.card')].find(a => a.textContent.includes('Lampe salon'));
       return /Power 1/.test(c.innerText.replace(/\n/g, ' ')) === on;
@@ -866,7 +868,8 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await tv.getByRole('button', { name: 'TV · allumé' }).waitFor({ timeout: 4000 });
     const kitchen = p.locator('article.card', { has: p.getByRole('heading', { name: 'Cuisine, bas', exact: true }) });
     await kitchen.waitFor();
-    if (await kitchen.getByRole('button').count()) throw new Error('a device that cannot be addressed offers a control');
+    // (it can still be renamed: TuyaRename splits at the last comma)
+    if (await kitchen.getByRole('button', { name: /^(?!Renommer)/ }).count()) throw new Error('a device that cannot be addressed offers a control');
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'tuya.png'), fullPage: true });
   });
   await test('drivers starting (full): notes, functions off, looks again by itself, then on', async p => {
@@ -997,6 +1000,68 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.getByText('en direct').waitFor({ timeout: 5000 });
     await others[0].getByText('en pause').waitFor({ timeout: 5000 });       // now the oldest
     for (const q of others.slice(1)) if (!(await q.getByText('en direct').isVisible())) throw new Error('a newer page was stopped');
+  });
+
+  // renaming, on its own simulated gateway (SetOption83 on): the rules that name the device follow
+  const RN = 'http://localhost:8392';
+  const rnCmd = c => fetch(RN + '/api/cmd?t=0123456789abcdef0123456789abcdef&c=' + encodeURIComponent(c)).then(r => r.json());
+  const rnRule = async n => (await (await fetch(RN + '/api/rules?t=0123456789abcdef0123456789abcdef')).json()).rules[n - 1].text;
+  const openRn = async p => { await p.route(CDN, r => r.fulfill(jsBody(APP))); await p.goto('http://localhost:8088/tf'); await cards(p); };
+  const rename = async (p, card, to, ruleLabel) => {
+    await p.getByRole('button', { name: 'Renommer ' + card, exact: true }).click();
+    const dlg = p.getByRole('dialog');
+    await dlg.getByLabel('Nouveau nom').fill(to);
+    if (ruleLabel) await dlg.getByText(ruleLabel).waitFor({ timeout: 4000 });
+    await dlg.getByRole('button', { name: 'Renommer', exact: true }).click();
+    await dlg.waitFor({ state: 'detached', timeout: 6000 });
+  };
+
+  await test('rename a Zigbee device: ZbName, then its triggers (SetOption83 on) and ZbSend in the rules', async p => {
+    await rnCmd('Rule3 on ZbReceived#Capteur_bureau#Temperature>25 do ZbSend {"device":"Capteur bureau","send":{"Power":1}} endon');
+    await openRn(p);
+    await p.getByRole('button', { name: 'Renommer Capteur bureau', exact: true }).click();
+    const dlg = p.getByRole('dialog');
+    await dlg.getByLabel('Nouveau nom').fill('lampe SALON');
+    await dlg.getByRole('alert').filter({ hasText: 'déjà pris' }).waitFor();
+    if (await dlg.getByRole('button', { name: 'Renommer', exact: true }).isEnabled()) throw new Error('a used name can be saved');
+    await dlg.getByLabel('Nouveau nom').fill('Capteur, bureau');
+    await dlg.getByRole('alert').filter({ hasText: 'virgule' }).waitFor();
+    await dlg.getByLabel('Nouveau nom').fill('Capteur bureau 2');
+    await dlg.getByText(/ne pourront plus|ne seront plus utilisables/).waitFor();     // a space, SetOption83 on
+    await dlg.getByRole('button', { name: 'Fermer' }).click();
+    await rename(p, 'Capteur bureau', 'Capteur_bureau', 'Rule3 (1)');                 // ZbSend by name
+    await p.getByRole('heading', { name: 'Capteur_bureau' }).waitFor({ timeout: 4000 });
+    await rename(p, 'Capteur_bureau', 'Bureau', 'Rule3 (2)');                         // trigger and ZbSend
+    await p.getByRole('heading', { name: 'Bureau', exact: true }).waitFor({ timeout: 4000 });
+    const text = await rnRule(3);
+    if (text !== 'on ZbReceived#Bureau#Temperature>25 do ZbSend {"device":"Bureau","send":{"Power":1}} endon') throw new Error('Rule3: ' + text);
+    const d = await (await fetch(RN + '/api/devices?t=0123456789abcdef0123456789abcdef')).json();
+    if (d.find(x => x.addr === '0x5E6F').name !== 'Bureau') throw new Error('ZbName not sent');
+  });
+
+  await test('rename a Tuya device: TuyaRename, Matter endpoint kept, TuyaSend and TuyaConnected in the rules', async p => {
+    await rnCmd('Rule2 on TuyaConnected#Name=Pince do TuyaSend Pince,1,true endon');
+    await openRn(p);
+    const card = p.locator('article.card', { has: p.getByRole('heading', { name: 'Pince', exact: true }) });
+    await card.waitFor({ timeout: 6000 });
+    await p.getByRole('button', { name: 'Renommer Pince', exact: true }).click();
+    const dlg = p.getByRole('dialog');
+    await dlg.getByLabel('Nouveau nom').fill('ventilateur');
+    await dlg.getByRole('alert').filter({ hasText: 'déjà pris' }).waitFor();
+    await dlg.getByLabel('Nouveau nom').fill('Pince garage');
+    await dlg.getByText('Google Home ne perd pas').waitFor();
+    await dlg.getByRole('button', { name: 'Fermer' }).click();
+    await rename(p, 'Pince', 'Pince garage', 'Rule2 (2)');
+    const moved = p.locator('article.card', { has: p.getByRole('heading', { name: 'Pince garage', exact: true }) });
+    await moved.getByText('Total puissance').waitFor({ timeout: 6000 });         // its configuration read again
+    const text = await rnRule(2);
+    if (text !== 'on TuyaConnected#Name=Pince garage do TuyaSend Pince garage,1,true endon') throw new Error('Rule2: ' + text);
+    const st = (await rnCmd('TuyaStatus')).TuyaStatus;
+    if (!st['Pince garage'] || st.Pince) throw new Error('TuyaRename not sent');
+    // a binding without "ep" keeps the old name (Ventilateur's are explicit: unchanged)
+    await rename(p, 'Entrée-Porche', 'Porche');
+    const c = (await rnCmd('TuyaConfig Porche')).TuyaConfig;
+    if (c.name !== 'Porche') throw new Error('Entrée-Porche not renamed');
   });
 
   await browser.close();
