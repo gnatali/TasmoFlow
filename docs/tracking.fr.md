@@ -56,7 +56,7 @@ Cahier des charges (en français, hors du dépôt) :
 
 | Date | Étape |
 | --- | --- |
-| 21 nov. | Test de T10 : `.tapp` `0.2.0-dev.de52476` installée à la main (Guillaume) ; builds de test faits pour deux mises à jour de suite. Première mise à jour (vers `0.2.0-dev.a6d0343`) : réussie, `one rename` ; seconde (vers `0.2.0-dev.fe5913e`) : réussie, `one rename`. **T10 vérifié sur la passerelle** |
+| 21 nov. | Test de T10 : `.tapp` `0.2.0-dev.de52476` installée à la main (Guillaume) ; builds de test faits pour deux mises à jour de suite. Première mise à jour (vers `0.2.0-dev.a6d0343`) : réussie, `one rename` ; seconde (vers `0.2.0-dev.fe5913e`) : réussie, `one rename`. **T10 vérifié sur la passerelle** (`.bak` correct, aucun `.new` restant) ; **T7 et T12 vérifiés** aussi. Heap libre 60 Ko (conditions à confirmer : 69 Ko au repos le 20 novembre) |
 | 21 nov. | **T10 corrigé** (analyse de bugs) : la mise à jour copie `TasmoFlow.tapp` en `.bak`, puis renomme le nouveau fichier par-dessus en une seule étape (littlefs remplace un fichier existant en un seul commit, vérifié dans les sources sur tout le chemin) : une coupure laisse l'ancienne ou la nouvelle version, jamais aucune ; les deux renommages d'avant restent en secours ; ligne du README sur le renommage du `.bak`. **La `.tapp` doit être installée à la main une fois** (le code de mise à jour a changé), puis une mise à jour dit quelle voie elle a prise (`TFL: update installed (one rename)`) |
 | 21 nov. | **T7, T12 corrigés** (analyse de bugs) : un enregistrement de règle reçoit un numéro de `rule_set`, et les étapes d'un enregistrement plus ancien répondent `busy` (l'interface dit qu'une autre interface enregistre, n'écrit et ne restaure rien) ; noms d'en-têtes sans tenir compte de la casse, seule une requête avec le jeton garde le serveur éveillé, un EventSource qui se reconnecte reprend à son `Last-Event-ID` au lieu de rejouer l'historique. 34 tests de bout en bout. **La `.tapp` doit être réinstallée** (`extension/`) |
 | 21 nov. | **Commande Tuya sans réponse : vérifiée sur la passerelle** (Guillaume), avec le firmware du 21 novembre (commit `fd7f7cc`, run 44893756664). Le premier build du firmware de ce correctif (20 novembre) ne démarrait pas : un membre de plus dans une classe solidifiée du driver ; réécrit sans (dépôt firmware, `berry-pitfalls.md`) |
@@ -206,7 +206,7 @@ en partie essayées sur la passerelle, voir le plan de test.
   12 constats classés par priorité et 10 pistes d'amélioration. **T1 à T4 corrigés** le 18
   novembre 2026 (T4 avec le firmware du même jour : `TuyaConfig <appareil>` lu entrée par
   entrée), vérifiés sur la passerelle par Guillaume ; **T5, T8, T11 corrigés** le même soir, à
-  vérifier (T8 est parti avec l'interface légère) ; **T6, T9 corrigés** le 19 novembre, vérifiés sur la passerelle par Guillaume ; T5 et T11 vérifiés le 20 novembre ; T7, T10 et T12 corrigés le 21 novembre, à vérifier : tous les points sont corrigés.
+  vérifier (T8 est parti avec l'interface légère) ; **T6, T9 corrigés** le 19 novembre, vérifiés sur la passerelle par Guillaume ; T5 et T11 vérifiés le 20 novembre ; T7, T10 et T12 corrigés et vérifiés le 21 novembre : tous les points sont corrigés et vérifiés.
   Ensuite : T7, T10, T12.
 
 - **Réduire le `.tapp`** (18 novembre 2026) :

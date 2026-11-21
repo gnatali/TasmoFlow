@@ -49,7 +49,7 @@ Specification (French, outside the repository):
 
 | Date | Step |
 | --- | --- |
-| 21 Nov | T10 test: `.tapp` `0.2.0-dev.de52476` installed by hand (Guillaume); test builds made to update twice in a row. First update (to `0.2.0-dev.a6d0343`): passed, `one rename`; second (to `0.2.0-dev.fe5913e`): passed, `one rename`. **T10 checked on the gateway** |
+| 21 Nov | T10 test: `.tapp` `0.2.0-dev.de52476` installed by hand (Guillaume); test builds made to update twice in a row. First update (to `0.2.0-dev.a6d0343`): passed, `one rename`; second (to `0.2.0-dev.fe5913e`): passed, `one rename`. **T10 checked on the gateway** (`.bak` right, no `.new` left); **T7 and T12 checked** too. Free heap 60 KB (conditions to confirm: 69 KB at rest on 20 November) |
 | 21 Nov | **T10 fixed** (bug analysis): the update copies `TasmoFlow.tapp` to `.bak`, then renames the new file onto it in one step (littlefs replaces an existing file in one commit, checked in the sources along the way): a power cut leaves the old or the new version, never none; the two renames of before stay as a fallback; README line about renaming the `.bak`. **The `.tapp` must be installed by hand once** (the update code changed), then an update tells which way it took (`TFL: update installed (one rename)`) |
 | 21 Nov | **T7, T12 fixed** (bug analysis): a rule save gets an id from `rule_set`, and an older save's steps answer `busy` (the interface says another interface is saving, writes and restores nothing); header names in any case, only a request with the token keeps the server awake, an EventSource that reconnects resumes from its `Last-Event-ID` instead of replaying the history. 34 end-to-end tests. **The `.tapp` must be installed again** (`extension/`) |
 | 21 Nov | **Tuya command not answered: checked on the gateway** (Guillaume), with the firmware of 21 November (commit `fd7f7cc`, run 44893756664). The first firmware build of this fix (20 November) did not start: a new member in a solidified class of the driver; rewritten without one (firmware repository, `berry-pitfalls.md`) |
@@ -195,7 +195,7 @@ conflicts) are written and tried on the gateway in part, see the test plan.
   sorted by priority and 10 improvement ideas. **T1 to T4 fixed** on 18 November 2026 (T4 with
   the firmware of the same day: `TuyaConfig <device>` read entry by entry), checked on the
   gateway by Guillaume; **T5, T8, T11 fixed** the same evening, to check (T8 went with the light
-  interface); **T6, T9 fixed** on 19 November, checked on the gateway by Guillaume; T5 and T11 checked on 20 November; T7, T10 and T12 fixed on 21 November, to check: every finding is fixed.
+  interface); **T6, T9 fixed** on 19 November, checked on the gateway by Guillaume; T5 and T11 checked on 20 November; T7, T10 and T12 fixed and checked on 21 November: every finding is fixed and checked.
 
 - **Reducing the `.tapp`** (18 November 2026):
   [investigations/tapp-size-2026-11.md](investigations/tapp-size-2026-11.md) lists the options
