@@ -38,7 +38,7 @@ function in a plausible situation; **P3** robustness, rare cases; **P4** minor.
 | T7 | P3 | The rule write keeps one text for all clients: two interfaces saving together can store the other's text and report success | **Fixed** (21 November 2026): `rule_set` gives an id, the steps of an older save answer `busy` |
 | T8 | P3 | `lite.js` is cached for a day under an address without a version: after an update a browser can run the previous light interface | **Fixed** (18 November 2026) |
 | T9 | P3 | Port 8384 has no connection limit and no timeout for an incomplete request | **Fixed** (19 November 2026), checked on the gateway |
-| T10 | P4 | A power cut between the two renames of an update leaves no `TasmoFlow.tapp` | **Fixed** (21 November 2026): copy to `.bak`, then one rename onto the installed file |
+| T10 | P4 | A power cut between the two renames of an update leaves no `TasmoFlow.tapp` | **Fixed** (21 November 2026): copy to `.bak`, then one rename onto the installed file; checked on the gateway |
 | T11 | P4 | Zigbee toggle and pairing buttons show nothing when the command fails | **Fixed** (18 November 2026) |
 | T12 | P4 | `Content-Length` is only recognised in two spellings; a request without the token still keeps the server awake; every reconnection replays the whole event history | **Fixed** (21 November 2026): header names in any case, `touch()` after the token, `Last-Event-ID` read |
 
