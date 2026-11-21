@@ -19,7 +19,7 @@ globalThis.document = { documentElement: {} };
 globalThis.window = { addEventListener() {} };      // rules.js (reached through tuya.js, rename.js) listens for beforeunload
 const m = { exports: {} };
 new Function('module', 'exports', out)(m, m.exports);
-const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
+const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, keyMismatch, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
 
 let n = 0;
 const ok = (name, f) => { f(); n++; };
@@ -162,16 +162,42 @@ ok('Zigbee key: name only with SetOption83 and a name', () => {
   assert.strictEqual(zbKey(devs['0x1A2B'], false), '0x1A2B');
   assert.strictEqual(zbKey(devs['0x3C4D'], true), '0x3C4D');
 });
-ok('Zigbee triggers: attributes, addresses, names with a space left out', () => {
+ok('Zigbee triggers: attributes, addresses, names with a space kept', () => {
   let r = zbTriggers(devs, false);
   assert.strictEqual(r.skipped, 0);
   const all = r.groups.flatMap(g => g.items.map(i => i.value));
   assert.deepStrictEqual(all.sort(), ['ZbReceived#0x1A2B#BatteryPercentage', 'ZbReceived#0x1A2B#Click', 'ZbReceived#0x3C4D#Dimmer',
     'ZbReceived#0x3C4D#Power', 'ZbReceived#0x5E6F#Temperature']);
   r = zbTriggers(devs, true);
-  assert.strictEqual(r.skipped, 1);                                    // "Capteur bureau" has a space
-  assert.ok(r.groups.flatMap(g => g.items.map(i => i.value)).includes('ZbReceived#Bouton#Click'));
-  assert.ok(!usableKey('Capteur bureau') && usableKey('Bouton'));
+  assert.strictEqual(r.skipped, 0);                                    // Tasmota takes a trigger up to " DO ": spaces are fine
+  const named = r.groups.flatMap(g => g.items.map(i => i.value));
+  assert.ok(named.includes('ZbReceived#Bouton#Click') && named.includes('ZbReceived#Capteur bureau#Temperature'));
+  assert.ok(usableKey('Capteur bureau') && usableKey('Bouton') && usableKey('Lumière entrée'));
+  for (const k of ['Prise#2', 'A=B', 'a<b', 'x|y', 'say "hi"', "l'entrée", ' Lampe', 'Lampe ', 'Lampe  salon', 'Lampe do salon', 'Haut or bas', 'Fin endon'])
+    assert.ok(!usableKey(k), k);
+});
+ok('Zigbee trigger with a space in the name: read as a sentence, written back the same', () => {
+  const t = 'on ZbReceived#Capteur bureau#Temperature>25 do Power1 on endon';
+  const b = parseBlock(t);
+  assert.deepStrictEqual([b.kind, b.subject, b.op, b.value], ['sentence', 'ZbReceived#Capteur bureau#Temperature', '>', '25']);
+  assert.strictEqual(serializeBlock(b), t);
+  assert.strictEqual(parseBlock('on ZbReceived#Capteur bureau#Temperature do Power1 on endon').subject, 'ZbReceived#Capteur bureau#Temperature');
+  assert.strictEqual(describeSubject('ZbReceived#Capteur bureau#Temperature', devs, true), 'Capteur bureau · Temperature');
+});
+ok('Zigbee trigger key that SetOption83 makes wrong: found, with its fix', () => {
+  // SetOption83 on: Tasmota writes the name, a trigger by address never fires
+  assert.deepStrictEqual(keyMismatch('ZbReceived#0x1A2B#Click', devs, true), { want: 'name', device: 'Bouton', fixed: 'ZbReceived#Bouton#Click' });
+  assert.deepStrictEqual(keyMismatch('ZbReceived#0x5E6F#Temperature', devs, true).fixed, 'ZbReceived#Capteur bureau#Temperature');
+  // off: the address is written, a trigger by name never fires
+  assert.deepStrictEqual(keyMismatch('ZbReceived#bouton#Click', devs, false), { want: 'addr', device: 'Bouton', fixed: 'ZbReceived#0x1A2B#Click' });
+  // right ones, an unnamed device, other triggers
+  assert.strictEqual(keyMismatch('ZbReceived#Bouton#Click', devs, true), null);
+  assert.strictEqual(keyMismatch('ZbReceived#0x1A2B#Click', devs, false), null);
+  assert.strictEqual(keyMismatch('ZbReceived#0x3C4D#Power', devs, true), null);
+  assert.strictEqual(keyMismatch('ZbReceived#0x9999#Power', devs, true), null);
+  assert.strictEqual(keyMismatch('Power1#State', devs, true), null);
+  // a name no trigger can carry: no key would fire, nothing to offer
+  assert.strictEqual(keyMismatch('ZbReceived#0x7777#Power', { '0x7777': { addr: '0x7777', name: 'A#B', attrs: {} } }, true), null);
 });
 ok('Zigbee triggers: device information is not an event', () => {
   const r = zbTriggers({ '0x1': { addr: '0x1', name: '0x1', attrs: { IEEEAddr: 'x', ModelId: 'y', Manufacturer: 'z', Endpoints: [1], Reachable: true, Power: 1 } } }, false);
@@ -292,13 +318,13 @@ const GZ = {
   '0x7788': { addr: '0x7788', name: 'Prise cuisine bas', attrs: { Power: 1 } },          // a name with a space
   '0x9999': { addr: '0x9999', name: '', attrs: {} }                                       // nothing reported yet
 };
-ok('guided: devices that can start a rule, name or address as SetOption83 says, spaces left out', () => {
+ok('guided: devices that can start a rule, name or address as SetOption83 says', () => {
   const byAddr = guidedDevices(GZ, false);
   assert.deepStrictEqual(byAddr.list.map(d => d.key), ['0x9999', '0x1A2B', '0x5E6F', '0x3C4D', '0x7788']);   // by the name shown: the unnamed first
   assert.strictEqual(byAddr.skipped, 0);
   const byName = guidedDevices(GZ, true);
-  assert.strictEqual(byName.skipped, 4);                                                  // every name here has a space but 0x9999's (none)
-  assert.deepStrictEqual(byName.list.map(d => d.key), ['0x9999']);
+  assert.strictEqual(byName.skipped, 0);                                                  // names with a space are fine
+  assert.deepStrictEqual(byName.list.map(d => d.key), ['0x9999', 'Bouton salon', 'Capteur bureau', 'Lampe salon', 'Prise cuisine bas']);
   assert.deepStrictEqual(byAddr.list.find(d => d.addr === '0x9999').attrs, ['Power']);    // like the pickers: Power by default
   assert.deepStrictEqual(byAddr.list.find(d => d.addr === '0x1A2B').attrs, ['Click', 'BatteryPercentage']);
 });
@@ -328,7 +354,9 @@ ok('guided: the block written, with the name or the address', () => {
   assert.strictEqual(serializeBlock(b), 'on ZbReceived#0x1A2B#Click=single do ZbSend {"device":"0x3C4D","send":{"Power":"Toggle"}} endon');
   assert.strictEqual(serializeBlock(guidedBlock({ addr: '0x9999', attr: 'Power', op: '', value: '' }, ['Power1 on'], { '0x9999': { addr: '0x9999', name: 'Prise' } }, true)),
     'on ZbReceived#Prise#Power do Power1 on endon');
-  assert.strictEqual(guidedBlock({ addr: '0x7788', attr: 'Power', op: '', value: '' }, ['Power1 on'], GZ, true), null);   // "Prise cuisine bas": no name in a trigger
+  assert.strictEqual(serializeBlock(guidedBlock({ addr: '0x7788', attr: 'Power', op: '', value: '' }, ['Power1 on'], GZ, true)),
+    'on ZbReceived#Prise cuisine bas#Power do Power1 on endon');                          // a name with a space
+  assert.strictEqual(guidedBlock({ addr: '0x1', attr: 'Power', op: '', value: '' }, ['Power1 on'], { '0x1': { addr: '0x1', name: 'A=B' } }, true), null);   // no trigger can carry it
   assert.strictEqual(parseBlock(serializeBlock(b)).kind, 'sentence');                    // the editor reads it back
 });
 
@@ -379,7 +407,12 @@ ok('rename: Zigbee triggers (SetOption83 on) and ZbSend, whole names only', () =
   // a device named for the first time with SetOption83 on: its address triggers take the name
   assert.strictEqual(renameRefs('on ZbReceived#0x1A2B#Power=1 do Power1 on endon', 'zigbee', { trigFrom: '0x1A2B', trigTo: 'Lampe', from: '', to: 'Lampe' }).text, 'on ZbReceived#Lampe#Power=1 do Power1 on endon');
   // no trigger can carry the new name: triggers left alone
-  assert.strictEqual(renameRefs('on ZbReceived#Lampe#Power do Power1 on endon', 'zigbee', { trigFrom: 'Lampe', trigTo: null, from: 'Lampe', to: 'Lampe salon' }).n, 0);
+  assert.strictEqual(renameRefs('on ZbReceived#Lampe#Power do Power1 on endon', 'zigbee', { trigFrom: 'Lampe', trigTo: null, from: 'Lampe', to: 'Lampe#2' }).n, 0);
+  // names with a space: "Lampe" is not the start of "Lampe salon", and a space can be renamed
+  const sp = renameRefs('on ZbReceived#Lampe salon#Power=1 do Power1 on endon on ZbReceived#Lampe#Power = 1 do Power2 on endon on ZbReceived#Lampe do Power3 on endon', 'zigbee', { trigFrom: 'Lampe', trigTo: 'Plafond haut' });
+  assert.strictEqual(sp.n, 2);
+  assert.strictEqual(sp.text, 'on ZbReceived#Lampe salon#Power=1 do Power1 on endon on ZbReceived#Plafond haut#Power = 1 do Power2 on endon on ZbReceived#Plafond haut do Power3 on endon');
+  assert.strictEqual(renameRefs('on ZbReceived#Lampe salon#Power=1 do Power1 on endon', 'zigbee', { trigFrom: 'Lampe salon', trigTo: 'Salon' }).text, 'on ZbReceived#Salon#Power=1 do Power1 on endon');
 });
 ok('rename: Tuya TuyaSend and connection triggers, regex characters escaped', () => {
   const text = 'on TuyaConnected#Name=Pince (garage) do TuyaSend Pince (garage),1,true endon on TuyaDisconnected#Name=Pince (garage) do Backlog TuyaSend Pince (garage), 1,false; TuyaSend Pince (garage) 2,1,true endon';

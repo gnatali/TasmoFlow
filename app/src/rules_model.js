@@ -8,7 +8,7 @@ import { splitBlocks, flatRule } from './rules_lint.js';
 
 export const OPERATORS = ['=', '!=', '>', '<', '>=', '<='];
 // what Tasmota calls a trigger: Subject#Key[<op><value>]
-const TRIGGER = /^([^\s=<>!|]+)\s*(!=|>=|<=|<>|==|=|>|<|\|)?\s*([^]*)$/;
+const TRIGGER = /^([^=<>!|]*[^\s=<>!|])\s*(!=|>=|<=|<>|==|=|>|<|\|)?\s*([^]*)$/;
 
 // index of the parenthesis closing the one at `open`, or -1
 function closing(s, open) {

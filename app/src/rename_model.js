@@ -15,7 +15,7 @@ export function renameRefs(text, kind, ref) {
   const { from, to, trigFrom, trigTo } = ref;
   if (kind === 'zigbee') {
     if (trigFrom && trigTo && trigFrom !== trigTo) {
-      sub(new RegExp('(ZbReceived#)' + esc(trigFrom) + '(?=[#=<>!|\\s]|$)', 'gi'), (m, a) => a + trigTo);
+      sub(new RegExp('(ZbReceived#)' + esc(trigFrom) + '(?=#|\\s*[=<>!|]|\\s+do\\b|$)', 'gi'), (m, a) => a + trigTo);
     }
     if (from && to) sub(new RegExp('("device"\\s*:\\s*")' + esc(from) + '"', 'gi'), (m, a) => a + to + '"');
   } else if (from && to) {

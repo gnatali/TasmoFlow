@@ -1016,6 +1016,25 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await dlg.waitFor({ state: 'detached', timeout: 6000 });
   };
 
+  await test('SetOption83 on: a name with a space is offered, a trigger by address is flagged and fixed', async p => {
+    await rnCmd('Rule3 on ZbReceived#0x5E6F#Temperature>25 do Power1 on endon');
+    await openRn(p);
+    await p.getByRole('button', { name: 'Règles' }).click();
+    const r3 = await rule(p, 3);
+    await r3.getByRole('button', { name: 'Phrases' }).click();
+    await r3.locator('.tile').getByText(/désigne Capteur bureau par son nom/).waitFor({ timeout: 4000 });
+    await r3.getByRole('button', { name: 'Modifier' }).click();
+    const dlg = p.getByRole('dialog');
+    await dlg.getByRole('button', { name: 'Corriger le déclencheur' }).click();
+    if (await dlg.getByText(/désigne Capteur bureau par son nom/).count()) throw new Error('warning still shown after the fix');
+    await dlg.getByRole('button', { name: 'Terminé' }).click();
+    await r3.getByRole('button', { name: 'Enregistrer' }).click();
+    for (let i = 0; i < 40 && !(await rnRule(3)).includes('#Capteur bureau#'); i++) await wait(100);
+    const text = await rnRule(3);
+    if (text !== 'on ZbReceived#Capteur bureau#Temperature>25 do Power1 on endon') throw new Error('Rule3: ' + text);
+    await rnCmd('Rule3 "');
+  });
+
   await test('rename a Zigbee device: ZbName, then its triggers (SetOption83 on) and ZbSend in the rules', async p => {
     await rnCmd('Rule3 on ZbReceived#Capteur_bureau#Temperature>25 do ZbSend {"device":"Capteur bureau","send":{"Power":1}} endon');
     await openRn(p);
@@ -1026,8 +1045,8 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     if (await dlg.getByRole('button', { name: 'Renommer', exact: true }).isEnabled()) throw new Error('a used name can be saved');
     await dlg.getByLabel('Nouveau nom').fill('Capteur, bureau');
     await dlg.getByRole('alert').filter({ hasText: 'virgule' }).waitFor();
-    await dlg.getByLabel('Nouveau nom').fill('Capteur bureau 2');
-    await dlg.getByText(/ne pourront plus|ne seront plus utilisables/).waitFor();     // a space, SetOption83 on
+    await dlg.getByLabel('Nouveau nom').fill('Capteur #2');
+    await dlg.getByText(/ne pourront plus|ne seront plus utilisables/).waitFor();     // a #, SetOption83 on
     await dlg.getByRole('button', { name: 'Fermer' }).click();
     await rename(p, 'Capteur bureau', 'Capteur_bureau', 'Rule3 (1)');                 // ZbSend by name
     await p.getByRole('heading', { name: 'Capteur_bureau' }).waitFor({ timeout: 4000 });

@@ -606,8 +606,13 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   per Tasmota's source (`tasmota/tasmota_xdrv_driver/xdrv_23_zigbee_2a_devices_impl.ino`,
   `Z_Device::jsonPublishAttrList`, firmware commit `a281cece`) `<key>` is the friendly name only
   if `SetOption83` is on and the device has one, else the short address `0x%04X`, so the editor
-  reads `SetOption83` and writes the right key; a name with a space cannot be a trigger and is
-  left out with a hint. *Zigbee actions*: `ZbSend {"device":"0x1234","send":{"Power":"On"}}`
+  reads `SetOption83` and writes the right key. A name with a space is fine (since 21 November 2026:
+  Tasmota takes the trigger as all the text between `ON ` and ` DO `, `xdrv_10_rules.ino`
+  `RuleSetProcess`, and finds each `#` part as a JSON key without case, `RulesRuleMatch` and
+  `JsonParserObject::operator[]`); left out with a hint: `#=<>!|"'`, spaces doubled or at either end, and
+  the words `do`, `endon`, `break`, `and`, `or`. A `ZbReceived` trigger whose key is not the one Tasmota
+  writes (the address with `SetOption83` on and a named device, the name with it off) never fires: the
+  tile and the form say so, and the form offers to fix it (`keyMismatch()`). *Zigbee actions*: `ZbSend {"device":"0x1234","send":{"Power":"On"}}`
   (on, off, toggle; by address, which never changes) for devices with a `Power` attribute.
   *Tuya actions*: `TuyaSend <name>,<dp>,true|false|toggle` per switch, `TuyaSend <name>,<dp>,` to
   complete for a slider (a name with a comma goes by its id, or is left out without one). *Tuya triggers* are not offered: the
@@ -653,7 +658,7 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
 - **Guided mode** (v0.2, written on 12 November 2026; full interface only: `rules_guided.js`, logic in
   `rules_guided_model.js`, dialog shared with the form in `rules_modal.js`; no change on the gateway, no
   `.tapp` to install again). The *Guided rule* tile opens a dialog in two steps. **1. When**: a list
-  of the Zigbee devices that can start a rule (the same as the pickers: a name with a space is left
+  of the Zigbee devices that can start a rule (the same as the pickers: a name no trigger can carry is left
   out), then *What happens?* in words: for `Power` "it turns on" (`=1`), "it turns off" (`=0`), "it
   changes state"; for any other attribute "every message" and the values this device was seen with
   (the messages received since the interface opened, and its last state; one-word values only).
@@ -697,7 +702,7 @@ the gateway's own command, then offers to rewrite the rule sets that name the de
 
 | Where the name is used | Zigbee (`ZbName <addr>,<name>`) | Tuya (`TuyaRename <name>,<new name>`) |
 |---|---|---|
-| Rule triggers | `ZbReceived#<key>#...`: the key is the name only with `SetOption83` on, else the address (nothing to change); a name with a space or `#=<>!\|"` cannot be a trigger (warning) | `TuyaConnected#Name=<name>`, `TuyaDisconnected#Name=<name>` |
+| Rule triggers | `ZbReceived#<key>#...`: the key is the name only with `SetOption83` on, else the address (nothing to change); a name with `#=<>!\|"'`, doubled or outer spaces or the words `do`, `endon`, `break`, `and`, `or` cannot be a trigger (warning); a trigger with the wrong key is flagged | `TuyaConnected#Name=<name>`, `TuyaDisconnected#Name=<name>` |
 | Rule commands | `ZbSend {"device":"<name>"...}` (an emptied name: the address) | `TuyaSend <name>,...` (a name with a comma goes by its id: unchanged) |
 | Berry rules, `autoexec.be` | read only here: the Berry rules naming the device are listed | same |
 | Matter | a Zigbee endpoint may name its device (`zigbee_device`, short address or name, resolved by `zigbee.find()` in `Matter_z_Zigbee.be`): a warning says to change it there | a binding without `"ep"` took the device name: `TuyaRename` writes the old name as its `"ep"`, so the endpoint and Google Home keep it |
@@ -748,14 +753,14 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] v0.1: with the uncached loading, the memory partly returns 5 minutes after the last tab is closed: 59 KB free / Berry 48 KB with the interface open, 69 KB / 39 KB after (75 KB / 35 KB before the first opening)
 - [x] v0.2 (11 November 2026, two updates in a row, `dev.1688247` to `dev.e00d0d6` to `dev.f34f8c7`): update (`.tapp` of the previous test build installed, then run `Build` again): `/tf` shows the light interface with the banner and **Update**; the button sends the file, the page waits then reloads on the new build (`dev.<commit>` in the header), `TasmoFlow.tapp.bak` exists next to `TasmoFlow.tapp`, no `.new` is left, no `.tapp` in both `/` and `/.extensions/`; **Later** opens the usual interface; memory at rest and with an interface open unchanged (`tf_update.be` is compiled only when used)
 - [ ] v0.2: update, failure cases: power cut during the transfer (the `.new` is not loaded at boot), a wrong `sha256` in `latest.json` (refused, nothing changed)
-- [ ] v0.2: Berry section: the rules list matches `Br print(tasmota._rules)` with their owner, and `autoexec.be` shows as text (`.tapp` installed again, `Restart 1`; the route is new)
+- [x] v0.2 (21 November 2026, checked on the gateway, Guillaume): Berry section: the rules list matches `Br print(tasmota._rules)` with their owner, and `autoexec.be` shows as text (`.tapp` installed again, `Restart 1`; the route is new)
 - [ ] v0.2: conflicts: two enabled rule sets that toggle the same light on the same trigger show the banner "Rules that may clash"; it disappears when one is switched off
 - [ ] v0.2: device pickers: in a new rule, the trigger list offers your Zigbee devices (attributes they reported) and the command lists offer `ZbSend` (on, off, toggle) and your Tuya devices; with `SetOption83` on and a named device, the trigger carries the name (`ZbReceived#Lampe#Power`), off the address; the saved rule works (press the button, the light toggles); the sentence reads `Lampe · Power = 1` / `basculer Lampe`
 - [ ] v0.2: guided mode: *Guided rule*, pick the real button, *Learn: press the button*, press it: the device, `Click` and the value it sent are filled in and the sentence reads right; pick a lamp as the action, *Create the rule*, Save: pressing the button switches the lamp (on the gateway, with the interface closed); learning with no device chosen ignores the periodic readings of a sensor and takes the first button press
 - [ ] v0.2: device connected (Zigbee): a rule `on ZbState#ShortAddr=0x<lamp> do ...` (picked as *connected* in the trigger list of a lamp): unplug the lamp, plug it back in: the rule fires (log line `RUL: ZBSTATE#SHORTADDR=...`); a battery sensor never fires it
 - [ ] v0.2: device connected (Tuya, needs the firmware with `TuyaConnected` / `TuyaDisconnected`): `on TuyaConnected#Name=<device> do ...` fires when the device is switched back on, and `TuyaDisconnected#Name=<device>` when it is switched off; a name with a comma works
-- [ ] v0.2: several triggers and else if: three triggers on one sentence give three `on ... endon` blocks in the Text view and one tile when read back; an `elseif` branch runs when its condition holds (`Var1`)
-- [ ] v0.2: Sentences view: a rule set typed in Text view shows as sentences; editing a trigger value, adding an `if` / `else` and a second command, adding and deleting a rule, then Save gives the expected text (`Rule<n>` in the console); a rule that fits no sentence stays text
+- [x] v0.2 (21 November 2026, checked on the gateway, Guillaume): several triggers and else if: three triggers on one sentence give three `on ... endon` blocks in the Text view and one tile when read back; an `elseif` branch runs when its condition holds (`Var1`)
+- [x] v0.2 (21 November 2026, checked on the gateway, Guillaume): Sentences view: a rule set typed in Text view shows as sentences; editing a trigger value, adding an `if` / `else` and a second command, adding and deleting a rule, then Save gives the expected text (`Rule<n>` in the console); a rule that fits no sentence stays text
 - [x] v0.2 (10 November 2026): Rules screen: the three rule sets show the text of `Rule1` to `Rule3`; saving a rule of more than 600 characters (POST body) reads back identical when typed on several lines (stored on one line, shown one block per line; otherwise the old text is put back and an error is shown); "Previous copy" then "Restore" brings the old text back
 - [x] v0.2: enabling/disabling, "once only" and "stop on error" act on the real rule set; the Berry rules list matches `Br print(tasmota._rules)`
 - [x] v0.2: the light interface (GitHub blocked) shows the Rules tab with enable/disable and restore, without the editor (removed on 11 November 2026: rules are in the full interface only)

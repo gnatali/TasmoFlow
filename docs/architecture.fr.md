@@ -642,8 +642,14 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   Tasmota (`tasmota/tasmota_xdrv_driver/xdrv_23_zigbee_2a_devices_impl.ino`,
   `Z_Device::jsonPublishAttrList`, commit du firmware `a281cece`), `<clé>` est le nom convivial
   seulement si `SetOption83` est actif et que l'appareil en a un, sinon l'adresse courte
-  `0x%04X` ; l'éditeur lit donc `SetOption83` et écrit la bonne clé ; un nom avec un espace ne peut
-  pas servir de déclencheur, il est écarté avec une indication. *Actions Zigbee* :
+  `0x%04X` ; l'éditeur lit donc `SetOption83` et écrit la bonne clé. Un nom avec un espace convient (depuis le
+  21 novembre 2026 : Tasmota prend comme déclencheur tout le texte entre `ON ` et ` DO `,
+  `xdrv_10_rules.ino` `RuleSetProcess`, et cherche chaque partie entre `#` comme une clé JSON sans
+  tenir compte de la casse, `RulesRuleMatch` et `JsonParserObject::operator[]`) ; écartés avec une
+  indication : `#=<>!|"'`, les espaces doublés ou en bout, et les mots `do`, `endon`, `break`, `and`,
+  `or`. Un déclencheur `ZbReceived` dont la clé n'est pas celle que Tasmota écrit (l'adresse avec
+  `SetOption83` activé et un appareil nommé, le nom quand il est désactivé) ne se déclenche jamais : la
+  tuile et le formulaire le signalent, et le formulaire propose de le corriger (`keyMismatch()`). *Actions Zigbee* :
   `ZbSend {"device":"0x1234","send":{"Power":"On"}}` (allumer, éteindre, basculer ; par adresse, qui
   ne change jamais) pour les appareils qui ont un attribut `Power`. *Actions Tuya* :
   `TuyaSend <nom>,<dp>,true|false|toggle` par interrupteur, `TuyaSend <nom>,<dp>,` à compléter pour
@@ -697,7 +703,7 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   logique dans `rules_guided_model.js`, fenêtre partagée avec le formulaire dans `rules_modal.js` ; rien ne
   change sur la passerelle, pas de `.tapp` à réinstaller). La tuile *Règle guidée* ouvre une fenêtre en deux
   étapes. **1. Quand** : la liste des appareils Zigbee qui peuvent déclencher une règle (la même que pour
-  les sélecteurs : un nom avec un espace est écarté), puis *Que se passe-t-il ?* en mots : pour `Power` « il
+  les sélecteurs : un nom qu'aucun déclencheur ne peut porter est écarté), puis *Que se passe-t-il ?* en mots : pour `Power` « il
   s'allume » (`=1`), « il s'éteint » (`=0`), « il change d'état » ; pour tout autre attribut « à chaque
   message » et les valeurs vues pour cet appareil (messages reçus depuis l'ouverture de l'interface, et
   dernier état ; valeurs d'un seul mot). **Apprentissage** : *Apprendre : appuyez sur le bouton* écoute le
@@ -744,7 +750,7 @@ qu'une étiquette, d'où les vérifications :
 
 | Où le nom sert | Zigbee (`ZbName <adr>,<nom>`) | Tuya (`TuyaRename <nom>,<nouveau nom>`) |
 |---|---|---|
-| Déclencheurs de règles | `ZbReceived#<clé>#...` : la clé est le nom seulement avec `SetOption83` activé, sinon l'adresse (rien à changer) ; un nom avec un espace ou `#=<>!\|"` ne peut pas servir de déclencheur (avertissement) | `TuyaConnected#Name=<nom>`, `TuyaDisconnected#Name=<nom>` |
+| Déclencheurs de règles | `ZbReceived#<clé>#...` : la clé est le nom seulement avec `SetOption83` activé, sinon l'adresse (rien à changer) ; un nom avec `#=<>!\|"'`, des espaces doublés ou en bout, ou les mots `do`, `endon`, `break`, `and`, `or` ne peut pas servir de déclencheur (avertissement) ; un déclencheur avec la mauvaise clé est signalé | `TuyaConnected#Name=<nom>`, `TuyaDisconnected#Name=<nom>` |
 | Commandes des règles | `ZbSend {"device":"<nom>"...}` (un nom vidé : l'adresse) | `TuyaSend <nom>,...` (un nom avec une virgule passe par son id : inchangé) |
 | Règles Berry, `autoexec.be` | en lecture seule ici : les règles Berry qui nomment l'appareil sont listées | pareil |
 | Matter | un endpoint Zigbee peut nommer son appareil (`zigbee_device`, adresse courte ou nom, résolu par `zigbee.find()` dans `Matter_z_Zigbee.be`) : un avertissement dit de le changer là | une liaison sans `"ep"` prenait le nom de l'appareil : `TuyaRename` écrit l'ancien nom comme `"ep"`, l'endpoint et Google Home le gardent |
@@ -796,14 +802,14 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] v0.1 : avec le chargement sans cache, la mémoire revient en partie 5 minutes après la fermeture du dernier onglet : 59 Ko libres / Berry 48 Ko interface ouverte, 69 Ko / 39 Ko après (75 Ko / 35 Ko avant la première ouverture)
 - [x] v0.2 (11 novembre 2026, deux mises à jour de suite, `dev.1688247` puis `dev.e00d0d6` puis `dev.f34f8c7`) : mise à jour (`.tapp` du build de test précédent installée, puis relancer `Build`) : `/tf` affiche l'interface légère avec le bandeau et **Mettre à jour** ; le bouton envoie le fichier, la page attend puis se recharge sur le nouveau build (`dev.<commit>` dans l'en-tête), `TasmoFlow.tapp.bak` existe à côté de `TasmoFlow.tapp`, aucun `.new` ne reste, aucune `.tapp` dans `/` et `/.extensions/` à la fois ; **Plus tard** ouvre l'interface habituelle ; mémoire au repos et interface ouverte inchangées (`tf_update.be` n'est compilé que lorsqu'on s'en sert)
 - [ ] v0.2 : mise à jour, cas d'échec : coupure de courant pendant le transfert (le `.new` n'est pas chargé au démarrage), un `sha256` faux dans `latest.json` (refusé, rien ne change)
-- [ ] v0.2 : section Berry : la liste correspond à `Br print(tasmota._rules)` avec leur propriétaire, et `autoexec.be` s'affiche en texte (`.tapp` réinstallée, `Restart 1` ; la route est nouvelle)
+- [x] v0.2 (21 novembre 2026, vérifié sur la passerelle par Guillaume) : section Berry : la liste correspond à `Br print(tasmota._rules)` avec leur propriétaire, et `autoexec.be` s'affiche en texte (`.tapp` réinstallée, `Restart 1` ; la route est nouvelle)
 - [ ] v0.2 : conflits : deux jeux de règles actifs qui basculent la même lumière sur le même déclencheur affichent le bandeau « Règles qui peuvent se gêner » ; il disparaît quand l'un est éteint
 - [ ] v0.2 : sélecteurs d'appareils : dans une nouvelle règle, la liste des déclencheurs propose vos appareils Zigbee (attributs signalés) et les listes de commandes proposent `ZbSend` (allumer, éteindre, basculer) et vos appareils Tuya ; avec `SetOption83` actif et un appareil nommé, le déclencheur porte le nom (`ZbReceived#Lampe#Power`), sinon l'adresse ; la règle enregistrée fonctionne (appui sur le bouton, la lumière bascule) ; la phrase se lit `Lampe · Power = 1` / `basculer Lampe`
 - [ ] v0.2 : mode guidé : *Règle guidée*, choisir le vrai bouton, *Apprendre : appuyez sur le bouton*, appuyer : l'appareil, `Click` et la valeur envoyée sont remplis et la phrase se lit bien ; choisir une lampe comme action, *Créer la règle*, Enregistrer : appuyer sur le bouton bascule la lampe (sur la passerelle, interface fermée) ; l'apprentissage sans appareil choisi ignore les mesures périodiques d'un capteur et prend le premier appui sur un bouton
 - [ ] v0.2 : appareil connecté (Zigbee) : une règle `on ZbState#ShortAddr=0x<lampe> do ...` (choisie comme *connecté* dans la liste des déclencheurs d'une lampe) : débrancher la lampe, la rebrancher : la règle se déclenche (ligne de log `RUL: ZBSTATE#SHORTADDR=...`) ; un capteur sur batterie ne la déclenche jamais
 - [ ] v0.2 : appareil connecté (Tuya, demande le firmware avec `TuyaConnected` / `TuyaDisconnected`) : `on TuyaConnected#Name=<appareil> do ...` se déclenche quand l'appareil est rallumé, et `TuyaDisconnected#Name=<appareil>` quand il est éteint ; un nom avec une virgule fonctionne
-- [ ] v0.2 : plusieurs déclencheurs et sinon si : trois déclencheurs sur une phrase donnent trois blocs `on ... endon` en vue Texte et une seule tuile à la relecture ; une branche `elseif` s'exécute quand sa condition est vraie (`Var1`)
-- [ ] v0.2 : vue Phrases : un jeu de règles saisi en vue Texte s'affiche en phrases ; modifier la valeur d'un déclencheur, ajouter un `if` / `else` et une deuxième commande, ajouter et supprimer une règle, puis Enregistrer donne le texte attendu (`Rule<n>` dans la console) ; une règle qui n'entre dans aucune phrase reste en texte
+- [x] v0.2 (21 novembre 2026, vérifié sur la passerelle par Guillaume) : plusieurs déclencheurs et sinon si : trois déclencheurs sur une phrase donnent trois blocs `on ... endon` en vue Texte et une seule tuile à la relecture ; une branche `elseif` s'exécute quand sa condition est vraie (`Var1`)
+- [x] v0.2 (21 novembre 2026, vérifié sur la passerelle par Guillaume) : vue Phrases : un jeu de règles saisi en vue Texte s'affiche en phrases ; modifier la valeur d'un déclencheur, ajouter un `if` / `else` et une deuxième commande, ajouter et supprimer une règle, puis Enregistrer donne le texte attendu (`Rule<n>` dans la console) ; une règle qui n'entre dans aucune phrase reste en texte
 - [x] v0.2 (10 novembre 2026) : écran Règles : les trois jeux affichent le texte de `Rule1` à `Rule3` ; enregistrer une règle de plus de 600 caractères (corps POST) se relit à l'identique quand elle est saisie sur plusieurs lignes (stockée sur une ligne, affichée un bloc par ligne ; sinon l'ancien texte est remis et une erreur s'affiche) ; « Copie précédente » puis « Restaurer » remet l'ancien texte
 - [x] v0.2 : l'activation/désactivation, « une seule fois » et « arrêt sur erreur » agissent sur le vrai jeu de règles ; la liste des règles Berry correspond à `Br print(tasmota._rules)`
 - [x] v0.2 : l'interface légère (GitHub bloqué) montre l'onglet Règles avec activation/désactivation et restauration, sans l'éditeur (retiré le 11 novembre 2026 : les règles ne sont plus que dans l'interface complète)

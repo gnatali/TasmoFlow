@@ -6,7 +6,7 @@ import { useState, useRef, useEffect } from 'preact/hooks';
 import { html } from './html.js';
 import { t } from './i18n.js';
 import { S } from './state.js';
-import { zbTriggers, zbActions, tuyaActions, tuyaTriggers, describeSubject, describeCommand, describeTrigger, describeConnection } from './rules_devices.js';
+import { zbTriggers, zbActions, tuyaActions, tuyaTriggers, describeSubject, describeCommand, describeTrigger, describeConnection, keyMismatch } from './rules_devices.js';
 import { Modal } from './rules_modal.js';
 import { Guided } from './rules_guided.js';
 import { parseRuleSet, serializeRuleSet, newBlock, edited, triggersOf, OPERATORS } from './rules_model.js';
@@ -18,6 +18,10 @@ const ACTIONS = ['Power1 on', 'Power1 off', 'Power1 toggle', 'Power2 toggle', 'V
 
 const items = l => l.map(x => ({ label: x.trim(), value: x }));
 const verbs = () => ({ On: t('rule_vOn'), Off: t('rule_vOff'), Toggle: t('rule_vToggle') });
+
+// a trigger that never fires because of SetOption83 (see keyMismatch), as a sentence, or null
+const keyWarn = (tr, s) => { const k = keyMismatch(tr.subject, s.devices, s.zbNames);
+  return k ? { k, text: t(k.want === 'name' ? 'rule_keyName' : 'rule_keyAddr').replace('{d}', k.device) } : null; };
 
 // What each list offers: the common ones, then the gateway's own devices
 const conn = () => ({ connected: t('rule_connected'), disconnected: t('rule_disconnected') });
@@ -125,6 +129,7 @@ function Tile({ b, s, onEdit, onDelete }) {
     <span>${items.length ? items.map((x, i) => html`${i && or ? html`<span class="or">${t('rule_or')}</span>` : null}<span class="chip" title=${x}>${x}</span>`) : '…'}</span></div>`;
   return html`<div class="tile">
     <${Line} k=${t('rule_when')} cls="when" items=${when} or=${true}/>
+    ${triggersOf(b).map(tr => keyWarn(tr, s)).filter(Boolean).map(w => html`<p class="q warn" role="status">⚠ ${w.text}</p>`)}
     ${b.cond != null ? html`<${Line} k=${t('rule_if')} cls="if" items=${[b.cond || '…']}/>` : null}
     <${Line} k=${t('rule_then')} cls="then" items=${list(b.then)}/>
     ${(b.elifs || []).map(e => html`<${Line} k=${t('rule_elseif')} cls="if" items=${[e.cond || '…']}/>
@@ -144,6 +149,7 @@ function TriggerRow({ tr, n, change, remove, trig, s }) {
   const sfx = n > 1 ? ' ' + n : '';
   const label = n > 1 ? t('rule_or').replace(/^./, c => c.toUpperCase()) + sfx : t('rule_when');   // "Ou 2"
   const plain = describeConnection(tr, s.devices, conn());            // a device connecting: the list item says it all
+  const warn = keyWarn(tr, s);
   return html`<div class="trig">
     <div class="row tight">
       <${Choice} label=${label} value=${tr.subject} groups=${trig.groups} placeholder=${t('rule_pickEvent')}
@@ -160,6 +166,8 @@ function TriggerRow({ tr, n, change, remove, trig, s }) {
       </select>
       ${tr.op ? html`<input class="grow" value=${tr.value} aria-label=${t('rule_value') + sfx} placeholder="3" onInput=${e => change({ value: e.target.value })}/>` : null}
     </div>`}
+    ${warn ? html`<div class="row tight"><span class="q warn" role="status">⚠ ${warn.text}</span>
+      <button class="b" onClick=${() => change({ subject: warn.k.fixed })}>${t('rule_keyFix')}</button></div>` : null}
   </div>`;
 }
 

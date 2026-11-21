@@ -23,8 +23,13 @@ const NOT_ATTRS = new Set(['Device', 'Endpoint', 'Endpoints', 'LinkQuality', 'Na
   'IEEEAddr', 'ModelId', 'Manufacturer', 'Reachable', 'LastSeen', 'LastSeenEpoch', 'Status', 'Config', 'Time']);
 
 export const isAddr = s => /^0x[0-9a-f]{4}$/i.test(s);
-// a name a rule trigger can carry: no space, and none of the characters that end or split a trigger
-export const usableKey = k => /^[^\s#=<>!|"']+$/.test(k);
+// A name a rule trigger can carry. Tasmota takes the trigger as all the text between "ON " and " DO "
+// (xdrv_10_rules.ino, RuleSetProcess: rule.indexOf(" DO "), then trim), splits it at `#` and finds each
+// part as a JSON key without case (RulesRuleMatch, JsonParserObject::operator[]: strcasecmp_P): a space
+// inside a name is fine. Left out: the characters that split or compare a trigger, quotes, spaces at
+// either end or doubled, and the words that end a trigger or join conditions.
+export const usableKey = k => /^[^#=<>!|"'\t\r\n]+$/.test(k) && k.trim() === k && !/  /.test(k)
+  && !/\s(do|endon|break|and|or)\s/i.test(' ' + k + ' ');
 
 const named = d => d.name && !isAddr(d.name) && d.name !== d.addr;
 // the key Tasmota writes for this device
@@ -106,6 +111,23 @@ export function tuyaActions(tuya, labels) {
     if (items.length) groups.push({ group: 'Tuya · ' + name, items });
   }
   return groups;
+}
+
+// A Zigbee trigger whose key is not the one Tasmota writes for its device, so it never fires:
+// { want, device, fixed } (`want`: 'name' with SetOption83 on and a usable name, 'addr' with it off),
+// or null. `fixed` is the same trigger with the right key.
+export function keyMismatch(subject, devices, useNames) {
+  const m = /^ZbReceived#([^#]+)(#.*)?$/i.exec(subject || '');
+  if (!m) return null;
+  const k = m[1].toLowerCase();
+  for (const d of Object.values(devices || {})) {
+    const right = zbKey(d, useNames);
+    if (right.toLowerCase() === k || !usableKey(right)) continue;
+    if (d.addr.toLowerCase() === k || (named(d) && d.name.toLowerCase() === k)) {
+      return { want: useNames ? 'name' : 'addr', device: shown(d), fixed: 'ZbReceived#' + right + (m[2] || '') };
+    }
+  }
+  return null;
 }
 
 // plain-language form of a trigger subject, or null
