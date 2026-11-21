@@ -57,6 +57,7 @@ Cahier des charges (en français, hors du dépôt) :
 | Date | Étape |
 | --- | --- |
 | 21 nov. | Test de T10 : `.tapp` `0.2.0-dev.de52476` installée à la main (Guillaume) ; builds de test faits pour deux mises à jour de suite. Première mise à jour (vers `0.2.0-dev.a6d0343`) : réussie, `one rename` ; seconde (vers `0.2.0-dev.fe5913e`) : réussie, `one rename`. **T10 vérifié sur la passerelle** (`.bak` correct, aucun `.new` restant) ; **T7 et T12 vérifiés** aussi. Heap libre 60 Ko (conditions à confirmer : 69 Ko au repos le 20 novembre) |
+| 21 nov. | **Mémoire mesurée en une seule série** (Guillaume, `0.2.0-dev.fe5913e`, firmware `fd7f7cc`, après `Br tasmota.gc()`) : 67 Ko au repos (15 Ko), **43 Ko** interface ouverte (39 Ko ; 53 Ko le 20 novembre, sous les 45 Ko qu'il faut au driver Tuya pour démarrer), 63 Ko après fermeture (19 Ko). Les 10 Ko interface ouverte ne sont **pas poursuivis** (décision de Guillaume du 21 novembre 2026) |
 | 21 nov. | **T10 corrigé** (analyse de bugs) : la mise à jour copie `TasmoFlow.tapp` en `.bak`, puis renomme le nouveau fichier par-dessus en une seule étape (littlefs remplace un fichier existant en un seul commit, vérifié dans les sources sur tout le chemin) : une coupure laisse l'ancienne ou la nouvelle version, jamais aucune ; les deux renommages d'avant restent en secours ; ligne du README sur le renommage du `.bak`. **La `.tapp` doit être installée à la main une fois** (le code de mise à jour a changé), puis une mise à jour dit quelle voie elle a prise (`TFL: update installed (one rename)`) |
 | 21 nov. | **T7, T12 corrigés** (analyse de bugs) : un enregistrement de règle reçoit un numéro de `rule_set`, et les étapes d'un enregistrement plus ancien répondent `busy` (l'interface dit qu'une autre interface enregistre, n'écrit et ne restaure rien) ; noms d'en-têtes sans tenir compte de la casse, seule une requête avec le jeton garde le serveur éveillé, un EventSource qui se reconnecte reprend à son `Last-Event-ID` au lieu de rejouer l'historique. 34 tests de bout en bout. **La `.tapp` doit être réinstallée** (`extension/`) |
 | 21 nov. | **Commande Tuya sans réponse : vérifiée sur la passerelle** (Guillaume), avec le firmware du 21 novembre (commit `fd7f7cc`, run 44893756664). Le premier build du firmware de ce correctif (20 novembre) ne démarrait pas : un membre de plus dans une classe solidifiée du driver ; réécrit sans (dépôt firmware, `berry-pitfalls.md`) |
@@ -133,6 +134,9 @@ Après `tasmota.gc()`, passerelle avec le pilote Tuya (9 novembre 2026) :
 | **v0.2**, avec TasmoFlow, 5 minutes après `Restart 1` (20 novembre) | 69 Ko | | **13 Ko** |
 | **v0.2**, avec TasmoFlow, interface ouverte (20 novembre, même série) | 53 Ko | | **29 Ko** |
 | **v0.2**, avec TasmoFlow, après fermeture de tous les onglets, serveur API arrêté (20 novembre, même série) | 66 Ko | | **16 Ko** |
+| **v0.2**, build T7/T10/T12, au repos (21 novembre) | 67 Ko | | **15 Ko** |
+| **v0.2**, build T7/T10/T12, interface ouverte (21 novembre, même série ; non poursuivi) | 43 Ko | | **39 Ko** |
+| **v0.2**, build T7/T10/T12, après fermeture de tous les onglets (21 novembre, même série) | 63 Ko | | **19 Ko** |
 | **v0.2**, pas d'interface dans la `.tapp`, au repos après `Restart 1` (20 novembre, firmware avec le driver Tuya solidifié) | 58 Ko | non relevé | |
 | **v0.2**, pas d'interface dans la `.tapp`, interface ouverte (20 novembre) | 46 Ko | 63 Ko | 12 Ko de plus qu'au repos |
 | **v0.2**, pas d'interface dans la `.tapp`, 5 minutes après sa fermeture (20 novembre) | 51 Ko | 46 Ko | 7 Ko de plus qu'au repos |

@@ -50,6 +50,7 @@ Specification (French, outside the repository):
 | Date | Step |
 | --- | --- |
 | 21 Nov | T10 test: `.tapp` `0.2.0-dev.de52476` installed by hand (Guillaume); test builds made to update twice in a row. First update (to `0.2.0-dev.a6d0343`): passed, `one rename`; second (to `0.2.0-dev.fe5913e`): passed, `one rename`. **T10 checked on the gateway** (`.bak` right, no `.new` left); **T7 and T12 checked** too. Free heap 60 KB (conditions to confirm: 69 KB at rest on 20 November) |
+| 21 Nov | **Memory measured in one run** (Guillaume, `0.2.0-dev.fe5913e`, firmware `fd7f7cc`, after `Br tasmota.gc()`): 67 KB at rest (15 KB), **43 KB** with the interface open (39 KB; 53 KB on 20 November, below the 45 KB the Tuya driver needs to start), 63 KB after closing (19 KB). The 10 KB with the interface open are **not pursued** (Guillaume's decision of 21 November 2026) |
 | 21 Nov | **T10 fixed** (bug analysis): the update copies `TasmoFlow.tapp` to `.bak`, then renames the new file onto it in one step (littlefs replaces an existing file in one commit, checked in the sources along the way): a power cut leaves the old or the new version, never none; the two renames of before stay as a fallback; README line about renaming the `.bak`. **The `.tapp` must be installed by hand once** (the update code changed), then an update tells which way it took (`TFL: update installed (one rename)`) |
 | 21 Nov | **T7, T12 fixed** (bug analysis): a rule save gets an id from `rule_set`, and an older save's steps answer `busy` (the interface says another interface is saving, writes and restores nothing); header names in any case, only a request with the token keeps the server awake, an EventSource that reconnects resumes from its `Last-Event-ID` instead of replaying the history. 34 end-to-end tests. **The `.tapp` must be installed again** (`extension/`) |
 | 21 Nov | **Tuya command not answered: checked on the gateway** (Guillaume), with the firmware of 21 November (commit `fd7f7cc`, run 44893756664). The first firmware build of this fix (20 November) did not start: a new member in a solidified class of the driver; rewritten without one (firmware repository, `berry-pitfalls.md`) |
@@ -126,6 +127,9 @@ After `tasmota.gc()`, gateway running the Tuya driver (9 November 2026):
 | **v0.2**, with TasmoFlow, 5 minutes after `Restart 1` (20 November) | 69 KB | | **13 KB** |
 | **v0.2**, with TasmoFlow, interface open (20 November, same run) | 53 KB | | **29 KB** |
 | **v0.2**, with TasmoFlow, after closing every tab, API server stopped (20 November, same run) | 66 KB | | **16 KB** |
+| **v0.2**, T7/T10/T12 build, at rest (21 November) | 67 KB | | **15 KB** |
+| **v0.2**, T7/T10/T12 build, interface open (21 November, same run; not pursued) | 43 KB | | **39 KB** |
+| **v0.2**, T7/T10/T12 build, after closing every tab (21 November, same run) | 63 KB | | **19 KB** |
 | **v0.2**, no interface in the `.tapp`, at rest after `Restart 1` (20 November, firmware with the solidified Tuya driver) | 58 KB | not taken | |
 | **v0.2**, no interface in the `.tapp`, interface open (20 November) | 46 KB | 63 KB | 12 KB over rest |
 | **v0.2**, no interface in the `.tapp`, 5 minutes after closing it (20 November) | 51 KB | 46 KB | 7 KB over rest |
