@@ -49,7 +49,7 @@ Specification (French, outside the repository):
 
 | Date | Step |
 | --- | --- |
-| 21 Nov | T10 test: `.tapp` `0.2.0-dev.de52476` installed by hand (Guillaume); test builds made to update twice in a row |
+| 21 Nov | T10 test: `.tapp` `0.2.0-dev.de52476` installed by hand (Guillaume); test builds made to update twice in a row. First update (to `0.2.0-dev.a6d0343`): passed, `one rename` |
 | 21 Nov | **T10 fixed** (bug analysis): the update copies `TasmoFlow.tapp` to `.bak`, then renames the new file onto it in one step (littlefs replaces an existing file in one commit, checked in the sources along the way): a power cut leaves the old or the new version, never none; the two renames of before stay as a fallback; README line about renaming the `.bak`. **The `.tapp` must be installed by hand once** (the update code changed), then an update tells which way it took (`TFL: update installed (one rename)`) |
 | 21 Nov | **T7, T12 fixed** (bug analysis): a rule save gets an id from `rule_set`, and an older save's steps answer `busy` (the interface says another interface is saving, writes and restores nothing); header names in any case, only a request with the token keeps the server awake, an EventSource that reconnects resumes from its `Last-Event-ID` instead of replaying the history. 34 end-to-end tests. **The `.tapp` must be installed again** (`extension/`) |
 | 21 Nov | **Tuya command not answered: checked on the gateway** (Guillaume), with the firmware of 21 November (commit `fd7f7cc`, run 44893756664). The first firmware build of this fix (20 November) did not start: a new member in a solidified class of the driver; rewritten without one (firmware repository, `berry-pitfalls.md`) |
