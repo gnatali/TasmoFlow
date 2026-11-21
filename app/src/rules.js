@@ -34,13 +34,18 @@ export async function saveRule(n, text) {
     try { await get(what, p); }
     catch (e) { throw new Error(e.message + ' (' + p.step + ')'); }
   };
-  try { await post('/api/rule_set', { n }, text); }
+  let id;
+  try { id = (await post('/api/rule_set', { n }, text)).id; }
   catch (e) { throw new Error(e.message + ' (text)'); }
-  await step('/api/rule_apply', { n, step: 'bak' });
+  // "busy": another interface (or a restore) sent its text since; it owns the save now, so this
+  // one neither writes nor restores (bug analysis T7)
+  const busy = e => { if (/^busy\b/.test(e.message)) throw new Error('busy'); };
+  try { await step('/api/rule_apply', { n, id, step: 'bak' }); } catch (e) { busy(e); throw e; }
   try {
-    await step('/api/rule_apply', { n, step: 'put' });
-    await step('/api/rule_apply', { n, step: 'check' });
+    await step('/api/rule_apply', { n, id, step: 'put' });
+    await step('/api/rule_apply', { n, id, step: 'check' });
   } catch (e) {
+    busy(e);
     await get('/api/rule_restore', { n }).catch(() => {});
     throw e;
   }

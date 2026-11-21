@@ -35,12 +35,12 @@ function in a plausible situation; **P3** robustness, rare cases; **P4** minor.
 | T4 | P2 | `/api/devices` and `TuyaConfig` build their whole answer in RAM: memory grows with the number of devices | **Fixed** (18 November 2026): devices streamed, `TuyaConfig` read device by device (firmware of the same day) |
 | T5 | P3 | The Tuya cards never learn that a device disconnected | **Fixed** (18 November 2026), to check on the gateway |
 | T6 | P3 | A fourth open interface makes the interfaces evict each other every 3 seconds | **Fixed** (19 November 2026), checked on the gateway |
-| T7 | P3 | The rule write keeps one text for all clients: two interfaces saving together can store the other's text and report success | Read in the code |
+| T7 | P3 | The rule write keeps one text for all clients: two interfaces saving together can store the other's text and report success | **Fixed** (21 November 2026): `rule_set` gives an id, the steps of an older save answer `busy` |
 | T8 | P3 | `lite.js` is cached for a day under an address without a version: after an update a browser can run the previous light interface | **Fixed** (18 November 2026) |
 | T9 | P3 | Port 8384 has no connection limit and no timeout for an incomplete request | **Fixed** (19 November 2026), checked on the gateway |
 | T10 | P4 | A power cut between the two renames of an update leaves no `TasmoFlow.tapp` | Read in the code |
 | T11 | P4 | Zigbee toggle and pairing buttons show nothing when the command fails | **Fixed** (18 November 2026) |
-| T12 | P4 | `Content-Length` is only recognised in two spellings; a request without the token still keeps the server awake; every reconnection replays the whole event history | Read in the code |
+| T12 | P4 | `Content-Length` is only recognised in two spellings; a request without the token still keeps the server awake; every reconnection replays the whole event history | **Fixed** (21 November 2026): header names in any case, `touch()` after the token, `Last-Event-ID` read |
 
 ## Findings
 
@@ -219,6 +219,10 @@ same rule set at the same moment share them: the first can write the second's te
 single administrator makes it unlikely. Fix: `rule_set` returns a short id that `rule_apply`
 must repeat, or `check` receives a hash of the text from the client.
 
+**Fixed (21 November 2026).** `rule_set` answers an id (a counter, also raised by a restore);
+`rule_apply` needs it, else `busy`. The interface then neither writes nor restores (the other save
+owns the text) and says so. End-to-end test: a second save sent between `rule_set` and `bak`.
+
 ### T8 (P3): a stale `lite.js` after an update
 
 `send_lite` (line 374) sends `Cache-Control: max-age=86400` and the loader asks for
@@ -261,7 +265,10 @@ the evicted stream of T6 gets one). Checked by `tests/tf_http_test.be`.
   makes a POST body look empty). `authorized()` calls `touch()` before it checks the token, so
   requests without it keep the server and its RAM alive. The server reads `since` from the
   address, which an `EventSource` never updates: each automatic reconnection replays the whole
-  history; reading the `Last-Event-ID` header the browser sends would avoid it.
+  history; reading the `Last-Event-ID` header the browser sends would avoid it. **Fixed (21 November
+  2026)**: header names compared in lower case (`string.tolower`), `touch()` only once the token is
+  right, `Last-Event-ID` used instead of a smaller `since` (an id beyond the counter, from before a
+  restart, is ignored); `tests/tf_http_test.be` checks the spellings and the header.
 
 ## Checked and found sound
 

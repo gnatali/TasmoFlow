@@ -260,8 +260,8 @@ copie se télécharge sur GitHub Pages) : l'option ne reste que pour les essais.
 | `GET /api/devices?t=` | Appareils Zigbee : adresse, nom, modèle, fabricant, LQI, batterie, dernier message, derniers attributs |
 | `POST /api/cmd?t=` | Exécute la commande Tasmota du corps et renvoie sa réponse JSON (`GET /api/cmd?t=&c=` marche encore pour une commande courte) |
 | `GET /api/rules?t=` | Les trois jeux de règles Tasmota (état, options, texte, place libre, copie précédente) et les règles Berry (`tf_rules.be`) |
-| `POST /api/rule_set?t=&n=` | Envoie le nouveau texte du jeu `n` (corps de la requête) |
-| `GET /api/rule_apply?t=&n=&step=` | L'applique en trois requêtes : `bak` (copie du texte actuel), `put` (`Rule<n>`), `check` (relecture) ; en cas d'échec l'interface appelle `rule_restore` |
+| `POST /api/rule_set?t=&n=` | Envoie le nouveau texte du jeu `n` (corps de la requête) ; répond `{"ok":true,"id":<k>}` |
+| `GET /api/rule_apply?t=&n=&id=&step=` | L'applique en trois requêtes (`busy` quand un autre `rule_set` ou une restauration est arrivé depuis : cet enregistrement-là possède le texte, celui-ci n'écrit ni ne restaure rien ; T7, 21 novembre 2026) : `bak` (copie du texte actuel), `put` (`Rule<n>`), `check` (relecture) ; en cas d'échec l'interface appelle `rule_restore` |
 | `GET /api/autoexec?t=` | `/autoexec.be` en texte, en lecture seule, 6 000 octets au plus (`{"exists":false}` sans lui). Le seul fichier que l'API lit : les autres (`tuya.json`…) contiennent des clés |
 | `GET /api/update_check?t=&size=` | Place pour une `.tapp` de `size` octets : `{free, tapp, bak, js, stale, need, room}` en octets (voir [Mise à jour de la .tapp](#mise-à-jour-de-la-tapp)) |
 | `POST /api/update?t=&off=&size=` | Un morceau (base64, corps de la requête) de la nouvelle `.tapp`, écrit dans `<tapp>.new` |
@@ -270,7 +270,7 @@ copie se télécharge sur GitHub Pages) : l'option ne reste que pour les essais.
 | les quatre mêmes avec `&f=js` | La copie locale de l'interface : `<tapp>.js.new`, contrôlée avec `APP_SHA` et renommée `<tapp>.js`, sans redémarrage (voir [Copie locale](#copie-locale-de-linterface)) |
 | `GET /api/update_drop?t=` | Supprime la copie locale |
 | `GET /api/rule_restore?t=&n=` | Remet la copie précédente du jeu `n` |
-| `GET /api/events?t=&since=` | Flux SSE ; renvoie d'abord les événements gardés après `since` (50 au plus) |
+| `GET /api/events?t=&since=` | Flux SSE ; renvoie d'abord les événements gardés après `since` (50 au plus), ou après le `Last-Event-ID` du navigateur quand il se reconnecte seul (depuis le 21 novembre 2026, T12) |
 
 Les événements portent un numéro de séquence et un `type` : `zigbee` (`device`, `name`,
 `attrs`) et `tuya` (`name`, `dps`, issu de la règle `Tuya` du pilote).
@@ -794,4 +794,5 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] v0.2, mise à jour avec une copie locale (au build de test suivant le point ci-dessus ; vérifié par Guillaume le 19 novembre 2026, mise à jour vers le build T6/T9) : le bandeau propose la mise à jour au-dessus de chaque écran, **Mettre à jour** l'installe sans confirmation et la page revient sur le nouveau build ; l'ancienne copie n'est pas chargée (source `github`), et en quelques secondes Diagnostic indique de nouveau « La passerelle a une copie de cette version » (enregistrée d'elle-même) ; **Plus tard** masque le bandeau
 - [x] v0.2, commande Tuya sans réponse (20 novembre 2026, build de test ; puis le firmware du 21 novembre, commit `fd7f7cc` ; vérifié par Guillaume le 21 novembre 2026) : débrancher une lampe Tuya Wi-Fi et l'allumer aussitôt depuis sa carte : « L'appareil n'a pas répondu à la commande. » sous la carte environ 5 s plus tard ; avec le nouveau firmware la carte passe aussi en « déconnecté » (journal `disconnected: no reply to command`), puis revient une fois la lampe rebranchée ; une lampe qui répond n'affiche jamais le message
 - [x] v0.2, appareil Zigbee qui ne répond pas (20 novembre 2026, build de test, pas de `.tapp` à réinstaller ; vérifié par Guillaume le même jour) : couper une prise Zigbee, **Basculer** : « L'appareil ne répond pas (injoignable). » sous la carte et « injoignable » dans sa ligne ; la rebrancher, **Basculer** : la prise bascule, les deux disparaissent ; un appareil sur secteur n'affiche pas de batterie
+- [ ] v0.2, T7 et T12 (21 novembre 2026, `.tapp` réinstallée) : deux navigateurs sur l'écran Règles, modifier Rule1 dans les deux, Enregistrer vite dans les deux : l'un dit « Enregistré », l'autre « Une autre interface enregistre des règles en même temps », et Rule1 contient le texte de celui qui a dit Enregistré ; interface fermée, `curl "http://<passerelle>:8384/api/status"` (sans jeton) toutes les minutes : le serveur s'arrête quand même 5 minutes après la fermeture de l'interface (`TFL: API server stopped`) ; débrancher le câble réseau de la passerelle 10 s avec une interface ouverte : le flux revient sans que l'onglet Événements remontre les anciens événements
 - [x] v0.1 : ce qui reste alloué après la première ouverture (6 Ko de mémoire libre, 4 Ko de Berry) : pas poursuivi, abandonné à la demande de Guillaume (12 novembre 2026)

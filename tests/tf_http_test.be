@@ -64,7 +64,7 @@ var srv = tf_http(8384)
 var seen = []                                 # what the handler received
 srv.on("/api/", nil, def (cnx, uri, verb)
   seen.push({'verb': verb, 'uri': uri, 'body': cnx.body(), 'host': cnx.header_host,
-             'version': cnx.req_version})
+             'version': cnx.req_version, 'last': cnx.last_event_id})
   cnx.send(200, "application/json", '{"ok":1}')
   cnx.content_stop()
 end)
@@ -175,6 +175,11 @@ expect("bad version: 400", ["GET / HTTP/1-1\r\n\r\n"], 400, nil)
 # Headers
 expect("header without space, lower case Content-Length",
        ["POST " + STATUS + " HTTP/1.1\r\ncontent-length:5\r\n\r\nhello"], 200, {'body': 'hello'})
+expect("Content-Length in any case (T12)",
+       ["POST " + STATUS + " HTTP/1.1\r\nCONTENT-length: 5\r\n\r\nhello"], 200, {'body': 'hello'})
+expect("Host in any case", ["GET " + STATUS + " HTTP/1.1\r\nhOST: gw\r\n\r\n"], 200, {'host': 'gw'})
+expect("Last-Event-ID (T12)", ["GET " + STATUS + " HTTP/1.1\r\nLast-Event-ID: 42\r\n\r\n"], 200, {'last': '42'})
+expect("no Last-Event-ID", [get("GET " + STATUS + " HTTP/1.1")], 200, {'last': ''})
 expect("spaces before a value", ["GET " + STATUS + " HTTP/1.1\r\nHost:    gw\r\n\r\n"], 200, {'host': 'gw'})
 expect("line without ':' ignored", ["GET " + STATUS + " HTTP/1.1\r\njunk\r\nHost: gw\r\n\r\n"], 200,
        {'host': 'gw'})

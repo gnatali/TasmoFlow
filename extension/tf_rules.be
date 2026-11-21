@@ -9,8 +9,13 @@
 # Routes (all need the `t` token):
 #   /api/rules                 the three Tasmota rule sets (state, text, free space, previous
 #                              copy) and the Berry rules registered with tasmota.add_rule()
-#   POST /api/rule_set?n=1     sends the new text of rule set n, in the request body
-#   /api/rule_apply?n=1&step=  applies it: step bak, then put, then check (see step())
+#   POST /api/rule_set?n=1     sends the new text of rule set n, in the request body; answers
+#                              {"ok":true,"id":<k>}
+#   /api/rule_apply?n=1&id=<k>&step=  applies it: step bak, then put, then check (see step()).
+#                              One text is kept for everybody: a second rule_set (or a restore)
+#                              gives a new id, and the steps of the first answer "busy" (bug
+#                              analysis T7: two interfaces saving together could store the
+#                              other's text and both report success)
 #   /api/rule_restore?n=1      puts the previous copy back (the current text becomes the new
 #                              previous copy, so a restore can be undone)
 #   /api/autoexec              /autoexec.be as text, read only, at most MAX_VIEW bytes. The one
@@ -30,11 +35,13 @@ class tf_rules
   var tf                                # the tasmoflow instance
   var buf                               # new text received (POST body), until applied
   var n                                 # rule set it is for
+  var id                                # number of the save that owns buf (rule_set)
 
   def init(tf)
     self.tf = tf
     self.buf = ''
     self.n = 0
+    self.id = 0
   end
 
   static def bak_path(n)
@@ -122,6 +129,7 @@ class tf_rules
   def apply(n, text)
     self.buf = text
     self.n = n
+    self.id += 1                        # a save under way loses its text: its steps say "busy"
     for what: ['bak', 'put', 'check']
       var err = self.step(n, what)
       if err != nil
@@ -199,21 +207,28 @@ class tf_rules
       return
     end
     self.n = n
+    self.id += 1
     self.buf = cnx.body()
     if size(self.buf) > self.MAX_LEN
       self.buf = ''
       self.answer(cnx, "length")
       return
     end
-    self.answer(cnx, nil)               # the text is applied by /api/rule_apply, step by step
+    # the text is applied by /api/rule_apply, step by step, with this id
+    cnx.send(200, "application/json", format('{"ok":true,"id":%i}', self.id))
+    cnx.content_stop()
   end
 
-  # /api/rule_apply?n=1&step=bak|put|check
+  # /api/rule_apply?n=1&id=<k>&step=bak|put|check
   def api_rule_apply(cnx, uri, verb)
     var q = self.tf.authorized(cnx, uri)
     if q == nil   return   end
     try
       var n = int(q.find('n', '0'))
+      if int(q.find('id', '0')) != self.id
+        self.answer(cnx, "busy")        # another save (or a restore) took the text since
+        return
+      end
       if n < 1 || n > 3 || n != self.n
         self.answer(cnx, "chunk")
         return

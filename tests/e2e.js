@@ -289,6 +289,26 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await r1.getByRole('button', { name: 'Restaurer cette copie' }).click();
     await r1.getByText('Copie restaurée.').waitFor({ timeout: 4000 });
     if ((await box.inputValue()) !== original) throw new Error('restored text differs');
+    // two interfaces saving together (T7): the second one sends its text while the first is between
+    // rule_set and its first step; the first is told, writes nothing and restores nothing
+    const T = '0123456789abcdef0123456789abcdef', other = 'on Time#Minute=7 do Power1 0 endon';
+    await p.route('**/api/rule_apply**', async route => {
+      await p.unroute('**/api/rule_apply**');
+      const a = 'http://localhost:8384/api/';
+      const { id } = await (await fetch(a + 'rule_set?n=1&t=' + T, { method: 'POST', body: other })).json();
+      for (const s of ['bak', 'put', 'check']) await fetch(a + 'rule_apply?n=1&id=' + id + '&step=' + s + '&t=' + T);
+      await route.continue();
+    });
+    await box.fill('on Time#Minute=6 do Power1 0 endon');
+    await r1.getByRole('button', { name: 'Enregistrer' }).click();
+    await r1.getByText(/Une autre interface enregistre/).waitFor({ timeout: 4000 });
+    const kept = await (await fetch('http://localhost:8384/api/rules?t=' + T)).json();
+    if (kept.rules[0].text !== other) throw new Error('the other interface\'s text was not kept: ' + kept.rules[0].text);
+    {                                                    // Rule1 as it was, for the next tests
+      const a = 'http://localhost:8384/api/';
+      const { id } = await (await fetch(a + 'rule_set?n=1&t=' + T, { method: 'POST', body: original })).json();
+      for (const s of ['bak', 'put', 'check']) await fetch(a + 'rule_apply?n=1&id=' + id + '&step=' + s + '&t=' + T);
+    }
     // flags and Berry rules
     await (await rule(p, 2)).getByRole('checkbox', { name: 'une seule fois' }).click();
     await p.waitForFunction(async t => (await (await fetch('http://localhost:8384/api/rules?t=' + t)).json()).rules[1].once,

@@ -245,10 +245,14 @@ class tasmoflow
   end
 
   # returns the decoded query, or nil (and answers 403) if the token is missing
+  # only a request with the token keeps the server awake: any device of the network used to,
+  # with the RAM the running server holds (bug analysis T12)
   def authorized(cnx, uri)
-    self.touch()
     var q = self.parse_query(uri)
-    if q.find('t') == self.token    return q    end
+    if q.find('t') == self.token
+      self.touch()
+      return q
+    end
     self.send_json(cnx, 403, '{"error":"token"}')
     return nil
   end
@@ -507,11 +511,16 @@ class tasmoflow
     self.upd.handle(cnx, uri, verb, q)
   end
 
-  # SSE stream: /api/events?t=...&since=<last seq received>
+  # SSE stream: /api/events?t=...&since=<last seq received>. The browser reconnects an EventSource
+  # by itself with the same address, so `since` goes stale; it sends the id of the last event it got
+  # in Last-Event-ID, which is used instead (each reconnection replayed the whole history, bug analysis
+  # T12). An id beyond the counter comes from before a restart (the counter starts again from 1): ignored
   def api_events(cnx, uri, verb)
     var q = self.authorized(cnx, uri)
     if q == nil   return   end
     var since = int(q.find('since', '0'))
+    var last = size(cnx.last_event_id) > 0 ? int(cnx.last_event_id) : 0
+    if last > since && last <= self.seq    since = last    end
     cnx.send(200, "text/event-stream", "retry: 3000\n\n")
     for e: self.events
       if e[0] > since   cnx.write(e[1])   end

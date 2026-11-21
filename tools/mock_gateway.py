@@ -196,7 +196,7 @@ AUTOEXEC = """import tuya_local
 var tl = tuya_local.TuyaLocal()
 tasmota.add_rule("Button1#State", def (v) print("button", v) end, "my_script")
 """
-RULE_BUF = {"n": 0, "text": ""}
+RULE_BUF = {"n": 0, "text": "", "id": 0}     # like tf_rules.be: one text, owned by the last rule_set (T7)
 
 
 def rule_view(n):
@@ -553,7 +553,7 @@ class Api(BaseHTTPRequestHandler):
                             "berry": BERRY_RULES})
         elif u.path == "/api/rule_apply":
             n = int(q.get("n", "0") or 0)
-            err = "chunk" if n != RULE_BUF["n"] else None
+            err = "busy" if int(q.get("id", "0") or 0) != RULE_BUF["id"] else "chunk" if n != RULE_BUF["n"] else None
             if err is None and q.get("step") == "bak":
                 RULES[n]["bak"] = RULES[n]["text"]
             elif err is None and q.get("step") == "put":
@@ -569,15 +569,17 @@ class Api(BaseHTTPRequestHandler):
             if n not in RULES:
                 err = "rule"
             elif u.path == "/api/rule_restore":
+                RULE_BUF["id"] += 1           # a save under way loses its text, like tf_rules.apply()
                 err = "nobackup" if RULES[n]["bak"] is None else rule_apply(n, RULES[n]["bak"])
             else:
                 if int(q.get("i", "0") or 0) == 0:
-                    RULE_BUF.update(n=n, text="")
+                    RULE_BUF.update(n=n, text="", id=RULE_BUF["id"] + 1)
                 RULE_BUF["text"] += q.get("x", "")
                 if len(RULE_BUF["text"]) > 2200:
                     RULE_BUF["text"] = ""
                     err = "length"
-            self.json(400 if err else 200, {"error": err} if err else {"ok": True})
+            ok = {"ok": True, "id": RULE_BUF["id"]} if u.path == "/api/rule_set" else {"ok": True}
+            self.json(400 if err else 200, {"error": err} if err else ok)
         elif u.path == "/api/cmd":
             c = q.get("c", "")
             if not c:
@@ -623,6 +625,11 @@ class Api(BaseHTTPRequestHandler):
                 self.json(200, {"Command": c, "Simulated": True})
         elif u.path == "/api/events":
             since = int(q.get("since", "0") or 0)
+            # like tasmoflow.be (T12): an EventSource that reconnects by itself sends the last id it got
+            le = self.headers.get("Last-Event-ID", "")
+            le = int(le) if le.isdigit() else 0
+            if since < le <= seq:
+                since = le
             self.head(200, "text/event-stream")
             self.wfile.write(b"retry: 3000\n\n")
             last = since
