@@ -1,0 +1,1 @@
+{"name":"Motion sensor","products":[{"id":"p0y7ucexietpcqlq","manufacturer":"Mirabella Genio"}],"dps":{"101":{"type":"string","names":["motion · sensor"],"values":["pir","none"]},"103":{"type":"integer","names":["battery"],"unit":"%"},"104":{"type":"boolean","names":["Tamper alarm · sensor"]}}}

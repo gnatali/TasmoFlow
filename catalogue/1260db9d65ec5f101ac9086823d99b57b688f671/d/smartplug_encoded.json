@@ -1,0 +1,1 @@
+{"name":"Smartplug with encoded info","products":[{"id":"A6bBfm2fmKKRfIxU","manufacturer":"Kashimura","model":"SP11"}],"dps":{"1":{"type":"boolean","names":["outlet"]},"11":{"type":"integer","names":["second"],"min":0,"max":86400},"101":{"type":"base64","names":["random"]},"102":{"type":"base64","names":["circulate"]},"103":{"type":"base64","names":["schedule"]}}}

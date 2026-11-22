@@ -1,0 +1,1 @@
+{"name":"Circuit breaker","products":[{"id":"kooaoam3tyfqanva","model":"GTS8-40 2P"}],"dps":{"1":{"type":"boolean","names":["switch"]},"101":{"type":"integer","names":["second"],"min":0,"max":86400},"102":{"type":"string","names":["select · option"],"values":["off","on","memory"]}}}

@@ -1,0 +1,1 @@
+{"name":"Door sensor","products":[{"id":"iqoy7jgeosgbgk9i","manufacturer":"Mirabella Genio"},{"id":"7jIGJAymiH8OsFFb","model":"Zigbee door sensor"}],"dps":{"101":{"type":"boolean","names":["door · sensor"]},"103":{"type":"integer","names":["battery"],"unit":"%"},"102":{"type":"boolean","names":["tamper · sensor"]}}}

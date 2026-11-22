@@ -1,0 +1,1 @@
+{"name":"Water meter","products":[{"id":"mqqna0px","manufacturer":"Restmo","model":"FML026A"}],"dps":{"107":{"type":"integer","names":["water"],"unit":"L","scale":10},"5":{"type":"integer","names":["volume_flow_rate"],"unit":"L/min","scale":10},"4":{"type":"integer","names":["battery"],"unit":"%"}}}

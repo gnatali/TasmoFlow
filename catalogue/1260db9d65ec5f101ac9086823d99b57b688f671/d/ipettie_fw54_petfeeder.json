@@ -1,0 +1,1 @@
+{"name":"Pet feeder","products":[{"id":"tejdgn0tuyiq6vmt","manufacturer":"iPettie","model":"FW54"}],"dps":{"111":{"type":"boolean","names":["light · switch"]},"3":{"type":"integer","names":["number · value"],"min":1,"max":15},"13":{"type":"bitfield","names":["problem · sensor","fault_code"],"values":[0]},"4":{"type":"string","names":["sensor"]}}}

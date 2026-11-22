@@ -1,0 +1,1 @@
+{"name":"Temperature and humidity","products":[{"id":"vtA4pDd6PLUZzXgZ","model":"TH02 Z3-P3Z"}],"dps":{"101":{"type":"integer","names":["humidity"],"unit":"%"},"102":{"type":"integer","names":["battery"],"unit":"%"},"103":{"type":"integer","names":["temperature"],"unit":"C"}}}

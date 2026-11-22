@@ -1,0 +1,1 @@
+{"name":"Fan regulator","products":[],"dps":{"1":{"type":"boolean","names":["fan · switch"]},"3":{"type":"integer","names":["fan · speed"],"min":1,"max":5}}}

@@ -1,0 +1,1 @@
+{"name":"Garage door with light","products":[],"dps":{"101":{"type":"string","names":["control"],"values":["open","close","stop"]},"102":{"type":"integer","names":["position","current_position"],"min":0,"max":100},"107":{"type":"string","names":["action"],"values":["opened","closed","opening","closing","partial_opening"]},"105":{"type":"boolean","names":["light · switch"]}}}

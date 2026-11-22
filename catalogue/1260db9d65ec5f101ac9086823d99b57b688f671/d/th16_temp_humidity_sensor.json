@@ -1,0 +1,1 @@
+{"name":"Temperature and humidity sensor","products":[{"id":"7akwzwfwhukkdsib","model":"TH16"}],"dps":{"1":{"type":"integer","names":["temperature"],"unit":"C","scale":10},"2":{"type":"integer","names":["humidity"],"unit":"%"},"9":{"type":"string","names":["select · option"],"values":["f","c"]},"21":{"type":"boolean","names":["light · switch"]}}}

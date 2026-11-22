@@ -1,0 +1,1 @@
+{"name":"Radiator controller","products":[{"id":"yw7cahqs","manufacturer":"Hama"}],"dps":{"101":{"type":"boolean","names":["hvac_mode"],"values":[true,false]},"102":{"type":"integer","names":["current_temperature"],"scale":10},"103":{"type":"integer","names":["temperature"],"min":50,"max":300,"unit":"C","scale":10,"step":5}}}

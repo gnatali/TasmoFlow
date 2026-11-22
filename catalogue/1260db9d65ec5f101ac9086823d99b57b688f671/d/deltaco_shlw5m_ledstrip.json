@@ -1,0 +1,1 @@
+{"name":"LED strip","products":[{"id":"gplzywt8cht24mhs","manufacturer":"Deltaco","model":"SH-LW5M"}],"dps":{"1":{"type":"boolean","names":["light · switch"]},"3":{"type":"integer","names":["light · brightness"],"min":25,"max":255},"104":{"type":"string","names":["effect"],"values":["1","2","3","4","5","6","7","8"]}}}

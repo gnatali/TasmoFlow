@@ -1,0 +1,1 @@
+{"name":"Doorbell","products":[{"id":"mu90mkl2valkaar3","manufacturer":"Iebelong","model":"ECH-103"}],"dps":{"30":{"type":"string","names":["volume_level"],"values":["mute","low","middle","high"]},"39":{"type":"string","names":["tone"],"values":["1","2","3","4","5"]},"26":{"type":"string","names":["alarm_msg"]}}}

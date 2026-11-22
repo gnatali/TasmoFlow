@@ -1,0 +1,1 @@
+{"name":"Dual switch with timers","products":[{"id":"key9nfnyp89j4esc"},{"id":"ittunrhd","manufacturer":"Outsmart","model":"ZS3LCBCIO"}],"dps":{"1":{"type":"boolean","names":["switch"]},"2":{"type":"boolean","names":["switch"]},"7":{"type":"integer","names":["second"],"min":0,"max":86400},"8":{"type":"integer","names":["second"],"min":0,"max":86400}}}

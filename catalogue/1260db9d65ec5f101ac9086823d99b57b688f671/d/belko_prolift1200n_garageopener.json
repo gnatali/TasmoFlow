@@ -1,0 +1,1 @@
+{"name":"Garage door","products":[{"id":"rxjnauytlvlczvcq","manufacturer":"Belko","model":"ProLift 1200N"}],"dps":{"101":{"type":"boolean","names":["control"],"values":[true,false]},"102":{"type":"boolean","names":["close_btn"],"values":[true]},"103":{"type":"boolean","names":["stop_btn"],"values":[true]},"104":{"type":"integer","names":["current_position"]}}}

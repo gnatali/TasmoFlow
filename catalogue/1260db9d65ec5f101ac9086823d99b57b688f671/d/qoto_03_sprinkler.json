@@ -1,0 +1,1 @@
+{"name":"Sprinkler controller","products":[],"dps":{"102":{"type":"integer","names":["water"],"step":5},"103":{"type":"integer","names":["Open"],"unit":"%"},"104":{"type":"integer","names":["duration"],"unit":"s"},"105":{"type":"integer","names":["second"],"min":0,"max":86399},"108":{"type":"bitfield","names":["problem · sensor","fault_code"],"values":[0]}}}

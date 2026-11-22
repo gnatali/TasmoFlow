@@ -1,0 +1,1 @@
+{"name":"Curtain","products":[{"id":"dy1jPRPGVR9G7PWY","model":"CC smart curtain 1"}],"dps":{"2":{"type":"string","names":["curtain_status"]},"101":{"type":"string","names":["control"],"values":["01","02","03"]}}}

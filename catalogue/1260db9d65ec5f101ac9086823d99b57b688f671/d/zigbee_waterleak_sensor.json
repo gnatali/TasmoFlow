@@ -1,0 +1,1 @@
+{"name":"Water leak sensor","products":[{"id":"upgcbody","model":"WL-898WZ"}],"dps":{"1":{"type":"boolean","names":["moisture · sensor"]},"4":{"type":"integer","names":["battery"],"unit":"%"}}}

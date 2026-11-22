@@ -1,0 +1,1 @@
+{"name":"Dual switch","products":[{"id":"LOeuvI6KCxzuZe0k","model":"WF-WS02 RJ"}],"dps":{"5":{"type":"integer","names":["Master"],"values":[1,0]},"1":{"type":"boolean","names":["switch"]},"2":{"type":"boolean","names":["switch"]}}}

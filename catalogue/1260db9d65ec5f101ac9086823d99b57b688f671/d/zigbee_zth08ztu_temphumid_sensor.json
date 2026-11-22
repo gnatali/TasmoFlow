@@ -1,0 +1,1 @@
+{"name":"Temperature humidity sensor","products":[{"id":"cirvgep4","model":"ZTH08ZTU"}],"dps":{"1":{"type":"integer","names":["temperature"],"unit":"C","scale":10},"2":{"type":"integer","names":["humidity"],"unit":"%"},"3":{"type":"integer","names":["battery"],"unit":"%","values":["low","middle","high"]}}}

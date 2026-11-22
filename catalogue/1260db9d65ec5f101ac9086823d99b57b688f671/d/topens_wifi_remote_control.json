@@ -1,0 +1,1 @@
+{"name":"Remote control","products":[{"id":"plgiarn7jndeu6js","manufacturer":"TOPENS","model":"TC196"}],"dps":{"101":{"type":"boolean","names":["A"]},"102":{"type":"boolean","names":["B"]},"103":{"type":"boolean","names":["C"]},"104":{"type":"boolean","names":["D"]},"7":{"type":"string","names":["Limit status"]}}}

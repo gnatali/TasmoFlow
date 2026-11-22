@@ -1,0 +1,1 @@
+{"name":"Blind motor","products":[],"dps":{"1":{"type":"string","names":["control"],"values":["open","close","stop"]},"2":{"type":"integer","names":["position","current_position"],"min":0,"max":100},"5":{"type":"boolean","names":["Reversed"]}}}

@@ -1,0 +1,1 @@
+{"name":"Fan","products":[{"id":"ewdmma4uccqydpmj","manufacturer":"HomeMate","model":"Fan Regulator"}],"dps":{"1":{"type":"boolean","names":["fan · switch"]},"3":{"type":"integer","names":["fan · speed"],"min":1,"max":5},"14":{"type":"boolean","names":["lock"]}}}

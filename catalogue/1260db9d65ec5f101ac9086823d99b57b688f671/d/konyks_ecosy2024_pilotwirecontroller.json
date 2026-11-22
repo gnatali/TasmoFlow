@@ -1,0 +1,1 @@
+{"name":"Pilot wire controller","products":[{"id":"evyy1wbhi4t7uftn","manufacturer":"Konyks","model":"eCosy 2024"}],"dps":{"1":{"type":"boolean","names":["hvac_mode"],"values":[false,true]},"2":{"type":"string","names":["preset_mode"],"values":["hot","comfortable1","comfortable2","eco","cold"]}}}

@@ -1,0 +1,1 @@
+{"name":"Simple switch with timer","products":[{"id":"r15JnoGqWPM4PPtl","manufacturer":"Teckin","model":"SP21"},{"id":"5bvnmoqjth5nd4de","manufacturer":"Teckin","model":"SP21/SP22/SP27"},{"id":"keyayvxqq5tqp73w","manufacturer":"Ambrane"}],"dps":{"1":{"type":"boolean","names":["switch"]},"11":{"type":"integer","names":["second"],"min":0,"max":86400}}}

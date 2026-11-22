@@ -1,0 +1,1 @@
+{"name":"Door/window sensor","products":[{"id":"bzxlofth","manufacturer":"Nedis","model":"Zigbee ZBSD10WT"}],"dps":{"1":{"type":"boolean","names":["door · sensor"]},"2":{"type":"integer","names":["battery"],"unit":"%"}}}

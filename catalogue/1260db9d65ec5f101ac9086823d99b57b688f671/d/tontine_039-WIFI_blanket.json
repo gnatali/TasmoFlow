@@ -1,0 +1,1 @@
+{"name":"Electric blanket","products":[{"id":"m3kmcn9evognklsp","manufacturer":"Tontine","model":"O39"}],"dps":{"1":{"type":"boolean","names":["switch"]},"4":{"type":"string","names":["Temperature · option"],"values":["low","middle","high"]},"9":{"type":"integer","names":["duration · value"],"min":1,"max":10,"unit":"h"},"10":{"type":"integer","names":["duration"],"unit":"min"}}}

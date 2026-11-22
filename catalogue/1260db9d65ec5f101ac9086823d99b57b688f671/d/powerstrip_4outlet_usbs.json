@@ -1,0 +1,1 @@
+{"name":"4 outlet + USB powerstrip","products":[],"dps":{"1":{"type":"boolean","names":["outlet"]},"2":{"type":"boolean","names":["outlet"]},"3":{"type":"boolean","names":["outlet"]},"4":{"type":"boolean","names":["outlet"]},"5":{"type":"boolean","names":["USB switch"]},"7":{"type":"string","names":["select · option"],"values":["0","1","2"]}}}

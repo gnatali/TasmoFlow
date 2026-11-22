@@ -1,0 +1,1 @@
+{"name":"Curtain switch","products":[{"id":"81dyy7vqe426s0yc","manufacturer":"Etersky","model":"WF-CS01"}],"dps":{"1":{"type":"string","names":["control"],"values":["open","close","stop"]},"7":{"type":"boolean","names":["light · switch"]},"10":{"type":"integer","names":["Time control · value"],"min":10,"max":180,"unit":"s"}}}

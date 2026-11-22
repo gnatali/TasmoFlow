@@ -1,0 +1,1 @@
+{"name":"Dimmer","products":[{"id":"yrli99lsgtmebarq","manufacturer":"Malmbergs","model":"QS-WIFI-D02-TRIAC"}],"dps":{"1":{"type":"boolean","names":["light · switch"]},"3":{"type":"integer","names":["light · brightness"],"min":25,"max":255},"101":{"type":"integer","names":["Minimum brightness · value"],"min":25,"max":255}}}

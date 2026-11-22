@@ -1,0 +1,1 @@
+{"name":"Desk lamp","products":[{"id":"b0j0lto1o0ijwb39","manufacturer":"Setti+","model":"SL601"}],"dps":{"1":{"type":"boolean","names":["light · switch"]},"2":{"type":"string","names":["work_mode"]},"3":{"type":"integer","names":["light · brightness"],"min":25,"max":255},"4":{"type":"integer","names":["color_temp"],"min":0,"max":255}}}

@@ -1,0 +1,1 @@
+{"name":"Backlit dimmer","products":[{"id":"g5tdfvf5g4osvagd","manufacturer":"Liwokit","model":"Backlit Dimmer Switch"}],"dps":{"1":{"type":"boolean","names":["light · switch"]},"2":{"type":"integer","names":["light · brightness"],"min":10,"max":1000},"21":{"type":"string","names":["select · option"],"values":["relay","pos","none"]}}}

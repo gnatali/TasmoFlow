@@ -1,0 +1,1 @@
+{"name":"Fingerbot","products":[{"id":"yiihr7zh","manufacturer":"Adaprox","model":"BLE fingerbot"}],"dps":{"2":{"type":"boolean","names":["switch"]},"12":{"type":"integer","names":["battery"],"unit":"%"}}}

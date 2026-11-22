@@ -1,0 +1,1 @@
+{"name":"Smartplug","products":[{"id":"eimdzrehi6a6vixn","manufacturer":"Nooie","model":"PU13"}],"dps":{"1":{"type":"boolean","names":["outlet"]},"9":{"type":"integer","names":["second"],"min":0,"max":86400},"41":{"type":"boolean","names":["lock"]},"39":{"type":"string","names":["select · option"],"values":[1,0,2]}}}

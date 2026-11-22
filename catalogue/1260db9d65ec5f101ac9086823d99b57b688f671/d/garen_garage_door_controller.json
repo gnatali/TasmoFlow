@@ -1,0 +1,1 @@
+{"name":"Garage door","products":[{"id":"y07fcukpjhg0yj5g","manufacturer":"Garen"}],"dps":{"101":{"type":"boolean","names":["Open"]},"102":{"type":"boolean","names":["Stop"]},"103":{"type":"boolean","names":["Close"]},"106":{"type":"boolean","names":["lock"]},"109":{"type":"string","names":["Auto-close timer · option"],"values":["OFF","5s","20s","60s"]}}}

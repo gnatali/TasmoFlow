@@ -1,0 +1,1 @@
+{"name":"Probe thermometer","products":[{"id":"eprxtogzeseoze3o","manufacturer":"Sodial"}],"dps":{"1":{"type":"integer","names":["temperature"],"scale":10},"9":{"type":"string","names":["unit","select · option"],"values":["f"]}}}

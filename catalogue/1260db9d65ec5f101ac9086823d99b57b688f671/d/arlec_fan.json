@@ -1,0 +1,1 @@
+{"name":"Fan","products":[],"dps":{"1":{"type":"boolean","names":["fan · switch"]},"3":{"type":"integer","names":["fan · speed"],"min":1,"max":6},"4":{"type":"string","names":["direction"]},"102":{"type":"string","names":["preset_mode"],"values":["normal","sleep","breeze"]},"103":{"type":"string","names":["select · option"],"values":["off","2hour","4hour","8hour"]}}}

@@ -1,0 +1,1 @@
+{"name":"Fan switch","products":[{"id":"sqxyktpwizo2yuhc","manufacturer":"Aziot","model":"Fan modular switch"}],"dps":{"1":{"type":"boolean","names":["fan · switch"]},"2":{"type":"string","names":["preset_mode"],"values":["Normal","Nature","Sleep","Breeze"]},"3":{"type":"integer","names":["fan · speed"],"min":1,"max":5}}}

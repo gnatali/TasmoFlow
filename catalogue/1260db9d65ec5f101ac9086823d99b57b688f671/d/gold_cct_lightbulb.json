@@ -1,0 +1,1 @@
+{"name":"Gold lightbulb","products":[{"id":"baf9tt9lb8t5uc7z","model":"Dim2Warm G95 Golden globe"}],"dps":{"1":{"type":"boolean","names":["light · switch"]},"2":{"type":"integer","names":["light · brightness"],"min":25,"max":255},"3":{"type":"integer","names":["color_temp"],"min":0,"max":255},"101":{"type":"boolean","names":["Remote switch"]}}}
