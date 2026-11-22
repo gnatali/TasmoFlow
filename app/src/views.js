@@ -7,13 +7,7 @@ import { S, run, loadStatus, loadDevices, loadTuya, detect, RECHECK_MAX } from '
 import { TuyaSection, Msg } from './tuya.js';
 import { RenameDialog } from './rename.js';
 import { isAddr } from './rules_devices.js';
-
-function ago(sec) {
-  if (sec == null) return '?';
-  const u = sec < 60 ? [sec, 's'] : sec < 3600 ? [Math.round(sec / 60), 'min'] :
-    sec < 86400 ? [Math.round(sec / 3600), 'h'] : [Math.round(sec / 86400), 'd'];
-  return (t('ago') ? t('ago') + ' ' : '') + u[0] + ' ' + t(u[1]);
-}
+import { ZigbeeSheet, ago } from './sheet.js';
 
 // attributes shown first on a card
 const MAIN_ATTRS = ['Power', 'Dimmer', 'Temperature', 'Humidity', 'Pressure', 'Illuminance',
@@ -37,6 +31,7 @@ function ZigbeeCard({ d }) {
   const since = d.seenAt ? Math.round((Date.now() - d.seenAt) / 1000) : d.lastseen;
   const shown = MAIN_ATTRS.filter(k => d.attrs[k] != null);
   const [ren, setRen] = useState(false);
+  const [sheet, setSheet] = useState(false);
   const name = d.name && !isAddr(d.name) ? d.name : '';
   return html`<article class="card">
     <h3>${d.name || d.addr}</h3>
@@ -49,9 +44,11 @@ function ZigbeeCard({ d }) {
     <div class="row tight">
       ${hasPower(d) ? html`<button class="b" onClick=${() => run(d.addr, 'ZbSend {"device":"' + d.addr + '","send":{"Power":"Toggle"}}')}>${t('toggle')}</button>` : null}
       <button class="b" aria-label=${t('rn_title') + ' ' + (name || d.addr)} onClick=${() => setRen(true)}>${t('rn_title')}</button>
+      <button class="b" aria-label=${t('ts_title') + ' ' + (name || d.addr)} onClick=${() => setSheet(true)}>${t('ts_title')}</button>
     </div>
     <${Msg} k=${d.addr}/>
     ${ren ? html`<${RenameDialog} kind="zigbee" addr=${d.addr} name=${name} onClose=${() => setRen(false)}/>` : null}
+    ${sheet ? html`<${ZigbeeSheet} addr=${d.addr} onClose=${() => setSheet(false)}/>` : null}
   </article>`;
 }
 

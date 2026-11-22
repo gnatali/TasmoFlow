@@ -523,23 +523,37 @@ conserve.
 
 ### Fiche de détails (22 novembre 2026)
 
-Un bouton **Détails** sur chaque carte Tuya ouvre une fiche en lecture seule (`tuya_sheet.js`, logique
-dans `tuya_sheet_model.js` ; interface seule, pas de `.tapp` à réinstaller). Faisabilité et mesures :
+Un bouton **Détails** sur chaque carte Zigbee et Tuya ouvre une fiche en lecture seule, avec la même
+présentation pour les deux familles (`sheet.js`, logique dans `sheet_model.js` ; interface seule, pas
+de `.tapp` à réinstaller) : identité, liaison, une ligne par valeur avec ce qui l'utilise et d'où vient
+la valeur, puis les jeux de règles qui citent l'appareil. Faisabilité et mesures Tuya :
 [investigations/tuya-device-details-2026-11.md](investigations/tuya-device-details-2026-11.md) (en anglais).
 
-- Elle relit l'entrée (`TuyaConfig <appareil>`, une entrée : aucun coût mémoire durable mesuré), le
-  reste est déjà dans l'état de l'interface.
-- Identité : nom, identifiant, identifiant de sous-appareil et sa passerelle Tuya, ou les
-  sous-appareils d'une passerelle, IP, protocole, `keep`. Jamais la clé locale (le firmware la masque
-  en `***` ; la fiche n'affiche pas ce champ).
-- Une ligne par DP, d'après les `codes` de l'import (tous les DP de l'appareil), les liens Matter
-  (`dp`, `dp_bri`, `dp_ct`... avec leur endpoint, `hors Matter` s'il est désactivé), les capteurs
-  (valeur divisée, avec son unité) et l'état : sa valeur et sa **source** : *passerelle* (`TuyaStatus`,
-  les DP que le pilote garde) ou *événement* avec l'heure où il a été vu (`state.js` la note par DP,
-  `node.seen`) ; un DP que la passerelle ne garde pas n'a pas de valeur tant que l'appareil ne l'envoie
-  pas pendant que l'interface est ouverte.
-- Ensuite (note de faisabilité) : identifier le produit (`product_key` de `TuyaScan`, une règle dans
-  `tasmoflow.be`) et un catalogue tuya-local comparé sur les DP, pour les types, plages et libellés.
+- **Lu à l'ouverture** : `ZbStatus3 <adresse>` pour Zigbee (Tasmota y répond dans la réponse de la
+  commande : `CmndZbStatus` dans `xdrv_23_zigbee_A_impl.ino`, mode 3 de `Z_Device::jsonDumpSingleDevice`
+  dans `xdrv_23_zigbee_2a_devices_impl.ino` : adresse IEEE, modèle, fabricant, endpoints, dernières
+  données connues, batterie, `LastSeen`, `LinkQuality` ; `ZbInfo` publie au lieu de répondre) ;
+  `TuyaConfig <appareil>` pour Tuya (une entrée, aucun coût mémoire durable mesuré). Le reste est déjà
+  dans l'état de l'interface.
+- **Identité** : Zigbee : nom, adresse courte et IEEE, modèle, fabricant, endpoints, routeur ou
+  terminal, émulation Matter ou Hue si désactivée. Tuya : nom, identifiant, identifiant de
+  sous-appareil et sa passerelle Tuya (ou les sous-appareils d'une passerelle), IP, protocole, `keep` ;
+  jamais la clé locale (masquée en `***` par le firmware, le champ n'est pas affiché). **Liaison** :
+  Zigbee LQI, dernier message, injoignable, batterie (et quand elle a été lue) ; Tuya connecté ou non.
+- **Lignes** : un attribut Zigbee (identité et liaison à part) ou un DP Tuya (d'après les `codes` de
+  l'import, tous les DP de l'appareil). Valeur (un capteur Tuya divisé, avec son unité), **utilisé par**
+  (les déclencheurs et commandes des jeux de règles pour les deux, plus les liens Matter et les
+  capteurs pour Tuya), **source** : *passerelle* (`ZbStatus3`, `TuyaStatus`) ou *événement* avec l'heure
+  où il a été vu (`state.js` la note par attribut ou DP, `seen`). Tasmota ne garde que le dernier état
+  d'un appareil et le pilote Tuya que les DP qu'il utilise : certaines lignes n'ont pas de valeur tant
+  que l'appareil ne l'envoie pas pendant que l'interface est ouverte (l'appui d'un bouton, un DP
+  qu'aucun lien n'utilise) ; une ligne peut venir d'une règle seule.
+- **Règles qui citent l'appareil** : Zigbee `ZbReceived#<nom ou adresse>`, `ZbState#ShortAddr=<adresse>`,
+  `ZbSend {"device":...}` ; Tuya `TuyaSend <nom ou identifiant>`, `TuyaConnected` / `TuyaDisconnected` ;
+  les règles Berry dont le déclencheur le cite.
+- Ensuite (note de faisabilité) : identifier un produit Tuya (`product_key` de `TuyaScan`, une règle
+  dans `tasmoflow.be`) et un catalogue tuya-local comparé sur les DP, pour les types, plages et
+  libellés ; l'équivalent Zigbee sera à évaluer alors (plugins Zigbee et noms d'attributs de Tasmota).
 
 ### Pilotes à l'ouverture
 
@@ -841,6 +855,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] v0.1 (12 novembre 2026, `.tapp` réinstallée, interface légère modifiée) : un appareil Tuya dont le nom contient une virgule (Wi-Fi ou passerelle, listé par `TuyaConfig` avec son `id`) se commande depuis sa carte dans les deux interfaces (`TuyaSend <id>,<dp>,toggle` dans le journal) et apparaît dans les sélecteurs de règles sous son nom ; un sous-appareil de passerelle dont le nom contient une virgule montre ses mesures sans contrôle (vérifié par Guillaume sur la passerelle, le 12 novembre 2026)
 - [x] v0.1 (12 novembre 2026, version de test) : la carte d'une `light3` de l'interface complète (version de test, pas de `.tapp` à réinstaller pour cela, sauf pour la luminosité 1-100 % de l'interface légère) montre les onglets Blanc / Couleur (pas l'interface légère) ; l'onglet sélectionné suit le mode réglé depuis l'application Tuya ; la roue de teinte et les curseurs de saturation et de luminosité changent la lampe et la carte suit l'état renvoyé ; en Blanc, le curseur de luminosité correspond à celui de l'application Tuya ; une lampe sans `dp_ct` n'affiche pas de température de couleur; la même carte pour une `light2` (`Entrée-Porche`) : cadran en arc ouvert pour la température de couleur et luminosité de 1 % à 100 % ; une valeur qu'on vient de régler reste affichée jusqu'à ce que l'appareil la signale (plus de clignotement nouvelle / ancienne / nouvelle) ; les options sont masquées tant que la lampe est éteinte ou déconnectée et reviennent à l'allumage (vérifié par Guillaume sur la passerelle, le 12 novembre 2026)
 - [ ] v0.1 : vérifier que `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)
+- [ ] v0.2, fiche de détails Zigbee (22 novembre 2026, build de test) : **Détails** sur la carte Interrupteur Entrée : adresse IEEE, `SNZB-01P`, eWeLink, endpoint 1, terminal ; batterie 100 %, LQI, dernier message ; ligne `Power` utilisée par ta règle (`Rule<n> (déclencheur)`), sans valeur tant que le bouton n'est pas appuyé, puis *événement* avec l'heure ; le jeu de règles listé dans les règles qui le citent ; pareil sur une lampe (routeur, `Power` et `Dimmer` *passerelle*)
 - [ ] v0.2, fiche de détails Tuya (22 novembre 2026, build de test) : **Détails** sur la carte Pergola 1 : identifiant, IP, protocole 3.4, `keep` 21, 22, 24 ; 11 DP avec leurs codes ; 20, 21, 22, 24 marqués *Matter · Pergola 1* (*hors Matter*) ; 20, 21, 22, 24, 34 *passerelle* ; allumer la lumière depuis l'app Tuya affiche les DP qu'elle envoie en *événement* avec l'heure ; aucune clé nulle part ; lisible sur téléphone (un bloc par DP)
 - [x] v0.2, configuration Tuya appareil par appareil (18 novembre 2026, firmware du même jour flashé, `.tapp` réinstallée) : les cartes Tuya montrent leurs commandes (variateur, couleur, vitesse...), sous-appareils de la passerelle Tuya compris ; le journal de la passerelle montre des commandes `TuyaConfig <nom>` et aucun `TuyaConfig` seul ; avec moins de 30 Ko libres les commandes sont toujours là (pas de note « mémoire insuffisante »)
 - [x] v0.2, robustesse (18 novembre 2026, bugs T2 à T4, `.tapp` réinstallée ; vérifié par Guillaume le même jour : 67 Ko libres au repos, 54 Ko avec l'interface complète ouverte, 13 Ko des 15 Ko du budget) : l'interface s'ouvre comme avant et la mémoire `Status 4`, après `Br tasmota.gc()`, au repos et avec une interface ouverte est inchangée ou plus basse ; la liste des appareils est complète (même nombre que `ZbStatus1`) ; avec une interface ouverte sur un téléphone, couper son Wi-Fi 5 minutes pendant que des appareils envoient des événements : la mémoire ne baisse pas (le flux est fermé dès que 6 Ko attendent), et la page suit de nouveau à son retour ; « Actualiser » ne relance plus `TuyaConfig` (niveau de log 3)

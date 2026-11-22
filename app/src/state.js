@@ -207,7 +207,9 @@ function connectEvents() {
         // xdrv_23_zigbee_6_0_commands.ino): not a sign of life; any other message is one
         if (d && ev.attrs.Reachable === false) devices = { ...devices, [ev.device]: { ...d, reachable: false } };
         else if (d) {
-          devices = { ...devices, [ev.device]: { ...d, attrs: { ...d.attrs, ...ev.attrs }, reachable: true,
+          const seen = { ...d.seen };                     // when each attribute was last seen in an event (the details sheet)
+          for (const k in ev.attrs) seen[k] = Date.now();
+          devices = { ...devices, [ev.device]: { ...d, attrs: { ...d.attrs, ...ev.attrs }, seen, reachable: true,
             lqi: ev.attrs.LinkQuality != null ? ev.attrs.LinkQuality : d.lqi, seenAt: Date.now() } };
         } else unknown = true;
       }

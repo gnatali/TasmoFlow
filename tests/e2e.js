@@ -744,6 +744,36 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await q.goto('http://localhost:8083/tf');
     await q.waitForFunction(() => window.TASMOFLOW && window.TASMOFLOW.source === 'github', null, { timeout: 8000 });
   });
+  await test('Zigbee details sheet: identity from ZbStatus3, link, attributes with their source, rules naming it', async p => {
+    const api = c => fetch('http://localhost:8384/api/cmd?t=0123456789abcdef0123456789abcdef&c=' + encodeURIComponent(c)).then(r => r.json());
+    await api('Rule3 on ZbReceived#0x3C4D#Dimmer>100 do Power1 on endon');
+    await openFull(p);
+    const lamp = p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe salon', exact: true }) });
+    await lamp.waitFor({ timeout: 6000 });
+    await lamp.getByRole('button', { name: 'Détails Lampe salon' }).click();
+    const dlg = p.getByRole('dialog');
+    await dlg.getByText('0x00124B003C4DAB12').waitFor({ timeout: 4000 });                     // the IEEE address, from ZbStatus3
+    await dlg.getByText('TRADFRI bulb E27').first().waitFor();
+    await dlg.getByText('routeur', { exact: true }).waitFor();
+    await dlg.getByText('Attributs (2)').waitFor();
+    const row = a => dlg.locator('table.sheet tr', { has: p.locator('td:first-child', { hasText: new RegExp('^' + a + '$') }) });
+    await row('Dimmer').getByText('Rule3 (déclencheur)').waitFor();
+    await row('Dimmer').getByText('passerelle').waitFor();
+    await dlg.locator('.sheet-rules').getByText(/^Rule3 · 1 référence · inactive$/).waitFor({ timeout: 4000 });
+    await api('ZbSend {"device":"0x3C4D","send":{"Power":"Toggle"}}');                         // the lamp answers: an event
+    await row('Power').getByText(/^événement /).waitFor({ timeout: 4000 });
+    if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'zigbee-sheet.png') });
+    await dlg.getByRole('button', { name: 'Terminé' }).click();
+    await dlg.waitFor({ state: 'detached' });
+    // a sensor on battery: its battery in the link, its readings as rows
+    const sensor = p.locator('article.card', { has: p.getByRole('heading', { name: 'Capteur bureau', exact: true }) });
+    await sensor.getByRole('button', { name: 'Détails Capteur bureau' }).click();
+    await dlg.getByText('64 %').waitFor({ timeout: 4000 });
+    await row('Temperature').getByText(/^\d+(\.\d+)?$/).waitFor();                            // a reading (the simulator changes it)
+    await dlg.getByText('Aucune règle ne le cite.').waitFor();
+    await dlg.getByRole('button', { name: 'Terminé' }).click();
+    await api('Rule3 "');
+  });
   await test('Tuya details sheet: identity, every DP with its code, use and source, no key', async p => {
     await openFull(p);
     const lamp = p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe bureau', exact: true }) });

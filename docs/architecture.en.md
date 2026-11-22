@@ -493,21 +493,36 @@ them.
 
 ### Details sheet (22 November 2026)
 
-A **Details** button on each Tuya card opens a read-only sheet (`tuya_sheet.js`, logic in
-`tuya_sheet_model.js`; interface only, no `.tapp` to install again). Feasibility and measurements:
+A **Details** button on each Zigbee and Tuya card opens a read-only sheet with the same layout for
+both families (`sheet.js`, logic in `sheet_model.js`; interface only, no `.tapp` to install again):
+identity, link, one row per value with what uses it and where the value comes from, then the rule
+sets that name the device. Tuya feasibility and measurements:
 [investigations/tuya-device-details-2026-11.md](investigations/tuya-device-details-2026-11.md).
 
-- It reads the entry again (`TuyaConfig <device>`, one entry: no lasting memory cost measured), the
-  rest is already in the interface's state.
-- Identity: name, id, sub-device id and its Tuya gateway, or a gateway's sub-devices, IP, protocol,
-  `keep`. Never the local key (the firmware masks it as `***`; the sheet does not show the field).
-- One row per DP, from the `codes` of the import (every DP of the device), the Matter bindings
-  (`dp`, `dp_bri`, `dp_ct`... with their endpoint, `hors Matter` when disabled), the sensors (value
-  divided, with its unit) and the state: its value and its **source**: *gateway* (`TuyaStatus`, the DPs
-  the driver keeps) or *event* with the time it was seen (`state.js` notes it per DP, `node.seen`); a DP
-  the gateway does not keep has no value until the device sends it while the interface is open.
-- Next (feasibility note): identify the product (`TuyaScan`'s `product_key`, a rule in `tasmoflow.be`)
-  and a tuya-local catalogue matched on the DPs, for types, ranges and labels.
+- **Read when it opens**: `ZbStatus3 <address>` for Zigbee (Tasmota answers it as the command's
+  response: `CmndZbStatus` in `xdrv_23_zigbee_A_impl.ino`, dump mode 3 of
+  `Z_Device::jsonDumpSingleDevice` in `xdrv_23_zigbee_2a_devices_impl.ino`: IEEE address, model,
+  manufacturer, endpoints, last known data, battery, `LastSeen`, `LinkQuality`; `ZbInfo` publishes
+  instead of answering); `TuyaConfig <device>` for Tuya (one entry, no lasting memory cost measured).
+  The rest is already in the interface's state.
+- **Identity**: Zigbee: name, short and IEEE address, model, manufacturer, endpoints, router or end
+  device, Matter or Hue emulation when off. Tuya: name, id, sub-device id and its Tuya gateway (or a
+  gateway's sub-devices), IP, protocol, `keep`; never the local key (masked by the firmware as `***`,
+  the field is not shown). **Link**: Zigbee LQI, last message, unreachable, battery (and when it was
+  read); Tuya connected or not.
+- **Rows**: a Zigbee attribute (identity and link left out) or a Tuya DP (from the import's `codes`,
+  every DP of the device). Value (a Tuya sensor divided, with its unit), **used by** (the rule sets'
+  triggers and commands for both, plus Matter bindings and sensors for Tuya), **source**: *gateway*
+  (`ZbStatus3`, `TuyaStatus`) or *event* with the time it was seen (`state.js` notes it per attribute
+  or DP, `seen`). Tasmota keeps only a device's last state and the Tuya driver only the DPs it uses, so
+  some rows have no value until the device sends it while the interface is open (a button's press, a
+  DP no binding uses); a row can come from a rule alone.
+- **Rules that name the device**: Zigbee `ZbReceived#<name or address>`, `ZbState#ShortAddr=<address>`,
+  `ZbSend {"device":...}`; Tuya `TuyaSend <name or id>`, `TuyaConnected` / `TuyaDisconnected`; Berry
+  rules whose trigger names it.
+- Next (feasibility note): identify a Tuya product (`TuyaScan`'s `product_key`, a rule in
+  `tasmoflow.be`) and a tuya-local catalogue matched on the DPs, for types, ranges and labels; the
+  Zigbee counterpart is to be weighed then (Tasmota's own Zigbee plugins and attribute names).
 
 ### Drivers at opening
 
@@ -790,6 +805,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] v0.1 (12 November 2026, `.tapp` installed again, light interface changed): a Tuya device whose name has a comma (Wi-Fi or gateway, listed by `TuyaConfig` with its `id`) switches from its card in both interfaces (`TuyaSend <id>,<dp>,toggle` in the log) and appears in the rule pickers under its name; a sub-device of a gateway with a comma shows its readings without a control (verified by Guillaume on the gateway, 12 November 2026)
 - [x] v0.1 (12 November 2026, test build): a `light3` card of the full interface (test build, no `.tapp` to install again for this, except for the 1-100 % brightness of the light interface) shows the tabs White / Colour (not the light interface); the selected tab follows the mode set from the Tuya app; the hue wheel, saturation and brightness sliders change the lamp and the card follows the state sent back; in White the brightness slider matches the Tuya app's; a lamp without `dp_ct` shows no colour temperature; the same card for a `light2` (`Entrée-Porche`): open arc dial for the colour temperature and brightness, 1 % to 100 %; a value just set stays on screen until the device reports it (no new / old / new flicker); the options are hidden while the lamp is off or disconnected and come back when it is on (verified by Guillaume on the gateway, 12 November 2026)
 - [ ] v0.1: check that `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)
+- [ ] v0.2, Zigbee details sheet (22 November 2026, test build): **Details** on the Interrupteur Entrée card: IEEE address, `SNZB-01P`, eWeLink, endpoint 1, end device; battery 100 %, LQI, last message; `Power` row used by your rule (`Rule<n> (déclencheur)`), no value until the button is pressed, then *event* with the time; the rule set listed under the rules that name it; same on a lamp (router, `Power` and `Dimmer` *gateway*)
 - [ ] v0.2, Tuya details sheet (22 November 2026, test build): **Details** on the Pergola 1 card: id, IP, protocol 3.4, `keep` 21, 22, 24; 11 DPs with their codes; 20, 21, 22, 24 marked *Matter · Pergola 1* (*hors Matter*); 20, 21, 22, 24, 34 *gateway*; switching the light from the Tuya app shows the DPs it sends as *event* with the time; no key anywhere; readable on a phone (one block per DP)
 - [x] v0.2, Tuya configuration device by device (18 November 2026, firmware of the same day flashed, `.tapp` installed again): the Tuya cards show their controls (dimmer, colour, speed...), sub-devices of the Tuya gateway included; the gateway's log shows `TuyaConfig <name>` commands and no bare `TuyaConfig`; with less than 30 KB free the controls are still there (no "not enough memory" note)
 - [x] v0.2, robustness (18 November 2026, bugs T2 to T4, `.tapp` installed again; checked by Guillaume the same day: 67 KB free at rest, 54 KB with the full interface open, 13 KB of the 15 KB budget): the interface opens as before and `Status 4` heap, after `Br tasmota.gc()`, at rest and with an interface open is unchanged or lower; the device list is complete (same count as `ZbStatus1`); with an interface open on a phone, turn its Wi-Fi off for 5 minutes while devices send events: the heap does not fall (the stream is closed once 6 KB are waiting), and the page follows again once back; Refresh does not run `TuyaConfig` again (log level 3)

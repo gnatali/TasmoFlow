@@ -35,6 +35,9 @@ https://claude.ai/artifact/14CHvnBUKENcDnqUBfBnix
 - Devices: Zigbee, Tuya Zigbee paired with the gateway (TS0601, `.zb` plugins) and local Tuya
   (Wi-Fi and Tuya gateway) **through the firmware's Tuya driver only** (`Tuya*` commands,
   `Tuya` rule event). Never show, store or send a Tuya local key or cloud credential.
+- **Zigbee and Tuya devices are treated the same way** (Guillaume, 22 November 2026): a feature
+  given to one family (card button, details sheet, rename, pickers...) is given to the other in the same
+  change, with the same layout; shared logic goes in a common module (e.g. `sheet_model.js`).
 - TasmoFlow manages **all rules**: `Rule1` to `Rule3`, Berry rules, its own automations; copy of
   the previous version before every write.
 

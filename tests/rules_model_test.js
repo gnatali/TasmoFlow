@@ -8,7 +8,7 @@ const esbuild = require('esbuild');
 const SRC = path.join(__dirname, '..', 'app', 'src');
 // the modules are plain ES modules: bundle them to CommonJS for Node
 const out = esbuild.buildSync({
-  stdin: { contents: "export * from './rules_model.js'; export * from './rules_lint.js'; export * from './rules_devices.js'; export * from './rules_conflicts.js'; export * from './rules_guided_model.js'; export * from './tuya_model.js'; export * from './tuya_colour.js'; export * from './rename_model.js'; export * from './tuya_sheet_model.js';", resolveDir: SRC },
+  stdin: { contents: "export * from './rules_model.js'; export * from './rules_lint.js'; export * from './rules_devices.js'; export * from './rules_conflicts.js'; export * from './rules_guided_model.js'; export * from './tuya_model.js'; export * from './tuya_colour.js'; export * from './rename_model.js'; export * from './sheet_model.js';", resolveDir: SRC },
   loader: { '.css': 'text' }, define: { __BUILD__: '""' },
   bundle: true, format: 'cjs', write: false, logLevel: 'silent'
 }).outputFiles[0].text;
@@ -19,7 +19,7 @@ globalThis.document = { documentElement: {} };
 globalThis.window = { addEventListener() {} };      // rules.js (reached through tuya.js, rename.js) listens for beforeunload
 const m = { exports: {} };
 new Function('module', 'exports', out)(m, m.exports);
-const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, keyMismatch, seenAttrs, zbTriggerAttrs, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks, sheetRows, showValue, identity, parentOf } = m.exports;
+const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, keyMismatch, seenAttrs, zbTriggerAttrs, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks, sheetRows, showValue, identity, parentOf, zbIdentity, zbLink, zbRows, ruleRefs } = m.exports;
 
 let n = 0;
 const ok = (name, f) => { f(); n++; };
@@ -483,6 +483,41 @@ ok('Tuya sheet: identity, never the key; a sub-device and its gateway', () => {
   assert.deepStrictEqual(identity('Capteur', conf.Capteur, null, conf), [['name', 'Capteur'], ['cid', 'c1'], ['parent', 'Passerelle']]);
   assert.strictEqual(parentOf('Autre', conf), '');
   assert.deepStrictEqual(identity('L', { keep: 'all' }, null, {}), [['name', 'L'], ['keep', 'all']]);
+});
+
+ok('Tuya sheet: DPs that the rule sets send to, by number or code', () => {
+  const entry = { id: 'abc', codes: { switch_led: 20, bright_value_v2: 22 } };
+  const rules = { rules: [{ n: 1, on: true, text: 'on Power1#State=1 do TuyaSend Pergola 1,switch_led,true endon' },
+    { n: 2, on: false, text: 'on Time#Minute=60 do Backlog TuyaSend abc,22,500; TuyaSend Autre,20,true endon on TuyaConnected#Name=Pergola 1 do Power1 on endon' }],
+    berry: [{ rule: 'TuyaConnected#Name=pergola 1', id: 'x' }, { rule: 'Mqtt#Connected', id: 'nil' }] };
+  const rows = sheetRows(entry, { dps: {} }, rules, 'Pergola 1');
+  assert.deepStrictEqual(rows.find(r => r.dp === 20).uses, [{ kind: 'rule', n: 1, how: 'cmd' }]);
+  assert.deepStrictEqual(rows.find(r => r.dp === 22).uses, [{ kind: 'rule', n: 2, how: 'cmd' }]);   // by its id
+  assert.deepStrictEqual(ruleRefs('tuya', rules, ['Pergola 1', 'abc']), { sets: [{ n: 1, on: true, refs: 1 }, { n: 2, on: false, refs: 2 }], berry: ['TuyaConnected#Name=pergola 1'] });
+  assert.deepStrictEqual(ruleRefs('tuya', null, ['x']), { sets: [], berry: [] });
+});
+ok('Zigbee sheet: identity, link and attributes from ZbStatus3, the events and the rules', () => {
+  // ZbStatus3 of the SNZB-01P button (Guillaume's gateway), IEEE address made up
+  const st = { Device: '0x922D', Name: 'Interrupteur Entrée', IEEEAddr: '0x00124B0000000001', ModelId: 'SNZB-01P', Manufacturer: 'eWeLink',
+    Endpoints: [1], Config: [], Reachable: false, BatteryPercentage: 100, BatteryLastSeenEpoch: 1795278874, LastSeen: 727, LastSeenEpoch: 1795297826, LinkQuality: 102 };
+  const d = { addr: '0x922D', name: 'Interrupteur Entrée', model: 'SNZB-01P', manufacturer: 'eWeLink', lqi: 102, battery: 100, lastseen: 700, router: false,
+    attrs: { BatteryPercentage: 100, Power: 2 }, seen: { Power: 9000 }, seenAt: 9000 };
+  assert.deepStrictEqual(zbIdentity(d, st), [['name', 'Interrupteur Entrée'], ['addr', '0x922D'], ['ieee', '0x00124B0000000001'], ['model', 'SNZB-01P'],
+    ['manuf', 'eWeLink'], ['endpoints', '1'], ['kind', 'endDevice']]);
+  assert.deepStrictEqual(zbIdentity({ addr: '0x1', router: true }, { Endpoints: { 1: {}, 2: {} }, Matter: false }), [['addr', '0x1'], ['endpoints', '1, 2'], ['kind', 'router'], ['matter', 'off']]);
+  assert.deepStrictEqual(zbLink(d, st, 19000), { lqi: 102, seen: 10, reachable: false, battery: 100, batterySeen: 1795278874 });
+  assert.strictEqual(zbLink({ addr: '0x2', lastseen: 5 }, null, 0).seen, 5);
+  const rules = { rules: [{ n: 1, on: true, text: 'on ZbReceived#0x922D#Power=1 do TuyaSend Récepteur radio,2,toggle endon' },
+    { n: 3, on: true, text: 'on ZbReceived#interrupteur entrée#Hold do ZbSend {"device":"Interrupteur Entrée","send":{"Power":"Off"}} endon on ZbState#ShortAddr=0x922D do Power1 on endon' }], berry: [] };
+  const rows = zbRows(d, st, rules, true);
+  assert.deepStrictEqual(rows.map(r => r.key), ['Hold', 'Power']);            // identity and link kept apart; Hold only from a rule
+  const pw = rows.find(r => r.key === 'Power');
+  assert.deepStrictEqual([pw.value, pw.src, pw.at, pw.uses], [2, 'event', 9000, [{ kind: 'rule', n: 1, how: 'trigger' }, { kind: 'rule', n: 3, how: 'cmd' }]]);
+  assert.deepStrictEqual([rows[0].has, rows[0].uses], [false, [{ kind: 'rule', n: 3, how: 'trigger' }]]);
+  assert.deepStrictEqual(ruleRefs('zigbee', rules, ['0x922D', 'Interrupteur Entrée']).sets, [{ n: 1, on: true, refs: 1 }, { n: 3, on: true, refs: 3 }]);
+  // a sensor: its readings from ZbStatus3, source gateway
+  const t = zbRows({ addr: '0x5', attrs: {} }, { Device: '0x5', Temperature: 21.4, LinkQuality: 9 }, null, false);
+  assert.deepStrictEqual(t.map(r => [r.key, r.value, r.src]), [['Temperature', 21.4, 'gateway']]);
 });
 
 console.log(`ok     rule model (${n} checks)`);

@@ -7,7 +7,7 @@ import { t } from './i18n.js';
 import { M, runTuya } from './state.js';
 import { controlsFor, sendName } from './tuya_model.js';
 import { RenameDialog } from './rename.js';
-import { TuyaSheet } from './tuya_sheet.js';
+import { TuyaSheet } from './sheet.js';
 
 // what a refused or failed command answered (state.js, run()), under its card or button
 export const Msg = ({ k }) => M.get()[k] ? html`<div class="msg bad" role="alert">${M.get()[k]}</div>` : null;

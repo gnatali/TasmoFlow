@@ -640,6 +640,20 @@ class Api(BaseHTTPRequestHandler):
                 d["name"] = m.group(2)[:32] or None
                 self.json(200, {d["addr"]: {"Name": m.group(2)[:32]}})
                 return
+            m = re.fullmatch(r"ZbStatus3 (0x[0-9A-Fa-f]{4})", c)
+            if m:      # like CmndZbStatus (dump mode 3): identity, last known data, link, as the response
+                d = DEVICES.get(m.group(1).upper().replace("0X", "0x"))
+                if d is None:
+                    self.json(200, {"ZbStatus3": "Unknown device"})
+                    return
+                st = {"Device": d["addr"], "IEEEAddr": "0x00124B00" + d["addr"][2:] + "AB12",
+                      "ModelId": d["model"], "Manufacturer": d["manufacturer"], "Endpoints": [1], "Config": []}
+                if d.get("name"):
+                    st["Name"] = d["name"]
+                st.update(d["info"])
+                st.update({"Reachable": d["reachable"], "LastSeen": d["lastseen"], "LinkQuality": d["lqi"]})
+                self.json(200, {"ZbStatus3": [st]})
+                return
             if word == "ZbPermitJoin":
                 self.json(200, {"ZbPermitJoin": "Done"})
                 return
