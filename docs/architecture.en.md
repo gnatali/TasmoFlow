@@ -126,7 +126,11 @@ verified and costs the gateway nothing.
 1. **Publication.** Each tag publishes on GitHub Pages `latest.json` (`version`, `size`, `sha256`,
    `tapp`) and `vX.Y.Z/TasmoFlow.tapp` (`pack_tapp.py`); a test build publishes `dev/latest.json`
    next to `dev/TasmoFlow.tapp`. A GitHub release asset cannot be fetched by the browser (no CORS,
-   redirect), Pages can.
+   redirect), Pages can. The page fetches the manifest, the `.tapp` and the local copy's `app.js.gz` with
+   a timestamp in the query (`update.js`, `fresh()`, since 22 November 2026): `cache: 'no-store'` only
+   skips the browser's cache, and GitHub Pages' CDN keeps its copy for up to 10 minutes
+   (`max-age=600`). A stale `dev/latest.json` with a new `.tapp` made a test update fail with "the
+   downloaded file does not have the announced size".
 2. **Detection** (`app/src/update.js`, `initUpdate()`, since 18 November 2026; the loader did it
    before): the interface reads the manifest of its channel (`cfg.upd`, no cache) once started.
    *Release*: update if the manifest's version is numerically newer. *Test build*

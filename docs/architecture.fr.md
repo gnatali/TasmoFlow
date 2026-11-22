@@ -134,7 +134,12 @@ veut 45) ; la connexion HTTPS du navigateur est vérifiée et ne coûte rien à 
 1. **Publication.** Chaque tag publie sur GitHub Pages `latest.json` (`version`, `size`, `sha256`,
    `tapp`) et `vX.Y.Z/TasmoFlow.tapp` (`pack_tapp.py`) ; un build de test publie `dev/latest.json` à
    côté de `dev/TasmoFlow.tapp`. Une pièce jointe de release GitHub n'est pas lisible par le
-   navigateur (pas de CORS, redirection), Pages l'est.
+   navigateur (pas de CORS, redirection), Pages l'est. La page demande le manifeste, la `.tapp` et le
+   `app.js.gz` de la copie locale avec un horodatage dans l'URL (`update.js`, `fresh()`, depuis le
+   22 novembre 2026) : `cache: 'no-store'` n'évite que le cache du navigateur, et le CDN de GitHub
+   Pages garde sa copie jusqu'à 10 minutes (`max-age=600`). Un `dev/latest.json` périmé avec une
+   nouvelle `.tapp` faisait échouer une mise à jour de test avec « Le fichier téléchargé n'a pas la
+   taille annoncée ».
 2. **Détection** (`app/src/update.js`, `initUpdate()`, depuis le 18 novembre 2026 ; le chargeur
    le faisait avant) : l'interface lit le manifeste de son canal (`cfg.upd`, sans cache) une fois
    démarrée. *Version publiée* : mise à jour si la version du manifeste est numériquement plus

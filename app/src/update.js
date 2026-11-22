@@ -64,8 +64,14 @@ async function room(size, f) {
   }
 }
 
+// A timestamp in the query: `cache: 'no-store'` only skips the browser's cache, GitHub Pages' CDN
+// still serves its own copy for up to 10 minutes (Cache-Control: max-age=600). A test build keeps the
+// same paths (dev/latest.json, dev/TasmoFlow.tapp, dev/app.js.gz): a stale manifest with a new .tapp
+// (or the reverse) failed the size check ("the downloaded file does not have the announced size").
+export const fresh = url => url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
+
 async function download(url) {
-  const r = await fetch(url, { cache: 'no-store' });
+  const r = await fetch(fresh(url), { cache: 'no-store' });
   if (!r.ok) throw new Error('HTTP ' + r.status + ' (download)');
   return new Uint8Array(await r.arrayBuffer());
 }
@@ -137,7 +143,7 @@ export async function dropCopy() {
 export async function initUpdate() {
   if (cfg.upd) {
     try {
-      const j = await (await fetch(cfg.upd, { cache: 'no-store' })).json();
+      const j = await (await fetch(fresh(cfg.upd), { cache: 'no-store' })).json();
       if (j && j.version && newer(j.version, cfg.version)) U.set({ info: { ...j, url: new URL(j.tapp, cfg.upd).href } });
     } catch (e) { /* GitHub unreachable: nothing to offer */ }
   }

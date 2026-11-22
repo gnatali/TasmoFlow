@@ -15,6 +15,8 @@ const VERSION = process.env.TF_VERSION;
 const CDN = `https://gnatali.github.io/TasmoFlow/v${VERSION}/app.js`;
 const SHOTS = process.argv[2];
 const PAGES = 'https://gnatali.github.io/TasmoFlow/';
+// the update fetches GitHub Pages with a timestamp in the query (update.js, fresh()): a route matches the path
+const noQuery = url => u => u.href.split('?')[0] === url.split('?')[0];
 const UPD = PAGES + 'latest.json';
 const DEVUPD = PAGES + 'dev/latest.json';
 const TAPP_URL = PAGES + `v${VERSION}/TasmoFlow.tapp`;
@@ -191,7 +193,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
   });
   // ---- local copy, saved by the interface (Diagnostics screen)
   const GZ = fs.readFileSync(path.join(ROOT, 'dist', 'pages', `v${VERSION}`, 'app.js.gz'));
-  const gzRoute = (p, body = GZ) => p.route(CDN + '.gz', r => r.fulfill({ body, contentType: 'application/gzip', headers: { 'access-control-allow-origin': '*' } }));
+  const gzRoute = (p, body = GZ) => p.route(noQuery(CDN + '.gz'), r => r.fulfill({ body, contentType: 'application/gzip', headers: { 'access-control-allow-origin': '*' } }));
   const copyOf = async api => (await (await fetch(`http://localhost:${api}/api/status?t=0123456789abcdef0123456789abcdef`)).json()).copy;
   await test('local copy: saved from Diagnostics, then loaded first, then deleted', async p => {
     await fetch('http://localhost:8384/__test/reset');
@@ -641,8 +643,8 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
   });
   // ---- update of the .tapp: gateways on 8082 (releases) and 8083 (test builds) are one version behind
   const reset = (api, version, extra = '') => fetch(`http://localhost:${api}/__test/reset?version=${encodeURIComponent(version)}${extra}`);
-  const manifest = (p, url, m) => p.route(url, r => r.fulfill({ json: m, headers: { 'access-control-allow-origin': '*' } }));
-  const tappRoute = p => p.route(TAPP_URL, r => r.fulfill({ body: TAPP, contentType: 'application/octet-stream', headers: { 'access-control-allow-origin': '*' } }));
+  const manifest = (p, url, m) => p.route(noQuery(url), r => r.fulfill({ json: m, headers: { 'access-control-allow-origin': '*' } }));
+  const tappRoute = p => p.route(noQuery(TAPP_URL), r => r.fulfill({ body: TAPP, contentType: 'application/octet-stream', headers: { 'access-control-allow-origin': '*' } }));
   const latest = (extra = {}) => ({ version: VERSION, size: TAPP.length, sha256: TAPP_SHA, tapp: `v${VERSION}/TasmoFlow.tapp`, ...extra });
   await test('update: a newer version shows a banner with a button over every screen; "Later" hides it', async p => {
     await reset(8386, '0.0.9');
@@ -710,7 +712,7 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.route(CDN, r => r.fulfill(jsBody(APP)));
     await manifest(p, UPD, latest());
     let fetched = false;
-    await p.route(TAPP_URL, r => { fetched = true; r.abort(); });
+    await p.route(noQuery(TAPP_URL), r => { fetched = true; r.abort(); });
     await p.goto('http://localhost:8082/tf');
     await expectSource(p, 'github');
     await p.getByRole('button', { name: 'Mettre à jour' }).click();
