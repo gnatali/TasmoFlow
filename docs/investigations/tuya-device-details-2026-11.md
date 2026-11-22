@@ -8,7 +8,7 @@ from the sources (firmware `berry/tuya_local.be`, branch `main` of the firmware 
 **Verdict (updated 22 November with the gateway's measurements): go, without a firmware change for a first version** (identity, codes, live values, sensors,
 Matter bindings). Types and ranges come from a static catalogue in the browser (tuya-local, MIT):
 **go, if it matches on the DPs**: on Guillaume's 6 Wi-Fi devices, the `productKey` alone finds the right
-entry for 1 and a wrong one for another; matching on the DP numbers finds 4 or 5 (see the measurements). Cloud API from the browser: **no-go** (CORS, and the project's rule on credentials).
+entry for 1 and a wrong one for another; matching on the DP numbers finds 5 of 6, the sixth being a Tuya gateway with no DP (see the measurements). Cloud API from the browser: **no-go** (CORS, and the project's rule on credentials).
 
 ## 1. What the firmware holds
 
@@ -139,14 +139,15 @@ Catalogue coverage (tuya-local of 21 November; the product ids themselves stay o
 | 4-channel radio relay | 3 files, **all wrong** (1-gang plug, dual switch, 1-channel relay): a generic `key…` id shared by many products | `moes_quad_switch` (14 of its 14 DPs in the device's 17): right |
 | RGB light (×2) | not found | `rgbw_lightbulbv2` (11 of 11), then `rgbcw_lightbulb`: plausible |
 | Power clamp | 1 file, `pc321ty_energy_meter`: right | not checked |
-| Bulb | 2 files (CCT, RGBCW): the DPs decide | to do (`TuyaConfig`) |
-| One device (`.180`) | not found | to do (`TuyaConfig`) |
+| CCT bulb (`light2`) | 2 files (CCT, RGBCW) | `calex_s45cleare27_light`, CCT (11 of its 12 DPs in the device's 12, first of the whole catalogue): right, the DPs decide between the two |
+| Tuya gateway (no sub-device configured) | not found | no `codes`: a hub has no DPs of its own; its sub-devices would be matched on their DPs |
 
 **What it changes**: the `product_key` alone is not enough. Generic ids (`key…`, the Tuya module's,
 not the product's) are shared by unrelated products, and some products are missing. The sheet must
 match on the DPs (the `codes` of `tuya.json` give every DP number of an imported device, not only the
-kept ones), the `product_key` narrowing the candidates. With that, 4 or 5 of the 6 devices are found
-(the plan's 70 %), to confirm with the last two devices' `codes`. The catalogue then gives the DP
+kept ones), the `product_key` narrowing the candidates. With that, **5 of the 6 devices** are found (83 %; 5 of 5 if the gateway, which has no DP, is left
+out), above the plan's 70 %: 2 sure (`product_key` and DPs agree), 3 by the DPs only (the relay, and the
+two pergola lights, whose best entry is plausible rather than certain). The catalogue then gives the DP
 types and ranges a name: "probably a Moes quad switch", never shown as certain.
 
 ## Proposed steps
@@ -165,6 +166,6 @@ types and ranges a name: "probably a Moes quad switch", never shown as certain.
 
 Done on 22 November: `TuyaConfig`, `TuyaStatus` and `TuyaScan 10` with `Heap` (see the measurements). Left:
 
-1. `TuyaConfig <device>` for the bulb (`.174`) and the device at `.180`: their `codes`, to finish the
-   coverage.
-2. `TuyaConfig` of a Tuya gateway and of a sub-device (none tried yet), and `Heap` during a scan.
+1. A Tuya gateway with sub-devices configured: `TuyaConfig` of a sub-device (its `codes`, if the cloud
+   import gave some), to check the matching on the DPs for sub-devices.
+2. `Heap` during a scan (the peak).
