@@ -17,6 +17,7 @@ import { watchDrivers } from './drivers_full.js';
 import './tuya_colour.js';
 import { GatewaysView, GatewayPicker, initGateways } from './gateways.js';
 import { UpdateBanner, initUpdate } from './update.js';
+import { loadDevtools } from './devtools.js';
 
 addTexts(FULL_TEXTS);
 registerEditor(SentenceEditor, ConflictBanner, findConflicts);
@@ -26,3 +27,4 @@ watchDrivers();
 boot({ devices: DevicesView, rules: RulesView, events: EventsView, console: ConsoleView, gateways: GatewaysView, diag: DiagView },
   { css, Picker: GatewayPicker, Banner: UpdateBanner });
 initUpdate();
+loadDevtools();                // test builds only: Eruda, a console inside the page

@@ -123,6 +123,13 @@ changé. Une copie locale n'est acceptée que par la `.tapp` du même lancement 
 passerelle qui en a une continue de l'utiliser : la supprimer (Diagnostic) pour voir l'interface
 d'un nouveau lancement.
 
+Une version de test charge aussi **Eruda** (`app/src/devtools.js`, depuis le 23 novembre 2026, à la
+demande de Guillaume) : une console et un inspecteur dans la page (https://github.com/liriliri/eruda,
+MIT), pour lire les erreurs, journaux et requêtes sur un téléphone. Un bouton flottant l'ouvre.
+Version 3.4.3 depuis jsDelivr, avec son empreinte SRI ; seulement quand `__BUILD__` est défini
+(`TF_BUILD`, le job `preview`) : esbuild retire le code d'une build de release. Hors ligne, elle
+n'est simplement pas chargée.
+
 ### Mise à jour de la .tapp
 
 Décision du 11 novembre 2026 : une mise à jour simple depuis l'interface, avec le **navigateur

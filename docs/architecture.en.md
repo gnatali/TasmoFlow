@@ -115,6 +115,12 @@ below). Reinstalling the `.tapp` is only needed when `extension/` changed. A loc
 accepted by the `.tapp` of the same run (`APP_SHA`), and a gateway that has one keeps running it:
 delete it (Diagnostics) to see a new run's interface.
 
+A test build also loads **Eruda** (`app/src/devtools.js`, since 23 November 2026, asked for by
+Guillaume): a console and inspector inside the page (https://github.com/liriliri/eruda, MIT), to read
+errors, logs and requests on a phone. A floating button opens it. Version 3.4.3 from jsDelivr, with
+its SRI hash; only when `__BUILD__` is set (`TF_BUILD`, the `preview` job): esbuild drops the code from
+a release build. Offline, it is simply not loaded.
+
 ### Updating the .tapp
 
 Decision of 11 November 2026: a simple update from the interface, with the **browser as relay**.

@@ -49,6 +49,7 @@ Specification (French, outside the repository):
 
 | Date | Step |
 | --- | --- |
+| 23 Nov | **Eruda in test builds** (Guillaume): a console inside the page for the phone (`app/src/devtools.js`, eruda 3.4.3 from jsDelivr with SRI), only when `__BUILD__` is set; absent from releases. The pickers' recette: 1 OK, 3 KO (*no value* with `Dimmer`, details asked) |
 | 23 Nov | **Catalogue in the rules** (Guillaume's choice): the command pickers offer every writable Tuya DP (import codes, catalogue entry, state; read-only ones left out: catalogue format 2, `ro`), and, for Zigbee the same way, `Dimmer` and `CT` with a value; read back in plain language. Interface only; to try on the gateway (test plan) |
 | 22 Nov | **Tuya product identification and catalogue checked on the gateway** (Guillaume, test build `0.2.0-dev.1168fe3`, `.tapp` installed again) |
 | 22 Nov | **Tuya product identification and catalogue** (steps 2 and 3 of the feasibility note): **Identify** on the sheet runs `TuyaScan 10`, `tasmoflow.be` relays its result (`tuyascan` event, id and product id only; **`.tapp` to install again**), kept in the browser; catalogue from tuya-local (MIT, commit pinned in `app/src/catalogue.js`) built in CI (`tools/build_catalogue.py`, `tools/catalogue.sh`) and published under `catalogue/<commit>/`; matched on the DP numbers plus a bonus for the product id (the real devices' cases are unit tests); a **Product** section in both sheets (Zigbee: model and manufacturer). To try on the gateway (test plan) |
