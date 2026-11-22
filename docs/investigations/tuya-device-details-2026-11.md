@@ -5,10 +5,10 @@ identity, data points (code, type, range) and live state. This note answers the 
 from the sources (firmware `berry/tuya_local.be`, branch `main` of the firmware repository; TasmoFlow
 `app/src/`, `extension/`), and lists what is left to measure on the gateway.
 
-**Verdict: go, without a firmware change for a first version** (identity, codes, live values, sensors,
+**Verdict (updated 22 November with the gateway's measurements): go, without a firmware change for a first version** (identity, codes, live values, sensors,
 Matter bindings). Types and ranges come from a static catalogue in the browser (tuya-local, MIT):
-**go**, but its coverage of Guillaume's devices is still to be measured (it needs their `productKey`,
-from `TuyaScan`). Cloud API from the browser: **no-go** (CORS, and the project's rule on credentials).
+**go, if it matches on the DPs**: on Guillaume's 6 Wi-Fi devices, the `productKey` alone finds the right
+entry for 1 and a wrong one for another; matching on the DP numbers finds 4 or 5 (see the measurements). Cloud API from the browser: **no-go** (CORS, and the project's rule on credentials).
 
 ## 1. What the firmware holds
 
@@ -119,6 +119,36 @@ rule on `TuyaScan` in `tasmoflow.be` (like the `Tuya` rule; a `.tapp` change) an
 - Decision proposed: the sheet covers Wi-Fi and gateway Tuya devices first; TS0601 later, with the
   `ZbSend` DP writing still to try (v0.3).
 
+## Measured on the gateway (22 November 2026, Guillaume)
+
+Free heap after `Br tasmota.gc()` (`Status 4`): 53 KB before, **57 KB** after two `TuyaConfig <device>`,
+56 KB after two `TuyaStatus <device>`, **56 KB** after `TuyaScan 10`: nothing kept, no lasting cost (the
+peak during the scan was not taken). The 10 s scan found the 6 Wi-Fi devices, **each with its
+`product_key`**.
+
+- `TuyaConfig <device>` answers `name`, `id`, `ip`, `version`, `key` (`***`), `codes`, `matter`, `keep`
+  (when set): as expected. A 4-channel radio relay has 17 codes, an RGB light 11.
+- `TuyaStatus <device>` keeps few DPs: 4 of the relay's 17 (its booleans), 5 of the light's 11
+  (booleans and `keep`). Live values of the others only come with the `Tuya` events.
+
+Catalogue coverage (tuya-local of 21 November; the product ids themselves stay out of the repository):
+5 distinct `product_key` for 6 devices (the two pergola lights share one).
+
+| Device | By `product_key` | By DPs (the device's `codes`, Jaccard on the DP numbers) |
+| --- | --- | --- |
+| 4-channel radio relay | 3 files, **all wrong** (1-gang plug, dual switch, 1-channel relay): a generic `key…` id shared by many products | `moes_quad_switch` (14 of its 14 DPs in the device's 17): right |
+| RGB light (×2) | not found | `rgbw_lightbulbv2` (11 of 11), then `rgbcw_lightbulb`: plausible |
+| Power clamp | 1 file, `pc321ty_energy_meter`: right | not checked |
+| Bulb | 2 files (CCT, RGBCW): the DPs decide | to do (`TuyaConfig`) |
+| One device (`.180`) | not found | to do (`TuyaConfig`) |
+
+**What it changes**: the `product_key` alone is not enough. Generic ids (`key…`, the Tuya module's,
+not the product's) are shared by unrelated products, and some products are missing. The sheet must
+match on the DPs (the `codes` of `tuya.json` give every DP number of an imported device, not only the
+kept ones), the `product_key` narrowing the candidates. With that, 4 or 5 of the 6 devices are found
+(the plan's 70 %), to confirm with the last two devices' `codes`. The catalogue then gives the DP
+types and ranges a name: "probably a Moes quad switch", never shown as certain.
+
 ## Proposed steps
 
 1. **Sheet v1, interface only** (no `.tapp` change): opened from a Tuya card, it shows name, id, IP,
@@ -126,16 +156,15 @@ rule on `TuyaScan` in `tasmoflow.be` (like the `Tuya` rule; a `.tapp` change) an
    sensors (`sensors`, divided, with unit) and Matter bindings. Each value says where it comes from.
 2. **Identify**: a rule on `TuyaScan` in `tasmoflow.be` (`.tapp` to install again), `productKey` kept in
    the browser.
-3. **Catalogue**: CI script tuya-local YAML → `catalogue/<productKey>.json` on GitHub Pages; the sheet
-   adds type, range, values and labels; fallback on the live DPs (`match_quality`-like).
+3. **Catalogue**: CI script tuya-local YAML → a small index of every file's DP numbers (to match on the
+   device's `codes`) and one file per catalogue entry (types, ranges, values, labels) on GitHub Pages;
+   the `product_key` only narrows the candidates (see the measurements).
 4. Only if 3 leaves gaps: firmware patch of the import (2), then TS0601 (7).
 
 ## To do on the gateway (Guillaume)
 
-1. `TuyaConfig <device>` for one Wi-Fi device, one gateway and one sub-device: the fields returned
-   (key masked); `Heap` before and after (`Br tasmota.gc()` then `Status 4`).
-2. `TuyaStatus <device>`: the DPs kept, compared with those the Smart Life app shows.
-3. `TuyaScan 10`: wait 10 s, then the `TuyaScan` line in the console: is `product_key` filled for each
-   Wi-Fi device? `Heap` before, during and after.
-4. Send the list of `product_key` (privately, not in the repository): the catalogue coverage is
-   measured from it.
+Done on 22 November: `TuyaConfig`, `TuyaStatus` and `TuyaScan 10` with `Heap` (see the measurements). Left:
+
+1. `TuyaConfig <device>` for the bulb (`.174`) and the device at `.180`: their `codes`, to finish the
+   coverage.
+2. `TuyaConfig` of a Tuya gateway and of a sub-device (none tried yet), and `Heap` during a scan.
