@@ -13,7 +13,8 @@ candidates. Hence two kinds of files:
   index.json      {"ref": <tuya-local commit>, "files": [[stem, name, [dp, ...], [product id, ...]], ...]}
                   every file's DP numbers and product ids: what the matching needs, fetched once
   d/<stem>.json   {"name", "products": [{"id", "manufacturer", "model"}], "dps": {"<dp>": {"type",
-                  "names": [...], "unit", "min", "max", "scale", "step", "values": [...]}}}
+                  "names": [...], "ro", "unit", "min", "max", "scale", "step", "values": [...]}}}
+                  (format 2, 23 November 2026: `ro`, a read-only DP)
                   one product's details, fetched for the device shown
 
 Usage: tools/build_catalogue.py <tuya-local checkout> <output dir>
@@ -30,6 +31,10 @@ import yaml
 def dp_info(dp, entity):
     """What a dps entry of an entity says of its DP."""
     out = {"type": str(dp.get("type", ""))}
+    # read-only: the device reports it, nothing writes it (no command offered). tuya-local says so
+    # mostly by the entity (a sensor), rarely with `readonly: true` on the DP
+    if dp.get("readonly") or entity.get("entity") in ("sensor", "binary_sensor"):
+        out["ro"] = True
     label = dp.get("name", "")
     if label in ("", "sensor", "switch", "value", "option", "brightness", "light", "fan", "speed") or label == entity.get("entity"):
         label = (entity.get("name") or entity.get("class") or entity.get("entity") or "") + ("" if label in ("", entity.get("entity")) else " · " + label)
@@ -62,12 +67,15 @@ def dp_info(dp, entity):
 
 
 def merge(a, b):
-    """Two entries for the same DP (several entities read it): names joined, the rest kept."""
+    """Two entries for the same DP (several entities read it): names joined, the rest kept; it is
+    read-only only if every entity reads it so."""
+    if not b.get("ro"):
+        a.pop("ro", None)
     for n in b.get("names", []):
         if n not in a.setdefault("names", []):
             a["names"].append(n)
     for k, v in b.items():
-        if k != "names" and k not in a:
+        if k not in ("names", "ro") and k not in a:
             a[k] = v
     return a
 

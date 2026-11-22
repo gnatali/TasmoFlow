@@ -565,7 +565,7 @@ la valeur, puis les jeux de règles qui citent l'appareil. Faisabilité et mesur
   navigateur (`tf-product-keys`, par identifiant d'appareil). Le catalogue est construit depuis
   **tuya-local** (MIT, sa notice publiée avec lui) au commit fixé dans `app/src/catalogue.js`
   (`TUYA_LOCAL_REF`) par `tools/build_catalogue.py` (`tools/catalogue.sh` dans le workflow, builds de
-  release et de test), et publié sur GitHub Pages sous `catalogue/<commit>/` : `index.json` (les
+  release et de test), et publié sur GitHub Pages sous `catalogue/v<format>/<commit>/` (format 2 depuis le 23 novembre 2026 : `ro`, un DP en lecture seule) : `index.json` (les
   numéros de DP et identifiants produit de chaque entrée, 205 Ko, 64 Ko gzip, chargé une fois) et
   `d/<entrée>.json` (les DP d'un produit : noms, type, plage, unité, échelle, valeurs).
   `matchProducts()` note chaque entrée sur les numéros de DP (Jaccard) plus 0,15 si elle cite
@@ -709,9 +709,18 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
   `SetOption83` activé et un appareil nommé, le nom quand il est désactivé) ne se déclenche jamais : la
   tuile et le formulaire le signalent, et le formulaire propose de le corriger (`keyMismatch()`). *Actions Zigbee* :
   `ZbSend {"device":"0x1234","send":{"Power":"On"}}` (allumer, éteindre, basculer ; par adresse, qui
-  ne change jamais) pour les appareils qui ont un attribut `Power`. *Actions Tuya* :
+  ne change jamais) pour les appareils qui ont un attribut `Power`, et depuis le 23 novembre 2026
+  `Dimmer` (0-254) et `CT` (153-500 mireds) pour ceux qui les ont, avec une valeur par défaut à
+  changer (élément `tpl` : la forme libre ouvre le texte, le mode guidé demande la valeur). *Actions Tuya* :
   `TuyaSend <nom>,<dp>,true|false|toggle` par interrupteur, `TuyaSend <nom>,<dp>,` à compléter pour
-  un curseur (un nom avec virgule passe par son identifiant, ou est écarté sans lui). Pas de *déclencheurs Tuya* : la règle `Tuya#Dps#<dp>` ne
+  un curseur (un nom avec virgule passe par son identifiant, ou est écarté sans lui) ; depuis le
+  23 novembre 2026 aussi **tous les autres DP modifiables** (`tuyaDps()`) : ceux des `codes` de
+  l'import, de l'entrée de catalogue de l'appareil (`loadProducts()` : la première correspondance de
+  la fiche, probable ou possible ; les DP en lecture seule, un capteur tuya-local, écartés ; format 2
+  du catalogue, `catalogue/v2/<commit>/`) et de son état ; un booléen donne allumer, éteindre,
+  basculer, un entier une valeur avec sa plage, une liste de valeurs un élément chacune, nommés par
+  code et nom du catalogue (`countdown_1 (countdown) … (0-86399)`) ; relu en
+  `Récepteur radio · relay_status = memory`. Pas de *déclencheurs Tuya* : la règle `Tuya#Dps#<dp>` ne
   voit pas le nom de l'appareil (les règles Berry le feront). Les phrases se lisent en langage clair
   quand le motif est connu (`Lampe · Power = 1`, `basculer Lampe`). Les attributs listés sont ceux
   qu'un appareil a signalés depuis l'ouverture de l'interface ou dans son dernier état : un bouton
@@ -877,6 +886,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] v0.1 (12 novembre 2026, version de test) : la carte d'une `light3` de l'interface complète (version de test, pas de `.tapp` à réinstaller pour cela, sauf pour la luminosité 1-100 % de l'interface légère) montre les onglets Blanc / Couleur (pas l'interface légère) ; l'onglet sélectionné suit le mode réglé depuis l'application Tuya ; la roue de teinte et les curseurs de saturation et de luminosité changent la lampe et la carte suit l'état renvoyé ; en Blanc, le curseur de luminosité correspond à celui de l'application Tuya ; une lampe sans `dp_ct` n'affiche pas de température de couleur; la même carte pour une `light2` (`Entrée-Porche`) : cadran en arc ouvert pour la température de couleur et luminosité de 1 % à 100 % ; une valeur qu'on vient de régler reste affichée jusqu'à ce que l'appareil la signale (plus de clignotement nouvelle / ancienne / nouvelle) ; les options sont masquées tant que la lampe est éteinte ou déconnectée et reviennent à l'allumage (vérifié par Guillaume sur la passerelle, le 12 novembre 2026)
 - [ ] v0.1 : vérifier que `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)
 - [ ] v0.2, fiche de détails Zigbee (22 novembre 2026, build de test) : **Détails** sur la carte Interrupteur Entrée : adresse IEEE, `SNZB-01P`, eWeLink, endpoint 1, terminal ; batterie 100 %, LQI, dernier message ; ligne `Power` utilisée par ta règle (`Rule<n> (déclencheur)`), sans valeur tant que le bouton n'est pas appuyé, puis *événement* avec l'heure ; le jeu de règles listé dans les règles qui le citent ; pareil sur une lampe (routeur, `Power` et `Dimmer` *passerelle*)
+- [ ] v0.2, sélecteurs d'après le catalogue (23 novembre 2026, build de test) : dans une nouvelle règle, la liste des commandes du Récepteur radio propose `switch_2 (switch) · allumer`..., `countdown_1 … (0-86399)`, `relay_status = memory` ; la Pince ne propose aucune de ses mesures ; une lampe Zigbee propose `Dimmer … (0-254)` : choisi dans la forme libre, le texte s'ouvre avec 127 à changer ; en mode guidé un champ demande la valeur ; la règle enregistrée fonctionne
 - [x] v0.2, produit Tuya (22 novembre 2026, vérifié sur la passerelle par Guillaume, build de test, **`.tapp` réinstallée**, `Restart 1`) : la fiche du Récepteur radio montre *Quad switch* en premier (probable) avant toute découverte, puis **Identifier** : son identifiant produit apparaît après environ 10 s, le quad switch reste premier ; Entrée-Porche : *CCT lightbulb* (probable, même identifiant produit) ; la colonne **Catalogue** nomme les DP (`light · brightness · integer 10-1000`...) ; le lien ouvre le fichier tuya-local ; `Heap` pendant la découverte
 - [ ] v0.2, fiche de détails Tuya (22 novembre 2026, build de test) : **Détails** sur la carte Pergola 1 : identifiant, IP, protocole 3.4, `keep` 21, 22, 24 ; 11 DP avec leurs codes ; 20, 21, 22, 24 marqués *Matter · Pergola 1* (*hors Matter*) ; 20, 21, 22, 24, 34 *passerelle* ; allumer la lumière depuis l'app Tuya affiche les DP qu'elle envoie en *événement* avec l'heure ; aucune clé nulle part ; lisible sur téléphone (un bloc par DP)
 - [x] v0.2, configuration Tuya appareil par appareil (18 novembre 2026, firmware du même jour flashé, `.tapp` réinstallée) : les cartes Tuya montrent leurs commandes (variateur, couleur, vitesse...), sous-appareils de la passerelle Tuya compris ; le journal de la passerelle montre des commandes `TuyaConfig <nom>` et aucun `TuyaConfig` seul ; avec moins de 30 Ko libres les commandes sont toujours là (pas de note « mémoire insuffisante »)

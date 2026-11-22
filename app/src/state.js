@@ -32,7 +32,8 @@ export const S = createStore({
   live: false,
   stopped: false,           // the gateway stopped this page's event stream: more than three were open
   error: null,
-  productKeys: readKeys(),  // Tuya device id -> product id, from TuyaScan (the details sheet), kept in the browser
+  productKeys: readKeys(),
+  products: null,           // { "<Tuya device>": its catalogue entry } for the rule pickers (catalogue.js, loadProducts)  // Tuya device id -> product id, from TuyaScan (the details sheet), kept in the browser
   startMs: 0,
   consoleOut: ''
 });
@@ -195,7 +196,7 @@ function connectEvents() {
       const productKeys = { ...S.get().productKeys };
       for (const d of ev.devices || []) if (d && d.id && d.product_key) productKeys[d.id] = d.product_key;
       saveKeys(productKeys);
-      S.set({ productKeys, scanAt: Date.now() });
+      S.set({ productKeys, scanAt: Date.now(), products: null });   // matched again with the product ids
     }
     S.set(s => {
       const events = [ev, ...s.events].slice(0, 100);
@@ -270,7 +271,7 @@ function switchTo(gw) {
   closeEvents();
   api = client(gw);
   lastSeq = 0;
-  S.set({ gw, status: null, devices: null, tuya: null, drivers: {}, recheck: 0, rules: null, events: [], live: false, stopped: false, error: null });
+  S.set({ gw, status: null, devices: null, tuya: null, products: null, drivers: {}, recheck: 0, rules: null, events: [], live: false, stopped: false, error: null });
   start();
 }
 

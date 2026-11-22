@@ -107,20 +107,58 @@ export function tuyaTriggers(tuya, labels) {
 }
 
 const zbSend = (addr, power) => 'ZbSend {"device":"' + addr + '","send":{"Power":"' + power + '"}}';
+const zbSet = (addr, attr, v) => 'ZbSend {"device":"' + addr + '","send":{"' + attr + '":' + v + '}}';
 
-// switching a Zigbee device on, off, or over: `labels` = { On, Off, Toggle } in the user's language
+// The Zigbee values a rule can set, with their range (Tasmota's ZbSend for lights, xdrv_23_zigbee_A_impl.ino
+// and Z_Data_Light: Dimmer 0-254, CT in mireds, 153 (6500 K) to 500 (2000 K) for most bulbs)
+export const ZB_SET = [['Dimmer', 0, 254, 127], ['CT', 153, 500, 300]];
+
+// What a rule can make a Zigbee device do: on, off, toggle for a device with `Power`, and a value for
+// `Dimmer` and `CT` when it has them. `labels` = { On, Off, Toggle } in the user's language. An item with
+// `tpl` takes a value: `value` holds a default, `tpl` the command with `{v}` where the value goes.
 export function zbActions(devices, labels) {
   const groups = [];
   for (const d of sorted(devices)) {
-    if (!zbAttrs(d).includes('Power')) continue;
-    groups.push({ group: shown(d), items: ['On', 'Off', 'Toggle'].map(p => ({ label: labels[p], value: zbSend(d.addr, p) })) });
+    const attrs = zbAttrs(d);
+    const items = attrs.includes('Power') ? ['On', 'Off', 'Toggle'].map(p => ({ label: labels[p], value: zbSend(d.addr, p) })) : [];
+    for (const [a, lo, hi, def] of ZB_SET) {
+      if (attrs.includes(a)) items.push({ label: a + ' … (' + lo + '-' + hi + ')', value: zbSet(d.addr, a, def), tpl: zbSet(d.addr, a, '{v}') });
+    }
+    if (items.length) groups.push({ group: shown(d), items });
   }
   return groups;
 }
 
+// The other DPs a rule can write, beyond those the Matter bindings name (controlsFor): every DP of
+// the import's codes, of the device's catalogue entry (`product`, catalogue.js) and of its state.
+// [{ dp, label, type, min, max, values }]; read-only ones (the catalogue's `ro`) left out; the
+// type from the catalogue, else from the value the gateway keeps (a boolean, a number).
+export function tuyaDps(node, entry, product, skip) {
+  const byDp = {};
+  for (const code in (entry && entry.codes) || {}) byDp[String(entry.codes[code])] = code;
+  const pd = (product && product.dps) || {};
+  const dps = (node && node.dps) || {};
+  const all = new Set([...Object.keys(byDp), ...Object.keys(pd), ...Object.keys(dps)].filter(k => /^\d+$/.test(k)));
+  const out = [];
+  for (const k of [...all].sort((a, b) => a - b)) {
+    if (skip && skip.has(k)) continue;
+    const info = pd[k];
+    if (info && info.ro) continue;
+    const v = dps[k];
+    const type = info ? String(info.type || '').toLowerCase() : typeof v === 'boolean' ? 'boolean' : typeof v === 'number' ? 'integer' : '';
+    const name = info && info.names && info.names[0];
+    const code = byDp[k];
+    const label = (code || 'DP ' + k) + (name && name !== code ? ' (' + name + ')' : '');
+    out.push({ dp: k, label, type, min: info && info.min, max: info && info.max, values: info && info.values });
+  }
+  return out;
+}
+
 // Tuya devices, through TuyaSend: a switch gives on, off and toggle, a slider a command to
-// complete with the value. A name with a comma goes by its id (sendName), or is left out.
-export function tuyaActions(tuya, labels) {
+// complete with the value; then the device's other writable DPs (tuyaDps): a boolean the same, an
+// integer a value, a list of values one item each. A name with a comma goes by its id (sendName),
+// or is left out. `products`: { name: catalogue entry } (catalogue.js, loadProducts), or nothing.
+export function tuyaActions(tuya, labels, products) {
   const groups = [];
   if (!tuya || tuya.state !== 'running') return groups;
   for (const name of Object.keys(tuya.nodes).sort((a, b) => a.localeCompare(b))) {
@@ -135,6 +173,17 @@ export function tuyaActions(tuya, labels) {
         }
       } else if (c.kind === 'range') {
         items.push({ label: c.label + ' …', value: 'TuyaSend ' + addr + ',' + c.dp + ',' });
+      }
+    }
+    const used = new Set(controlsFor(tuya.nodes[name], entry).map(c => String(c.dp)));
+    for (const d of tuyaDps(tuya.nodes[name], entry, products && products[name], used)) {
+      const cmd = 'TuyaSend ' + addr + ',' + d.dp + ',';
+      if (d.type === 'boolean' || d.type === 'bool') {
+        for (const [v, k] of [['true', 'On'], ['false', 'Off'], ['toggle', 'Toggle']]) items.push({ label: d.label + ' · ' + labels[k], value: cmd + v });
+      } else if (d.type === 'integer' || d.type === 'value') {
+        items.push({ label: d.label + ' …' + (d.min != null && d.max != null ? ' (' + d.min + '-' + d.max + ')' : ''), value: cmd });
+      } else if (Array.isArray(d.values) && d.values.length) {
+        for (const v of d.values.slice(0, 8)) items.push({ label: d.label + ' = ' + v, value: cmd + v });
       }
     }
     if (items.length) groups.push({ group: 'Tuya · ' + name, items });
@@ -201,7 +250,19 @@ export function describeCommand(cmd, devices, labels, tuya) {
     const d = Object.values(devices || {}).find(x => x.addr.toLowerCase() === m[1].toLowerCase() || x.name === m[1]);
     return labels[m[2]] + ' ' + (d ? shown(d) : m[1]);
   }
+  m = /^ZbSend\s*\{"device":"([^"]+)","send":\{"(Dimmer|CT)":(\d+)\}\}$/.exec(cmd);
+  if (m) {
+    const d = Object.values(devices || {}).find(x => x.addr.toLowerCase() === m[1].toLowerCase() || x.name === m[1]);
+    return (d ? shown(d) : m[1]) + ' · ' + m[2] + ' = ' + m[3];
+  }
   m = /^TuyaSend\s+([^,]+),(\d+),(true|false|toggle)$/i.exec(cmd);
   if (m) return labels[{ true: 'On', false: 'Off', toggle: 'Toggle' }[m[3].toLowerCase()]] + ' ' + tuyaShown(m[1], tuya) + ' (DP ' + m[2] + ')';
+  m = /^TuyaSend\s+([^,]+),(\d+),(.+)$/i.exec(cmd);
+  if (m) {
+    const who = tuyaShown(m[1], tuya);
+    const entry = ((tuya && tuya.conf) || {})[who];
+    const code = Object.keys((entry && entry.codes) || {}).find(c => String(entry.codes[c]) === m[2]);
+    return who + ' · ' + (code || 'DP ' + m[2]) + ' = ' + m[3].trim();
+  }
   return null;
 }

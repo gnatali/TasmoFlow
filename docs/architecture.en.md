@@ -532,7 +532,7 @@ sets that name the device. Tuya feasibility and measurements:
   (`tf-product-keys`, by device id). The catalogue is built from **tuya-local** (MIT, its notice
   published with it) at the commit pinned in `app/src/catalogue.js` (`TUYA_LOCAL_REF`) by
   `tools/build_catalogue.py` (`tools/catalogue.sh` in the workflow, release and test builds), and
-  published on GitHub Pages under `catalogue/<commit>/`: `index.json` (every entry's DP numbers and
+  published on GitHub Pages under `catalogue/v<format>/<commit>/` (format 2 since 23 November 2026: `ro`, a read-only DP): `index.json` (every entry's DP numbers and
   product ids, 205 KB, 64 KB gzip, fetched once) and `d/<entry>.json` (one product's DPs: names, type,
   range, unit, scale, values). `matchProducts()` scores each entry on the DP numbers (Jaccard) plus
   0.15 when it lists the device's product id: generic product ids are shared by unrelated products
@@ -667,9 +667,17 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
   the words `do`, `endon`, `break`, `and`, `or`. A `ZbReceived` trigger whose key is not the one Tasmota
   writes (the address with `SetOption83` on and a named device, the name with it off) never fires: the
   tile and the form say so, and the form offers to fix it (`keyMismatch()`). *Zigbee actions*: `ZbSend {"device":"0x1234","send":{"Power":"On"}}`
-  (on, off, toggle; by address, which never changes) for devices with a `Power` attribute.
+  (on, off, toggle; by address, which never changes) for devices with a `Power` attribute, and since
+  23 November 2026 `Dimmer` (0-254) and `CT` (153-500 mireds) for devices that have them, with a
+  default value to change (`tpl` item: the free form opens the text, the guided mode asks for the value).
   *Tuya actions*: `TuyaSend <name>,<dp>,true|false|toggle` per switch, `TuyaSend <name>,<dp>,` to
-  complete for a slider (a name with a comma goes by its id, or is left out without one). *Tuya triggers* are not offered: the
+  complete for a slider (a name with a comma goes by its id, or is left out without one); since
+  23 November 2026 also **every other writable DP** (`tuyaDps()`): those of the import's `codes`, of the
+  device's catalogue entry (`loadProducts()`: the details sheet's first match, probable or possible;
+  read-only DPs, a tuya-local sensor, left out; catalogue format 2, `catalogue/v2/<commit>/`) and of
+  its state; a boolean gives on, off, toggle, an integer a value with its range, a list of values one
+  item each, named by code and catalogue name (`countdown_1 (countdown) … (0-86399)`); read back as
+  `Récepteur radio · relay_status = memory`. *Tuya triggers* are not offered: the
   `Tuya#Dps#<dp>` rule does not see the device name (Berry rules will). Sentences read in plain
   language where the pattern is known (`Lampe · Power = 1`, `basculer Lampe`). The attributes
   listed are the ones a device has reported since the interface opened or in its last state:
@@ -824,6 +832,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] v0.1 (12 November 2026, test build): a `light3` card of the full interface (test build, no `.tapp` to install again for this, except for the 1-100 % brightness of the light interface) shows the tabs White / Colour (not the light interface); the selected tab follows the mode set from the Tuya app; the hue wheel, saturation and brightness sliders change the lamp and the card follows the state sent back; in White the brightness slider matches the Tuya app's; a lamp without `dp_ct` shows no colour temperature; the same card for a `light2` (`Entrée-Porche`): open arc dial for the colour temperature and brightness, 1 % to 100 %; a value just set stays on screen until the device reports it (no new / old / new flicker); the options are hidden while the lamp is off or disconnected and come back when it is on (verified by Guillaume on the gateway, 12 November 2026)
 - [ ] v0.1: check that `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)
 - [ ] v0.2, Zigbee details sheet (22 November 2026, test build): **Details** on the Interrupteur Entrée card: IEEE address, `SNZB-01P`, eWeLink, endpoint 1, end device; battery 100 %, LQI, last message; `Power` row used by your rule (`Rule<n> (déclencheur)`), no value until the button is pressed, then *event* with the time; the rule set listed under the rules that name it; same on a lamp (router, `Power` and `Dimmer` *gateway*)
+- [ ] v0.2, pickers from the catalogue (23 November 2026, test build): in a new rule, the command list of Récepteur radio offers `switch_2 (switch) · allumer`..., `countdown_1 … (0-86399)`, `relay_status = memory`; Pince offers none of its readings; a Zigbee lamp offers `Dimmer … (0-254)`: picked in the free form, the text opens with 127 to change; in the guided mode a field asks for the value; the saved rule works
 - [x] v0.2, Tuya product (22 November 2026, checked on the gateway by Guillaume, test build, **`.tapp` installed again**, `Restart 1`): Récepteur radio's sheet shows *Quad switch* first (probable) before any scan, then **Identify**: its product id appears after about 10 s, the quad switch stays first; Entrée-Porche: *CCT lightbulb* (probable, same product id); the **Catalogue** column names the DPs (`light · brightness · integer 10-1000`...); the link opens the tuya-local file; `Heap` during the scan
 - [ ] v0.2, Tuya details sheet (22 November 2026, test build): **Details** on the Pergola 1 card: id, IP, protocol 3.4, `keep` 21, 22, 24; 11 DPs with their codes; 20, 21, 22, 24 marked *Matter · Pergola 1* (*hors Matter*); 20, 21, 22, 24, 34 *gateway*; switching the light from the Tuya app shows the DPs it sends as *event* with the time; no key anywhere; readable on a phone (one block per DP)
 - [x] v0.2, Tuya configuration device by device (18 November 2026, firmware of the same day flashed, `.tapp` installed again): the Tuya cards show their controls (dimmer, colour, speed...), sub-devices of the Tuya gateway included; the gateway's log shows `TuyaConfig <name>` commands and no bare `TuyaConfig`; with less than 30 KB free the controls are still there (no "not enough memory" note)

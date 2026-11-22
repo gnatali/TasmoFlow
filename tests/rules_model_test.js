@@ -19,7 +19,7 @@ globalThis.document = { documentElement: {} };
 globalThis.window = { addEventListener() {} };      // rules.js (reached through tuya.js, rename.js) listens for beforeunload
 const m = { exports: {} };
 new Function('module', 'exports', out)(m, m.exports);
-const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, keyMismatch, seenAttrs, zbTriggerAttrs, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks, sheetRows, showValue, identity, parentOf, zbIdentity, zbProduct, zbLink, zbRows, ruleRefs, matchProducts, confidence, catalogueText } = m.exports;
+const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, keyMismatch, seenAttrs, zbTriggerAttrs, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks, sheetRows, showValue, identity, parentOf, zbIdentity, zbProduct, zbLink, zbRows, ruleRefs, matchProducts, confidence, catalogueText, tuyaDps, ZB_SET } = m.exports;
 
 let n = 0;
 const ok = (name, f) => { f(); n++; };
@@ -553,6 +553,44 @@ ok('Tuya catalogue: one line per DP', () => {
   assert.strictEqual(catalogueText({ type: 'string', names: ['mode'], values: ['white', 'colour', 'scene'] }), 'mode · string: white, colour, scene');
   assert.strictEqual(catalogueText({ type: 'string', values: [1, 2, 3, 4, 5, 6, 7, 8, 9] }), 'string: 1, 2, 3, 4, 5, 6, 7, 8…');
   assert.strictEqual(catalogueText(undefined), '');
+});
+
+ok('pickers: every writable Tuya DP, from the codes, the catalogue and the state', () => {
+  // the 4-channel radio relay (DPs as on the gateway), its catalogue entry abridged
+  const entry = { name: 'Récepteur radio', matter: [{ ep: 'Parking', type: 'relay', enabled: false, dp: 1 }],
+    codes: { switch_1: 1, switch_2: 2, countdown_1: 9, relay_status: 38, switch_type: 47, test_bit: 24 } };
+  const node = { connected: true, dps: { 1: false, 2: true, 24: 5 } };
+  const product = { dps: { 1: { type: 'boolean', names: ['switch'] }, 2: { type: 'boolean', names: ['switch'] },
+    9: { type: 'integer', names: ['countdown'], min: 0, max: 86399 }, 38: { type: 'string', names: ['power on state'], values: ['off', 'on', 'memory'] },
+    47: { type: 'string', names: ['switch_type'], ro: true } } };
+  const d = tuyaDps(node, entry, product, new Set(['1']));
+  assert.deepStrictEqual(d.map(x => [x.dp, x.label, x.type]), [['2', 'switch_2 (switch)', 'boolean'], ['9', 'countdown_1 (countdown)', 'integer'],
+    ['24', 'test_bit', 'integer'], ['38', 'relay_status (power on state)', 'string']]);          // 47 read-only, 1 already a control; 24 typed by its value
+  const tuya = { state: 'running', nodes: { 'Récepteur radio': node }, conf: { 'Récepteur radio': entry } };
+  const lab = { On: 'allumer', Off: 'éteindre', Toggle: 'basculer' };
+  const items = tuyaActions(tuya, lab, { 'Récepteur radio': product })[0].items;
+  const v = items.map(i => i.label + ' = ' + i.value);
+  assert.ok(v.includes('Parking · basculer = TuyaSend Récepteur radio,1,toggle'));            // the Matter control first
+  assert.ok(v.includes('switch_2 (switch) · allumer = TuyaSend Récepteur radio,2,true'));
+  assert.ok(v.includes('countdown_1 (countdown) … (0-86399) = TuyaSend Récepteur radio,9,'));
+  assert.ok(v.includes('relay_status (power on state) = memory = TuyaSend Récepteur radio,38,memory'));
+  assert.ok(!v.some(x => x.includes(',47,')));
+  // without the catalogue: the codes alone, typed by the values the gateway keeps
+  const bare = tuyaActions(tuya, lab)[0].items.map(i => i.value);
+  assert.ok(bare.includes('TuyaSend Récepteur radio,2,toggle') && bare.includes('TuyaSend Récepteur radio,24,') && !bare.some(x => x.includes(',38,')));
+  // read back in plain language
+  assert.strictEqual(describeCommand('TuyaSend Récepteur radio,38,memory', {}, lab, tuya), 'Récepteur radio · relay_status = memory');
+  assert.strictEqual(describeCommand('TuyaSend Récepteur radio,77,5', {}, lab, tuya), 'Récepteur radio · DP 77 = 5');
+});
+ok('pickers: Zigbee Dimmer and CT, with a value', () => {
+  const lamps = { '0x3C4D': { addr: '0x3C4D', name: 'Lampe salon', attrs: { Power: 1, Dimmer: 180, CT: 300 } } };
+  const items = zbActions(lamps, { On: 'allumer', Off: 'éteindre', Toggle: 'basculer' })[0].items;
+  assert.deepStrictEqual(items.slice(3), [
+    { label: 'Dimmer … (0-254)', value: 'ZbSend {"device":"0x3C4D","send":{"Dimmer":127}}', tpl: 'ZbSend {"device":"0x3C4D","send":{"Dimmer":{v}}}' },
+    { label: 'CT … (153-500)', value: 'ZbSend {"device":"0x3C4D","send":{"CT":300}}', tpl: 'ZbSend {"device":"0x3C4D","send":{"CT":{v}}}' }]);
+  assert.strictEqual(describeCommand('ZbSend {"device":"0x3C4D","send":{"Dimmer":200}}', lamps, {}), 'Lampe salon · Dimmer = 200');
+  assert.strictEqual(zbActions({ '0x1': { addr: '0x1', attrs: { Temperature: 20 } } }, {}).length, 0);
+  assert.strictEqual(ZB_SET.length, 2);
 });
 
 console.log(`ok     rule model (${n} checks)`);

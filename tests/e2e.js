@@ -75,11 +75,12 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
       ['rgb_bulb', 'RGB lightbulb', [20, 21, 22, 24, 25, 26], ['keyLAMP000000001']]] },
     'd/cct_bulb.json': { name: 'CCT lightbulb', products: [{ id: 'keyLAMP000000001', manufacturer: 'Acme', model: 'GU10 CCT' }],
       dps: { 20: { type: 'boolean', names: ['light'] }, 21: { type: 'string', names: ['light · work_mode'], values: ['white', 'scene'] },
-        22: { type: 'integer', names: ['light · brightness'], min: 10, max: 1000 }, 23: { type: 'integer', names: ['light · color_temp'], min: 0, max: 1000 } } },
+        22: { type: 'integer', names: ['light · brightness'], min: 10, max: 1000 }, 23: { type: 'integer', names: ['light · color_temp'], min: 0, max: 1000 },
+        25: { type: 'string', names: ['scene'], ro: true }, 26: { type: 'integer', names: ['timer'], min: 0, max: 86400 } } },
     'd/rgb_bulb.json': { name: 'RGB lightbulb', products: [], dps: {} }
   };
   const serveCatalogue = r => {
-    const f = CATALOGUE[r.request().url().replace(/^.*\/catalogue\/[0-9a-f]+\//, '')];
+    const f = CATALOGUE[r.request().url().replace(/^.*\/catalogue\/v\d+\/[0-9a-f]+\//, '')];
     return f ? r.fulfill({ json: f, headers: { 'access-control-allow-origin': '*' } }) : r.fulfill({ status: 404, body: 'none' });
   };
 
@@ -402,6 +403,33 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await r1b.getByRole('button', { name: 'Phrases' }).click();
     await r1b.locator('.tile.raw').getByText(/n'entre pas dans une phrase/).waitFor();
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'sentences.png'), fullPage: true });
+  });
+  await test('pickers: every writable Tuya DP from the catalogue, Zigbee Dimmer with a value (free and guided)', async p => {
+    await openFull(p);
+    await p.getByRole('button', { name: 'Règles' }).click();
+    const r3 = await rule(p, 3);
+    await r3.getByRole('button', { name: 'Phrases' }).click();
+    await r3.getByRole('button', { name: /Règle libre/ }).click();
+    const dlg = p.getByRole('dialog');
+    await dlg.getByRole('button', { name: /^Alors 1 :/ }).click();
+    const pop = dlg.getByRole('listbox');
+    await pop.getByRole('option', { name: 'countdown_1 (timer) … (0-86400)', exact: true }).waitFor({ timeout: 6000 });   // a DP no Matter binding names
+    if (await pop.getByRole('option', { name: /scene_data_v2/ }).count()) throw new Error('a read-only DP is offered');
+    await pop.getByRole('option', { name: 'Dimmer … (0-254)', exact: true }).click();
+    const box = dlg.getByLabel('Alors 1', { exact: true });
+    if ((await box.inputValue()) !== 'ZbSend {"device":"0x3C4D","send":{"Dimmer":127}}') throw new Error('Dimmer default: ' + await box.inputValue());
+    await dlg.getByRole('button', { name: 'Terminé' }).click();
+    await dlg.waitFor({ state: 'detached' });
+    // the guided mode: the same value, asked in a field
+    await r3.getByRole('button', { name: /Règle guidée/ }).click();
+    const g = p.getByRole('dialog');
+    await g.getByLabel('Appareil déclencheur').selectOption({ label: 'Lampe salon' });
+    await g.getByRole('radio', { name: "il s'allume" }).check();
+    await g.getByLabel('Appareil à commander 1').selectOption({ label: 'Zigbee · Lampe salon' });
+    await g.getByLabel('Action 1').selectOption({ label: 'Dimmer … (0-254)' });
+    await g.getByLabel('Valeur 1').fill('200');
+    await g.getByText(/alors Lampe salon · Dimmer = 200/).waitFor();                         // the value in the command
+    await p.keyboard.press('Escape');
   });
   await test('device pickers: Zigbee trigger and action, Tuya action, plain-language tile', async p => {
     await openFull(p);

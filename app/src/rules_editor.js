@@ -8,6 +8,7 @@ import { t } from './i18n.js';
 import { S } from './state.js';
 import { zbTriggers, zbActions, tuyaActions, tuyaTriggers, describeSubject, describeCommand, describeTrigger, describeConnection, keyMismatch, seenAttrs } from './rules_devices.js';
 import { Modal } from './rules_modal.js';
+import { loadProducts } from './catalogue.js';
 import { Guided } from './rules_guided.js';
 import { parseRuleSet, serializeRuleSet, newBlock, edited, triggersOf, OPERATORS } from './rules_model.js';
 
@@ -33,7 +34,7 @@ function triggerGroups(s) {
 function actionGroups(s) {
   return [{ group: t('rule_commands'), items: items(ACTIONS) },
     ...zbActions(s.devices, verbs()).map(g => ({ ...g, group: 'Zigbee · ' + g.group })),
-    ...tuyaActions(s.tuya, verbs())];
+    ...tuyaActions(s.tuya, verbs(), s.products)];
 }
 
 // inline style from { left: 12, width: 300, ... } in pixels (a string: it is what Preact applies for sure)
@@ -82,7 +83,7 @@ function Choice({ label, value, groups, friendly, onChange, placeholder, isSel }
   const pick = i => {
     onChange(i.value, i);
     setOpen(false);
-    setEdit(i.value.endsWith(','));                      // `TuyaSend Name,62,` still needs its value
+    setEdit(i.value.endsWith(',') || !!i.tpl);           // `TuyaSend Name,62,` still needs its value, a `tpl` one has a default to change
   };
   // Escape closes the list, not the dialog around it
   const key = e => { if (open && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false); } };
@@ -207,6 +208,8 @@ export function SentenceEditor({ text, setText }) {
   const [blocks, setBlocks] = useState(() => parseRuleSet(text));
   const [open, setOpen] = useState(-1);
   const [guided, setGuided] = useState(false);
+  // each Tuya device's catalogue entry: the command lists offer its other writable DPs (once per opening)
+  useEffect(() => { if (!s.products) loadProducts(); }, [s.tuya && s.tuya.state, !s.products]);
   if (!blocks) return html`<p class="q">${t('rule_noSentence')}</p>`;
   const commit = list => { setBlocks(list); setText(serializeRuleSet(list)); };
   const change = (i, patch) => commit(blocks.map((b, k) => k === i ? edited(b, patch) : b));

@@ -12,8 +12,10 @@ import { Modal } from './rules_modal.js';
 
 const fill = (s, o) => s.replace(/\{(\w+)\}/g, (_, k) => o[k]);
 const sameOpt = (a, b) => !!a && !!b && a.op === b.op && a.value === b.value;
-// the ones a command still waits a value for (`TuyaSend Name,62,`)
-const open = c => c.endsWith(',');
+// the ones a command still waits a value for: `TuyaSend Name,62,`, or an item with a template
+// (`ZbSend {...{"Dimmer":{v}}}`, rules_devices.js zbActions)
+const open = it => !!it.tpl || it.value.endsWith(',');
+const withValue = (it, v) => (it.tpl ? it.tpl.replace('{v}', v) : it.value + v);
 
 // "turns on", "every message", "Click = single"...
 function optLabel(o, attr) {
@@ -39,7 +41,7 @@ function Doing({ groups, rows, set }) {
           <option value="">${t('g_pickAction')}</option>
           ${g.items.map((x, k) => html`<option value=${k}>${x.label}</option>`)}
         </select>` : null}
-        ${it && open(it.value) ? html`<input value=${r.v} aria-label=${t('g_value') + ' ' + (i + 1)} size="6" onInput=${e => put(i, { v: e.target.value })}/>` : null}
+        ${it && open(it) ? html`<input value=${r.v} aria-label=${t('g_value') + ' ' + (i + 1)} size="6" onInput=${e => put(i, { v: e.target.value })}/>` : null}
         ${rows.length > 1 ? html`<button class="b" aria-label=${t('g_removeAction')} onClick=${() => set(rows.filter((_, k) => k !== i))}>×</button>` : null}
       </div>`;
     })}
@@ -84,7 +86,7 @@ export function Guided({ s, groups, verbs, onCreate, onFree, onClose }) {
 
   const cmds = rows.map(r => {
     const it = groups[r.g] && groups[r.g].items[r.i];
-    return it ? (open(it.value) ? (r.v.trim() ? it.value + r.v.trim() : '') : it.value) : '';
+    return it ? (open(it) ? (r.v.trim() ? withValue(it, r.v.trim()) : '') : it.value) : '';
   });
   const done = cur && attr && opt && cmds.every(Boolean);
   const block = done ? guidedBlock({ addr, attr, op: opt.op, value: opt.value }, cmds, s.devices, s.zbNames) : null;
