@@ -115,7 +115,10 @@ class tasmoflow
   static var SRI = "@@SRI@@"            # SRI hash (sha384) of app.js
   static var APP_SHA = "@@APP_SHA@@"    # SHA-256 of app.js.gz: the only local copy accepted
   static var PORT = 8384
-  static var TUYA_RULES = ["Tuya", "TuyaConnected", "TuyaDisconnected"]   # rules of the firmware's Tuya driver
+  # rules of the firmware's Tuya driver; TuyaScan: the discovery's result, published once at its end
+  # ({"TuyaScan":{"Devices":[{"id","ip","version","product_key"}]}}, TuyaLocal.report() then
+  # tasmota.publish_result(), which runs the rules: xdrv_52_3_berry_tasmota.ino, l_publish_result)
+  static var TUYA_RULES = ["Tuya", "TuyaConnected", "TuyaDisconnected", "TuyaScan"]
   static var IDLE_MS = 300000           # API server stopped after 5 minutes without a client
   static var MAX_EVENTS = 50            # events kept for clients that reconnect...
   static var MAX_EVENTS_B = 4096        # ... and their size in bytes (a Tuya status can be 1 KB)
@@ -581,7 +584,18 @@ class tasmoflow
   # Tuya driver rules: v is {"Name": device, "Dps": {dp: value}} for the trigger `Tuya`, or
   # {"Name": device} for a connection change
   def tuya_event(v, r)
-    if self.web == nil || !isinstance(v, map)   return   end
+    if self.web == nil || !isinstance(v, map)   return   end      # also TuyaScan's "discovery started" answer
+    if r == "TuyaScan"
+      # only the id and the product id of each device (the details sheet identifies the product)
+      var found = v.find('Devices')
+      if !isinstance(found, list)   return   end
+      var out = []
+      for d: found
+        if isinstance(d, map)    out.push({'id': d.find('id'), 'product_key': d.find('product_key')})    end
+      end
+      self.push_event("tuyascan", '"devices":' + json.dump(out))
+      return
+    end
     var n = json.dump(v.find('Name'))
     if r != "Tuya"
       self.push_event("tuya", format('"name":%s,"connected":%s', n, str(r == "TuyaConnected")))

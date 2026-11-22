@@ -105,6 +105,15 @@ jobs:
             gh release create "$GITHUB_REF_NAME" dist/TasmoFlow.tapp --title "TasmoFlow $GITHUB_REF_NAME" --generate-notes
           fi
 
+      # the Tuya product catalogue (tuya-local at the commit of app/src/catalogue.js), under
+      # /catalogue/<commit>/: the same files for every version that pins that commit
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Tuya product catalogue
+        run: tools/catalogue.sh
+
       # Cumulative gh-pages branch: every version stays published under /vX.Y.Z/
       - name: Publish the interface on GitHub Pages
         run: tools/publish_pages.sh "Interface $GITHUB_REF_NAME"
@@ -146,6 +155,9 @@ jobs:
           npm ci
           TF_BUILD="$id" npm run build
           python3 tools/pack_tapp.py --dev --build-id "${id#dev.}"
+
+      - name: Tuya product catalogue
+        run: tools/catalogue.sh
 
       - name: Publish dev/ on GitHub Pages
         run: tools/publish_pages.sh "Test build ${GITHUB_REF_NAME} $(git rev-parse --short=7 HEAD)"

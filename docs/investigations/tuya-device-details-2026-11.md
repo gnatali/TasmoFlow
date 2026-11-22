@@ -152,6 +152,10 @@ types and ranges a name: "probably a Moes quad switch", never shown as certain.
 
 ## Proposed steps
 
+Done on 22 November 2026: steps 1 to 3 (the sheet, Identify, the catalogue: see
+[architecture](../architecture.en.md#details-sheet-22-november-2026)), Zigbee sheet included.
+
+
 1. **Sheet v1, interface only** (no `.tapp` change): opened from a Tuya card, it shows name, id, IP,
    protocol version, connected; the DPs with their code (`codes`), live value (`TuyaStatus` and events),
    sensors (`sensors`, divided, with unit) and Matter bindings. Each value says where it comes from.

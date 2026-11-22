@@ -114,6 +114,19 @@ def push_tuya(name, dps=None, connected=None):
         del events[:-50]
 
 
+def push_scan():
+    """The end of a TuyaScan, as tasmoflow.be relays it (since 22 November 2026): each Wi-Fi device's
+    id and product id (made up here)."""
+    global seq
+    with events_lock:
+        seq += 1
+        devs = [{"id": d["id"], "product_key": "keyLAMP000000001" if d["name"] == "Lampe bureau" else "keyOTHER00000001"}
+                for d in TUYA_CONF["devices"] if d.get("id")]
+        payload = {"seq": seq, "type": "tuyascan", "ts": int(time.time()), "devices": devs}
+        events.append((seq, f"id: {seq}\ndata: {json.dumps(payload)}\n\n"))
+        del events[:-50]
+
+
 T_FIRST = []
 
 
@@ -154,6 +167,10 @@ def tuya_command(c):
                 if arg.lower() == e["name"].lower() or arg == e.get("id"):
                     return {"TuyaConfig": e}
         return {"TuyaConfig": {"Error": "unknown device"}}
+    if word == "TuyaScan":
+        # like the driver: answered at once, the result published at the end (1 s here instead of 10)
+        threading.Timer(1.0, push_scan).start()
+        return {"TuyaScan": f"discovery started for {int(arg or 20)} s"}
     if word == "TuyaRename":
         # like the driver (firmware of 21 November 2026): split at the last comma, a device or a
         # sub-device by name (any case) or id; a binding without "ep" keeps the old name

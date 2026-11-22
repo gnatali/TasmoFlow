@@ -524,9 +524,23 @@ sets that name the device. Tuya feasibility and measurements:
 - **Rules that name the device**: Zigbee `ZbReceived#<name or address>`, `ZbState#ShortAddr=<address>`,
   `ZbSend {"device":...}`; Tuya `TuyaSend <name or id>`, `TuyaConnected` / `TuyaDisconnected`; Berry
   rules whose trigger names it.
-- Next (feasibility note): identify a Tuya product (`TuyaScan`'s `product_key`, a rule in
-  `tasmoflow.be`) and a tuya-local catalogue matched on the DPs, for types, ranges and labels; the
-  Zigbee counterpart is to be weighed then (Tasmota's own Zigbee plugins and attribute names).
+- **Product** (same place in both sheets): Zigbee model and manufacturer; for Tuya, the product id and
+  the closest entries of a catalogue (22 November 2026). **Identify** runs `TuyaScan 10`; `tasmoflow.be`
+  relays its result, published once at the end and run through the rules (`TuyaLocal.report()`, then
+  `tasmota.publish_result()`: `xdrv_52_3_berry_tasmota.ino`, `l_publish_result`), as a `tuyascan`
+  event with each device's id and product id only; the interface keeps them in the browser
+  (`tf-product-keys`, by device id). The catalogue is built from **tuya-local** (MIT, its notice
+  published with it) at the commit pinned in `app/src/catalogue.js` (`TUYA_LOCAL_REF`) by
+  `tools/build_catalogue.py` (`tools/catalogue.sh` in the workflow, release and test builds), and
+  published on GitHub Pages under `catalogue/<commit>/`: `index.json` (every entry's DP numbers and
+  product ids, 205 KB, 64 KB gzip, fetched once) and `d/<entry>.json` (one product's DPs: names, type,
+  range, unit, scale, values). `matchProducts()` scores each entry on the DP numbers (Jaccard) plus
+  0.15 when it lists the device's product id: generic product ids are shared by unrelated products
+  (measured on the gateway: the 4-channel relay's id names three wrong entries, its DPs the right
+  one). The best entries are shown with how sure the match is, a link to the tuya-local file, and a
+  **Catalogue** column per DP. Offline or from the local copy without GitHub: "out of reach". The
+  Zigbee counterpart (a catalogue of Zigbee products) is not needed for now: Tasmota names the
+  attributes itself.
 
 ### Drivers at opening
 
@@ -810,6 +824,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] v0.1 (12 November 2026, test build): a `light3` card of the full interface (test build, no `.tapp` to install again for this, except for the 1-100 % brightness of the light interface) shows the tabs White / Colour (not the light interface); the selected tab follows the mode set from the Tuya app; the hue wheel, saturation and brightness sliders change the lamp and the card follows the state sent back; in White the brightness slider matches the Tuya app's; a lamp without `dp_ct` shows no colour temperature; the same card for a `light2` (`Entrée-Porche`): open arc dial for the colour temperature and brightness, 1 % to 100 %; a value just set stays on screen until the device reports it (no new / old / new flicker); the options are hidden while the lamp is off or disconnected and come back when it is on (verified by Guillaume on the gateway, 12 November 2026)
 - [ ] v0.1: check that `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)
 - [ ] v0.2, Zigbee details sheet (22 November 2026, test build): **Details** on the Interrupteur Entrée card: IEEE address, `SNZB-01P`, eWeLink, endpoint 1, end device; battery 100 %, LQI, last message; `Power` row used by your rule (`Rule<n> (déclencheur)`), no value until the button is pressed, then *event* with the time; the rule set listed under the rules that name it; same on a lamp (router, `Power` and `Dimmer` *gateway*)
+- [ ] v0.2, Tuya product (22 November 2026, test build, **`.tapp` installed again**, `Restart 1`): Récepteur radio's sheet shows *Quad switch* first (probable) before any scan, then **Identify**: its product id appears after about 10 s, the quad switch stays first; Entrée-Porche: *CCT lightbulb* (probable, same product id); the **Catalogue** column names the DPs (`light · brightness · integer 10-1000`...); the link opens the tuya-local file; `Heap` during the scan
 - [ ] v0.2, Tuya details sheet (22 November 2026, test build): **Details** on the Pergola 1 card: id, IP, protocol 3.4, `keep` 21, 22, 24; 11 DPs with their codes; 20, 21, 22, 24 marked *Matter · Pergola 1* (*hors Matter*); 20, 21, 22, 24, 34 *gateway*; switching the light from the Tuya app shows the DPs it sends as *event* with the time; no key anywhere; readable on a phone (one block per DP)
 - [x] v0.2, Tuya configuration device by device (18 November 2026, firmware of the same day flashed, `.tapp` installed again): the Tuya cards show their controls (dimmer, colour, speed...), sub-devices of the Tuya gateway included; the gateway's log shows `TuyaConfig <name>` commands and no bare `TuyaConfig`; with less than 30 KB free the controls are still there (no "not enough memory" note)
 - [x] v0.2, robustness (18 November 2026, bugs T2 to T4, `.tapp` installed again; checked by Guillaume the same day: 67 KB free at rest, 54 KB with the full interface open, 13 KB of the 15 KB budget): the interface opens as before and `Status 4` heap, after `Br tasmota.gc()`, at rest and with an interface open is unchanged or lower; the device list is complete (same count as `ZbStatus1`); with an interface open on a phone, turn its Wi-Fi off for 5 minutes while devices send events: the heap does not fall (the stream is closed once 6 KB are waiting), and the page follows again once back; Refresh does not run `TuyaConfig` again (log level 3)

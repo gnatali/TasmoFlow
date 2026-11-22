@@ -123,8 +123,6 @@ export function zbIdentity(d, st) {
     ['name', d.name && d.name !== d.addr ? d.name : s.Name],
     ['addr', d.addr],
     ['ieee', s.IEEEAddr],
-    ['model', s.ModelId || d.model],
-    ['manuf', s.Manufacturer || d.manufacturer],
     ['endpoints', eps],
     ['kind', d.router ? 'router' : 'endDevice'],
     ['matter', s.Matter === false ? 'off' : ''],
@@ -132,6 +130,10 @@ export function zbIdentity(d, st) {
   ];
   return out.filter(([, v]) => v != null && v !== '');
 }
+
+// The product lines of a Zigbee device (the same section as a Tuya device's identification): [[key, value]]
+export const zbProduct = (d, st) => [['model', (st && st.ModelId) || d.model], ['manuf', (st && st.Manufacturer) || d.manufacturer]]
+  .filter(([, v]) => v != null && v !== '');
 
 // The link lines: { lqi, seen (s), reachable, battery, batterySeen (epoch s) }, from ZbStatus3 when
 // read, else from the device list; `now` in ms
@@ -211,4 +213,44 @@ export function showValue(r, labels) {
   const s = r.uses.find(u => u.kind === 'sensor');
   if (s && typeof v === 'number') return +(v / s.div).toFixed(3) + (s.unit ? ' ' + s.unit : '');
   return typeof v === 'object' ? JSON.stringify(v) : String(v);
+}
+
+// ---- Tuya catalogue (catalogue.js, tools/build_catalogue.py)
+
+// The catalogue entries closest to a device, best first (at most `max`): [{ stem, name, score,
+// common, size, key }]. Measured on Guillaume's gateway (22 November 2026): a generic product id is
+// shared by unrelated products, so the score is the overlap of the DP numbers (Jaccard: common / all
+// DPs of both), plus a bonus when the entry lists the device's product id; an entry that only shares
+// the product id but not the DPs loses to one that has the device's DPs.
+export const KEY_BONUS = 0.15;
+export function matchProducts(index, dps, productKey, max = 3) {
+  const mine = new Set([...dps].map(Number));
+  if (!index || !Array.isArray(index.files) || (!mine.size && !productKey)) return [];
+  const out = [];
+  for (const [stem, name, list, keys] of index.files) {
+    const key = !!productKey && keys.includes(productKey);
+    let common = 0;
+    for (const d of list) if (mine.has(d)) common++;
+    if (!common && !key) continue;
+    const jac = common / (mine.size + list.length - common);
+    out.push({ stem, name, score: jac + (key ? KEY_BONUS : 0), common, size: list.length, key });
+  }
+  return out.sort((a, b) => b.score - a.score || a.stem.localeCompare(b.stem)).slice(0, max);
+}
+
+// how sure a match is, as a text key: probable (score 0.75 or more), possible (0.5, or the product id
+// alone when no DP of the device is known), uncertain
+export const confidence = m => (m.score >= 0.75 ? 'ts_probable' : m.score >= 0.5 || (m.key && !m.common) ? 'ts_possible' : 'ts_uncertain');
+
+// what the catalogue says of a DP, in one line: "switch · boolean", "brightness · integer 10-1000",
+// "work_mode · string: white, colour, scene"
+export function catalogueText(info) {
+  if (!info) return '';
+  const parts = [(info.names || []).join(', '), info.type].filter(Boolean);
+  let s = parts.join(' · ');
+  if (info.min != null || info.max != null) s += ' ' + (info.min != null ? info.min : '') + '-' + (info.max != null ? info.max : '');
+  if (info.unit) s += ' ' + info.unit;
+  if (info.scale != null && info.scale !== 1) s += ' ÷' + info.scale;
+  if (Array.isArray(info.values) && info.values.length) s += ': ' + info.values.slice(0, 8).join(', ') + (info.values.length > 8 ? '…' : '');
+  return s;
 }

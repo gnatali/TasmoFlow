@@ -19,7 +19,7 @@ globalThis.document = { documentElement: {} };
 globalThis.window = { addEventListener() {} };      // rules.js (reached through tuya.js, rename.js) listens for beforeunload
 const m = { exports: {} };
 new Function('module', 'exports', out)(m, m.exports);
-const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, keyMismatch, seenAttrs, zbTriggerAttrs, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks, sheetRows, showValue, identity, parentOf, zbIdentity, zbLink, zbRows, ruleRefs } = m.exports;
+const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, keyMismatch, seenAttrs, zbTriggerAttrs, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks, sheetRows, showValue, identity, parentOf, zbIdentity, zbProduct, zbLink, zbRows, ruleRefs, matchProducts, confidence, catalogueText } = m.exports;
 
 let n = 0;
 const ok = (name, f) => { f(); n++; };
@@ -502,8 +502,9 @@ ok('Zigbee sheet: identity, link and attributes from ZbStatus3, the events and t
     Endpoints: [1], Config: [], Reachable: false, BatteryPercentage: 100, BatteryLastSeenEpoch: 1795278874, LastSeen: 727, LastSeenEpoch: 1795297826, LinkQuality: 102 };
   const d = { addr: '0x922D', name: 'Interrupteur Entrée', model: 'SNZB-01P', manufacturer: 'eWeLink', lqi: 102, battery: 100, lastseen: 700, router: false,
     attrs: { BatteryPercentage: 100, Power: 2 }, seen: { Power: 9000 }, seenAt: 9000 };
-  assert.deepStrictEqual(zbIdentity(d, st), [['name', 'Interrupteur Entrée'], ['addr', '0x922D'], ['ieee', '0x00124B0000000001'], ['model', 'SNZB-01P'],
-    ['manuf', 'eWeLink'], ['endpoints', '1'], ['kind', 'endDevice']]);
+  assert.deepStrictEqual(zbIdentity(d, st), [['name', 'Interrupteur Entrée'], ['addr', '0x922D'], ['ieee', '0x00124B0000000001'], ['endpoints', '1'], ['kind', 'endDevice']]);
+  assert.deepStrictEqual(zbProduct(d, st), [['model', 'SNZB-01P'], ['manuf', 'eWeLink']]);            // the same section as a Tuya product
+  assert.deepStrictEqual(zbProduct({ addr: '0x3' }, null), []);
   assert.deepStrictEqual(zbIdentity({ addr: '0x1', router: true }, { Endpoints: { 1: {}, 2: {} }, Matter: false }), [['addr', '0x1'], ['endpoints', '1, 2'], ['kind', 'router'], ['matter', 'off']]);
   assert.deepStrictEqual(zbLink(d, st, 19000), { lqi: 102, seen: 10, reachable: false, battery: 100, batterySeen: 1795278874 });
   assert.strictEqual(zbLink({ addr: '0x2', lastseen: 5 }, null, 0).seen, 5);
@@ -518,6 +519,40 @@ ok('Zigbee sheet: identity, link and attributes from ZbStatus3, the events and t
   // a sensor: its readings from ZbStatus3, source gateway
   const t = zbRows({ addr: '0x5', attrs: {} }, { Device: '0x5', Temperature: 21.4, LinkQuality: 9 }, null, false);
   assert.deepStrictEqual(t.map(r => [r.key, r.value, r.src]), [['Temperature', 21.4, 'gateway']]);
+});
+
+ok('Tuya catalogue: matched on the DPs, the product id narrowing (real cases of 22 November 2026)', () => {
+  // the entries the gateway's devices met in tuya-local (DP numbers as in the files; ids made up)
+  const index = { files: [
+    ['moes_quad_switch', 'Quad switch', [1, 2, 3, 4, 9, 10, 11, 12, 38, 42, 43, 44, 47, 48], ['quadid']],
+    ['relay_switch_remote', 'Relay switch', [1, 9, 38, 42, 43, 44, 47, 49, 50], ['keyGEN']],
+    ['aubess_1gang_switch', 'Energy monitor switch', [1, 9, 20, 21, 22, 23, 24, 29, 38, 42, 43, 44, 47], ['keyGEN']],
+    ['calex_s45cleare27_light', 'CCT lightbulb', [20, 21, 22, 23, 25, 26, 28, 30, 31, 32, 33, 34], ['keyBULB']],
+    ['rgbcw_lightbulb', 'RGBCW lightbulb', [20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 41], ['keyBULB']],
+    ['pc321ty_energy_meter', 'Power clamp meter', [1, 101, 102], ['keyCLAMP']]] };
+  // the 4-channel radio relay: its generic product id names a 1-gang plug and a 1-channel relay, its DPs a quad switch
+  const relay = [1, 2, 3, 4, 9, 10, 11, 12, 24, 38, 42, 43, 44, 47, 48, 49, 50];
+  const r = matchProducts(index, relay, 'keyGEN');
+  assert.strictEqual(r[0].stem, 'moes_quad_switch');
+  assert.ok(r[0].score > r[1].score && r[1].key && !r[0].key);
+  assert.strictEqual(confidence(r[0]), 'ts_probable');
+  // the CCT bulb: its product id names two entries, the DPs choose
+  const bulb = matchProducts(index, [20, 21, 22, 23, 25, 26, 28, 30, 31, 32, 33, 41], 'keyBULB');
+  assert.deepStrictEqual(bulb.slice(0, 2).map(m => m.stem), ['calex_s45cleare27_light', 'rgbcw_lightbulb']);
+  // no DP known (a device not imported): the product id alone
+  assert.deepStrictEqual(matchProducts(index, [], 'keyCLAMP').map(m => [m.stem, m.common]), [['pc321ty_energy_meter', 0]]);
+  assert.strictEqual(confidence(matchProducts(index, [], 'keyCLAMP')[0]), 'ts_possible');
+  assert.strictEqual(confidence({ score: 0.3, common: 2, key: false }), 'ts_uncertain');
+  assert.deepStrictEqual(matchProducts(index, [], null), []);
+  assert.deepStrictEqual(matchProducts(null, [1], 'x'), []);
+  assert.strictEqual(matchProducts(index, relay, null, 1).length, 1);
+});
+ok('Tuya catalogue: one line per DP', () => {
+  assert.strictEqual(catalogueText({ type: 'integer', names: ['light · brightness'], min: 10, max: 1000 }), 'light · brightness · integer 10-1000');
+  assert.strictEqual(catalogueText({ type: 'integer', names: ['power'], unit: 'W', scale: 10 }), 'power · integer W ÷10');
+  assert.strictEqual(catalogueText({ type: 'string', names: ['mode'], values: ['white', 'colour', 'scene'] }), 'mode · string: white, colour, scene');
+  assert.strictEqual(catalogueText({ type: 'string', values: [1, 2, 3, 4, 5, 6, 7, 8, 9] }), 'string: 1, 2, 3, 4, 5, 6, 7, 8…');
+  assert.strictEqual(catalogueText(undefined), '');
 });
 
 console.log(`ok     rule model (${n} checks)`);

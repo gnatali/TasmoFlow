@@ -68,8 +68,24 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
   };
   const cards = p => p.waitForSelector('article.card >> nth=2', { timeout: 6000 });
 
+  // a small Tuya catalogue instead of GitHub Pages' (tools/build_catalogue.py's format; made-up entries)
+  const CATALOGUE = {
+    'index.json': { ref: 'test', files: [['quad_switch', 'Quad switch', [1, 2, 3, 4, 9, 10, 11, 12, 38, 42, 43, 44, 47, 48], ['keyGENERIC000001']],
+      ['cct_bulb', 'CCT lightbulb', [20, 21, 22, 23, 25, 26], ['keyLAMP000000001']],
+      ['rgb_bulb', 'RGB lightbulb', [20, 21, 22, 24, 25, 26], ['keyLAMP000000001']]] },
+    'd/cct_bulb.json': { name: 'CCT lightbulb', products: [{ id: 'keyLAMP000000001', manufacturer: 'Acme', model: 'GU10 CCT' }],
+      dps: { 20: { type: 'boolean', names: ['light'] }, 21: { type: 'string', names: ['light · work_mode'], values: ['white', 'scene'] },
+        22: { type: 'integer', names: ['light · brightness'], min: 10, max: 1000 }, 23: { type: 'integer', names: ['light · color_temp'], min: 0, max: 1000 } } },
+    'd/rgb_bulb.json': { name: 'RGB lightbulb', products: [], dps: {} }
+  };
+  const serveCatalogue = r => {
+    const f = CATALOGUE[r.request().url().replace(/^.*\/catalogue\/[0-9a-f]+\//, '')];
+    return f ? r.fulfill({ json: f, headers: { 'access-control-allow-origin': '*' } }) : r.fulfill({ status: 404, body: 'none' });
+  };
+
   async function test(name, fn) {
     const ctx = await browser.newContext(ctxOpts);
+    await ctx.route(PAGES + 'catalogue/**', serveCatalogue);
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
@@ -792,6 +808,14 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await p.evaluate(t => fetch('http://localhost:8384/api/cmd?t=' + t + '&c=' + encodeURIComponent('TuyaSend Lampe bureau,26,30')), '0123456789abcdef0123456789abcdef');
     await row(26).getByText(/^événement /).waitFor({ timeout: 4000 });                          // a DP the gateway does not keep, seen in an event
     await row(26).getByText('30', { exact: true }).waitFor();
+    // product: no product id yet, matched on the DPs alone; Identify runs TuyaScan and keeps the id
+    await dlg.getByRole('link', { name: 'CCT lightbulb' }).waitFor({ timeout: 4000 });
+    await dlg.getByText(/probable, 6\/6 DP\)/).waitFor();
+    await row(22).getByText('light · brightness · integer 10-1000').waitFor();
+    await dlg.getByRole('button', { name: 'Identifier (découverte de 10 s)' }).click();
+    await dlg.getByText('keyLAMP000000001').waitFor({ timeout: 6000 });
+    await dlg.getByText(/même identifiant produit/).first().waitFor();
+    if (!(await p.evaluate(() => localStorage.getItem('tf-product-keys') || '')).includes('keyLAMP000000001')) throw new Error('product id not kept');
     if (/\*\*\*|"key"/.test(await dlg.textContent())) throw new Error('the masked key is shown');
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'tuya-sheet.png') });
     await p.setViewportSize({ width: 360, height: 740 });

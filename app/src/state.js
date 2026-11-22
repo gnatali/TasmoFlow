@@ -11,6 +11,12 @@ const T0 = performance.now();
 export const RECHECK_MAX = 24;                      // x 5 s: the full interface gives up after 2 minutes
 export const LOCAL = { id: 'local', name: '', api: cfg.api, token: cfg.token };
 
+// Tuya product ids found by TuyaScan, by device id (ids are unique across gateways): kept in the
+// browser so that the scan is run once. Not secret (the local key is), never sent anywhere.
+const KEYS = 'tf-product-keys';
+function readKeys() { try { return JSON.parse(localStorage.getItem(KEYS)) || {}; } catch (e) { return {}; } }
+function saveKeys(k) { try { localStorage.setItem(KEYS, JSON.stringify(k)); } catch (e) { /* private mode: for this page only */ } }
+
 export const S = createStore({
   tab: 'devices',
   gws: [],                  // other gateways: [{ id, name, api, token }] (full interface, gateways.js)
@@ -26,6 +32,7 @@ export const S = createStore({
   live: false,
   stopped: false,           // the gateway stopped this page's event stream: more than three were open
   error: null,
+  productKeys: readKeys(),  // Tuya device id -> product id, from TuyaScan (the details sheet), kept in the browser
   startMs: 0,
   consoleOut: ''
 });
@@ -184,6 +191,12 @@ function connectEvents() {
     lastSeq = ev.seq;
     let unknown = false;
     let unknownTuya = false;
+    if (ev.type === 'tuyascan') {                       // the discovery's result (tasmoflow.be, since 22 November 2026)
+      const productKeys = { ...S.get().productKeys };
+      for (const d of ev.devices || []) if (d && d.id && d.product_key) productKeys[d.id] = d.product_key;
+      saveKeys(productKeys);
+      S.set({ productKeys, scanAt: Date.now() });
+    }
     S.set(s => {
       const events = [ev, ...s.events].slice(0, 100);
       let devices = s.devices;

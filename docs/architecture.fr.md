@@ -556,9 +556,25 @@ la valeur, puis les jeux de règles qui citent l'appareil. Faisabilité et mesur
 - **Règles qui citent l'appareil** : Zigbee `ZbReceived#<nom ou adresse>`, `ZbState#ShortAddr=<adresse>`,
   `ZbSend {"device":...}` ; Tuya `TuyaSend <nom ou identifiant>`, `TuyaConnected` / `TuyaDisconnected` ;
   les règles Berry dont le déclencheur le cite.
-- Ensuite (note de faisabilité) : identifier un produit Tuya (`product_key` de `TuyaScan`, une règle
-  dans `tasmoflow.be`) et un catalogue tuya-local comparé sur les DP, pour les types, plages et
-  libellés ; l'équivalent Zigbee sera à évaluer alors (plugins Zigbee et noms d'attributs de Tasmota).
+- **Produit** (même place dans les deux fiches) : modèle et fabricant Zigbee ; pour Tuya,
+  l'identifiant produit et les entrées les plus proches d'un catalogue (22 novembre 2026).
+  **Identifier** lance `TuyaScan 10` ; `tasmoflow.be` relaie son résultat, publié une fois à la fin et
+  passé par les règles (`TuyaLocal.report()`, puis `tasmota.publish_result()` :
+  `xdrv_52_3_berry_tasmota.ino`, `l_publish_result`), sous forme d'un événement `tuyascan` avec
+  l'identifiant et l'identifiant produit de chaque appareil seulement ; l'interface les garde dans le
+  navigateur (`tf-product-keys`, par identifiant d'appareil). Le catalogue est construit depuis
+  **tuya-local** (MIT, sa notice publiée avec lui) au commit fixé dans `app/src/catalogue.js`
+  (`TUYA_LOCAL_REF`) par `tools/build_catalogue.py` (`tools/catalogue.sh` dans le workflow, builds de
+  release et de test), et publié sur GitHub Pages sous `catalogue/<commit>/` : `index.json` (les
+  numéros de DP et identifiants produit de chaque entrée, 205 Ko, 64 Ko gzip, chargé une fois) et
+  `d/<entrée>.json` (les DP d'un produit : noms, type, plage, unité, échelle, valeurs).
+  `matchProducts()` note chaque entrée sur les numéros de DP (Jaccard) plus 0,15 si elle cite
+  l'identifiant produit de l'appareil : des produits sans rapport partagent les identifiants
+  génériques (mesuré sur la passerelle : l'identifiant du relais 4 voies désigne trois entrées
+  fausses, ses DP la bonne). Les meilleures entrées sont affichées avec leur degré de certitude, un
+  lien vers le fichier tuya-local, et une colonne **Catalogue** par DP. Hors ligne ou depuis la copie
+  locale sans GitHub : « hors de portée ». L'équivalent Zigbee (un catalogue de produits Zigbee)
+  n'est pas utile pour l'instant : Tasmota nomme lui-même les attributs.
 
 ### Pilotes à l'ouverture
 
@@ -861,6 +877,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] v0.1 (12 novembre 2026, version de test) : la carte d'une `light3` de l'interface complète (version de test, pas de `.tapp` à réinstaller pour cela, sauf pour la luminosité 1-100 % de l'interface légère) montre les onglets Blanc / Couleur (pas l'interface légère) ; l'onglet sélectionné suit le mode réglé depuis l'application Tuya ; la roue de teinte et les curseurs de saturation et de luminosité changent la lampe et la carte suit l'état renvoyé ; en Blanc, le curseur de luminosité correspond à celui de l'application Tuya ; une lampe sans `dp_ct` n'affiche pas de température de couleur; la même carte pour une `light2` (`Entrée-Porche`) : cadran en arc ouvert pour la température de couleur et luminosité de 1 % à 100 % ; une valeur qu'on vient de régler reste affichée jusqu'à ce que l'appareil la signale (plus de clignotement nouvelle / ancienne / nouvelle) ; les options sont masquées tant que la lampe est éteinte ou déconnectée et reviennent à l'allumage (vérifié par Guillaume sur la passerelle, le 12 novembre 2026)
 - [ ] v0.1 : vérifier que `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)
 - [ ] v0.2, fiche de détails Zigbee (22 novembre 2026, build de test) : **Détails** sur la carte Interrupteur Entrée : adresse IEEE, `SNZB-01P`, eWeLink, endpoint 1, terminal ; batterie 100 %, LQI, dernier message ; ligne `Power` utilisée par ta règle (`Rule<n> (déclencheur)`), sans valeur tant que le bouton n'est pas appuyé, puis *événement* avec l'heure ; le jeu de règles listé dans les règles qui le citent ; pareil sur une lampe (routeur, `Power` et `Dimmer` *passerelle*)
+- [ ] v0.2, produit Tuya (22 novembre 2026, build de test, **`.tapp` réinstallée**, `Restart 1`) : la fiche du Récepteur radio montre *Quad switch* en premier (probable) avant toute découverte, puis **Identifier** : son identifiant produit apparaît après environ 10 s, le quad switch reste premier ; Entrée-Porche : *CCT lightbulb* (probable, même identifiant produit) ; la colonne **Catalogue** nomme les DP (`light · brightness · integer 10-1000`...) ; le lien ouvre le fichier tuya-local ; `Heap` pendant la découverte
 - [ ] v0.2, fiche de détails Tuya (22 novembre 2026, build de test) : **Détails** sur la carte Pergola 1 : identifiant, IP, protocole 3.4, `keep` 21, 22, 24 ; 11 DP avec leurs codes ; 20, 21, 22, 24 marqués *Matter · Pergola 1* (*hors Matter*) ; 20, 21, 22, 24, 34 *passerelle* ; allumer la lumière depuis l'app Tuya affiche les DP qu'elle envoie en *événement* avec l'heure ; aucune clé nulle part ; lisible sur téléphone (un bloc par DP)
 - [x] v0.2, configuration Tuya appareil par appareil (18 novembre 2026, firmware du même jour flashé, `.tapp` réinstallée) : les cartes Tuya montrent leurs commandes (variateur, couleur, vitesse...), sous-appareils de la passerelle Tuya compris ; le journal de la passerelle montre des commandes `TuyaConfig <nom>` et aucun `TuyaConfig` seul ; avec moins de 30 Ko libres les commandes sont toujours là (pas de note « mémoire insuffisante »)
 - [x] v0.2, robustesse (18 novembre 2026, bugs T2 à T4, `.tapp` réinstallée ; vérifié par Guillaume le même jour : 67 Ko libres au repos, 54 Ko avec l'interface complète ouverte, 13 Ko des 15 Ko du budget) : l'interface s'ouvre comme avant et la mémoire `Status 4`, après `Br tasmota.gc()`, au repos et avec une interface ouverte est inchangée ou plus basse ; la liste des appareils est complète (même nombre que `ZbStatus1`) ; avec une interface ouverte sur un téléphone, couper son Wi-Fi 5 minutes pendant que des appareils envoient des événements : la mémoire ne baisse pas (le flux est fermé dès que 6 Ko attendent), et la page suit de nouveau à son retour ; « Actualiser » ne relance plus `TuyaConfig` (niveau de log 3)
