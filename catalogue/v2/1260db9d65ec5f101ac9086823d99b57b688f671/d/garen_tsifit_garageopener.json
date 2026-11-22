@@ -1,0 +1,1 @@
+{"name":"Garage opener","products":[{"id":"c1tdykjhzgasntuz","manufacturer":"Garen","model":"TSI Fit"},{"id":"key5ckdnys3pqgec","manufacturer":"Garen","model":"TSI Fit"}],"dps":{"1":{"type":"boolean","names":["control"],"values":[true,false]},"3":{"type":"boolean","names":["open"]}}}

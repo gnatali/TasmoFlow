@@ -1,0 +1,1 @@
+{"name":"Sleep aid","products":[{"id":"d9tnlvjvlgwqr9ov","manufacturer":"Kogan","model":"KAWHTNOSLPA"}],"dps":{"105":{"type":"boolean","names":["switch"]},"104":{"type":"integer","names":["light · brightness"],"min":0,"max":255},"101":{"type":"string","names":["Volume · option"],"values":["low","high"]}}}

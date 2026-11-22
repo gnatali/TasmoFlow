@@ -1,0 +1,1 @@
+{"name":"Watering timer","products":[{"id":"6pahkcau","manufacturer":"Parkside","model":"PBB A1"}],"dps":{"1":{"type":"boolean","names":["water"]},"5":{"type":"integer","names":["minute"],"min":0,"max":1439},"11":{"type":"integer","ro":true,"names":["battery"],"unit":"%"},"6":{"type":"integer","ro":true,"names":["duration"],"unit":"min"}}}

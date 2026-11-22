@@ -1,0 +1,1 @@
+{"name":"Noise meter","products":[{"id":"yjebgze5hxevyji","manufacturer":"Dienmern","model":"DM165A"}],"dps":{"2":{"type":"integer","ro":true,"names":["sound_pressure"],"unit":"dBA","scale":10},"13":{"type":"boolean","names":["Alarm"]},"18":{"type":"integer","ro":true,"names":["temperature"],"unit":"C"},"19":{"type":"integer","ro":true,"names":["humidity"],"unit":"%"}}}

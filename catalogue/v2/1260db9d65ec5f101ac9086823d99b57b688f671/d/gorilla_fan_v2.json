@@ -1,0 +1,1 @@
+{"name":"Ceiling fan","products":[],"dps":{"1":{"type":"boolean","names":["fan · switch"]},"3":{"type":"integer","names":["fan · speed"],"min":1,"max":5},"15":{"type":"boolean","names":["light · switch"]},"115":{"type":"boolean","names":["Boost"]},"113":{"type":"boolean","names":["switch"]},"102":{"type":"integer","names":["duration · value"],"min":0,"max":360,"unit":"min"}}}

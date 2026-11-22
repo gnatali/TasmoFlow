@@ -1,0 +1,1 @@
+{"name":"Smart button","products":[{"id":"kpzc6pm8","manufacturer":"Arlec","model":"SG022HA"},{"id":"ja5osu5g","model":"ZG101Z"}],"dps":{"1":{"type":"string","names":["button","multi_press_count"],"values":["single_click","long_press","double_click"]},"10":{"type":"integer","ro":true,"names":["battery"],"unit":"%"}}}

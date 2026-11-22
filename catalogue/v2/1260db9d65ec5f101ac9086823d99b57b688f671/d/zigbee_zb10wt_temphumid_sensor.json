@@ -1,0 +1,1 @@
+{"name":"Climate sensor","products":[{"id":"fie1dpkm","manufacturer":"Nedis","model":"ZBSC10WT"}],"dps":{"1":{"type":"integer","ro":true,"names":["temperature"],"unit":"C","scale":10},"2":{"type":"integer","ro":true,"names":["humidity"],"unit":"%","scale":10},"4":{"type":"integer","ro":true,"names":["battery"],"unit":"%","scale":10}}}

@@ -1,0 +1,1 @@
+{"name":"Fish feeder","products":[{"id":"3jskpz3pwqn9oojn","manufacturer":"iLonda","model":"L88"}],"dps":{"1":{"type":"boolean","names":["switch"]},"6":{"type":"integer","names":["second"],"min":0,"max":86400}}}

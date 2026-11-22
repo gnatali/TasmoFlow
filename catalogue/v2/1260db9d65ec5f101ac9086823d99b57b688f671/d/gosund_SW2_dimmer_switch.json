@@ -1,0 +1,1 @@
+{"name":"Dimmer switch","products":[{"id":"qcgkaqmaivuwfwz4","manufacturer":"Gosund","model":"SW2-AR"}],"dps":{"1":{"type":"boolean","names":["light · switch"]},"3":{"type":"integer","names":["light · brightness"],"min":25,"max":255},"101":{"type":"boolean","ro":true,"names":["Temperature alarm · sensor"]}}}

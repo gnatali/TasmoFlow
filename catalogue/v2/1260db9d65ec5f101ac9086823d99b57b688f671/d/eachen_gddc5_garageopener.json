@@ -1,0 +1,1 @@
+{"name":"Garage opener","products":[{"id":"xvsgeeru2i5wsd0y","manufacturer":"Eachen","model":"GD-DC5"}],"dps":{"1":{"type":"boolean","names":["control","open"],"values":[false,true]},"2":{"type":"integer","names":["second"],"min":0,"max":86399}}}

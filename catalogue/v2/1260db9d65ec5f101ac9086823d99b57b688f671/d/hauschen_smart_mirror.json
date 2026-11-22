@@ -1,0 +1,1 @@
+{"name":"Mirror","products":[{"id":"aI7d0iudqVMbCkHL","manufacturer":"Hauschen","model":"48x36 Mirror"}],"dps":{"1":{"type":"boolean","names":["light · switch"]},"3":{"type":"integer","names":["light · brightness"],"min":1,"max":100},"4":{"type":"integer","names":["color_temp"],"min":0,"max":255},"101":{"type":"boolean","names":["Defogger"]}}}

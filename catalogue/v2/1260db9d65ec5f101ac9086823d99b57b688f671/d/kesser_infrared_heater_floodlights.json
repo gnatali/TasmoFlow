@@ -1,0 +1,1 @@
+{"name":"Heater with light","products":[{"id":"trsas9jlfgcbxhq9","manufacturer":"Kesser","model":"3000W Floodlights"}],"dps":{"1":{"type":"boolean","names":["switch"]},"4":{"type":"string","names":["select · option"],"values":["OFF","F1","F2","F3"]},"10":{"type":"boolean","names":["light · switch"]}}}

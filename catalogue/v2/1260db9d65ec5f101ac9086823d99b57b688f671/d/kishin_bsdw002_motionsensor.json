@@ -1,0 +1,1 @@
+{"name":"Motion sensor","products":[{"id":"7i8vqgkql9wjn9gj","manufacturer":"Kishin","model":"BS-DW002"}],"dps":{"1":{"type":"string","ro":true,"names":["motion · sensor"],"values":["pir"]},"3":{"type":"string","ro":true,"names":["battery"],"unit":"%","values":["low","middle","high"]}}}

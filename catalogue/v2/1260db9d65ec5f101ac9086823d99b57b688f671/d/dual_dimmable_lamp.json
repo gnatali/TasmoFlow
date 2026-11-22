@@ -1,0 +1,1 @@
+{"name":"Dual dimmable lamp","products":[{"id":"t1o91dvgdb9xclnm","model":"Dream of You Dual Lamp"}],"dps":{"1":{"type":"boolean","names":["Filament · switch"]},"2":{"type":"integer","names":["Filament · brightness"],"min":10,"max":1000},"7":{"type":"boolean","names":["Base · switch"]},"8":{"type":"integer","names":["Base · brightness"],"min":10,"max":1000}}}

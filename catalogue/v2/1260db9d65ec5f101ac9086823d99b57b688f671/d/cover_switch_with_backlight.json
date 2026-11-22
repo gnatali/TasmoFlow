@@ -1,0 +1,1 @@
+{"name":"Cover switch with backlight","products":[{"id":"fthu3wguzoqdayzp","model":"CST_WB_V1"}],"dps":{"1":{"type":"string","names":["control"],"values":["open","close","stop"]},"2":{"type":"integer","names":["position"],"min":0,"max":100},"3":{"type":"string","names":["Calibration · option"],"values":["start","end"]},"7":{"type":"boolean","names":["light · switch"]}}}

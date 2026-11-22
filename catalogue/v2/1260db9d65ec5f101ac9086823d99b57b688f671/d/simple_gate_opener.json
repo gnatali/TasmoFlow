@@ -1,0 +1,1 @@
+{"name":"Simple garage-door-gate opener","products":[{"id":"b1uk4ftduaqopxv1"}],"dps":{"1":{"type":"boolean","names":["control"],"values":[true,false]},"101":{"type":"boolean","names":["open"]},"7":{"type":"integer","names":["second"],"min":0,"max":86400}}}

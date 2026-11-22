@@ -1,0 +1,1 @@
+{"name":"Curtain switch","products":[{"id":"6tb9dko4t15optxz","manufacturer":"Moes","model":"SCS80 Touch"}],"dps":{"1":{"type":"string","names":["control"],"values":["open","close","continue"]},"7":{"type":"boolean","names":["light · switch"]},"10":{"type":"integer","names":["Time control · value"],"min":10,"max":120,"unit":"s"},"101":{"type":"boolean","names":["Stop button"]}}}

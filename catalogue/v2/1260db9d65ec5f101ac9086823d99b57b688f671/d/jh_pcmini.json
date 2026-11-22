@@ -1,0 +1,1 @@
+{"name":"Pcie computer power","products":[{"id":"na90jncjlvw5t0ba","model":"JH-PC mini"}],"dps":{"1":{"type":"boolean","names":["outlet"]},"101":{"type":"string","names":["Reset","Force reset"],"values":["Reset"]}}}

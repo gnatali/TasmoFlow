@@ -1,0 +1,1 @@
+{"name":"Water leak detector","products":[{"id":"8uvfzbkbecxep069","manufacturer":"Zeissler","model":"ZSw.1312"}],"dps":{"1":{"type":"string","ro":true,"names":["moisture · sensor"],"values":["alarm"]},"101":{"type":"boolean","names":["switch"]}}}

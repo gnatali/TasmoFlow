@@ -1,0 +1,1 @@
+{"name":"Curtain","products":[{"id":"spjpuwf1u2dc7tlt","model":"SmartCurtain 3"}],"dps":{"101":{"type":"string","names":["control"],"values":["open","close","stop"]},"102":{"type":"integer","names":["current_position"]},"104":{"type":"integer","names":["position"]},"103":{"type":"boolean","names":["Direction · option"],"values":[false,true]}}}

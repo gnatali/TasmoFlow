@@ -1,0 +1,1 @@
+{"name":"Pet feeder","products":[],"dps":{"14":{"type":"integer","names":["number · value"],"min":1,"max":12},"104":{"type":"string","names":["meal_plan"]},"102":{"type":"boolean","names":["unknown_102"]},"101":{"type":"integer","ro":true,"names":["Feed report"]},"103":{"type":"boolean","names":["button"]}}}

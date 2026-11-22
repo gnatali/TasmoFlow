@@ -1,0 +1,1 @@
+{"name":"Garage door","products":[],"dps":{"101":{"type":"string","names":["control"],"values":["fopen","fclose"]},"102":{"type":"string","names":["action"],"values":["openning","opened","closing","closed"]},"104":{"type":"integer","ro":true,"names":["battery"],"unit":"%"},"105":{"type":"boolean","ro":true,"names":["Door open · sensor"]}}}

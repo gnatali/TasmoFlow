@@ -1,0 +1,1 @@
+{"name":"Fan switch","products":[{"id":"qmijt70hk4op6snl","manufacturer":"Treatlife","model":"DS02-F"}],"dps":{"1":{"type":"boolean","names":["fan · switch"]},"3":{"type":"string","names":["fan · speed"],"step":25,"values":["level_1","level_2","level_3","level_4"]},"2":{"type":"integer","names":["second"],"min":0,"max":86400}}}

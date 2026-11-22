@@ -1,0 +1,1 @@
+{"name":"Illuminance sensor","products":[],"dps":{"2":{"type":"integer","ro":true,"names":["Brightness"],"unit":"lx"},"1":{"type":"string","ro":true,"names":["Light level"],"values":["low","middle","high"]}}}

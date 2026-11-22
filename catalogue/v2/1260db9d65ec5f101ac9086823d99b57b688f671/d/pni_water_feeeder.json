@@ -1,0 +1,1 @@
+{"name":"Water feeder","products":[{"id":"ajkayo9kucq6vttv","manufacturer":"PNI","model":"TA-WF-SMART(UV)"}],"dps":{"1":{"type":"boolean","names":["switch"]},"10":{"type":"boolean","names":["switch"]},"13":{"type":"bitfield","ro":true,"names":["problem · sensor","fault_code"],"values":[0]}}}

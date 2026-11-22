@@ -1,0 +1,1 @@
+{"name":"Water heat pump","products":[],"dps":{"1":{"type":"boolean","names":["operation_mode"],"values":[false,true]},"2":{"type":"integer","names":["temperature"],"min":48,"max":70,"unit":"C"},"3":{"type":"integer","names":["current_temperature"]},"4":{"type":"string","names":["work_mode"]},"101":{"type":"integer","ro":true,"names":["energy"],"unit":"kWh","scale":10}}}

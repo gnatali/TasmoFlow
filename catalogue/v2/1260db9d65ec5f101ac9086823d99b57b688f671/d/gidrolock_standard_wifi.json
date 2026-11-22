@@ -1,0 +1,1 @@
+{"name":"Water leak detector","products":[],"dps":{"1":{"type":"boolean","names":["water"]},"101":{"type":"boolean","ro":true,"names":["moisture · sensor"]},"103":{"type":"boolean","names":["Cleaning mode"]}}}

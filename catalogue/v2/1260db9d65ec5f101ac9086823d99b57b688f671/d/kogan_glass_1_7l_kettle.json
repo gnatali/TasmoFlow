@@ -1,0 +1,1 @@
+{"name":"Kettle","products":[{"id":"GXoLAzy1gQUbckKe","manufacturer":"Kogan"}],"dps":{"1":{"type":"boolean","names":["hvac_mode"],"values":[false,true]},"5":{"type":"integer","names":["current_temperature"],"unit":"C"},"102":{"type":"string","names":["current_temp_enum"]}}}

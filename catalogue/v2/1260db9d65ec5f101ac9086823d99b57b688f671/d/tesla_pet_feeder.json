@@ -1,0 +1,1 @@
+{"name":"Pet feeder","products":[{"id":"8gdwxpoqdxdzefpe","manufacturer":"Tesla Smart","model":"TSL-PC-BL4"}],"dps":{"1":{"type":"boolean","names":["switch"]},"101":{"type":"integer","names":["Serving size · value"],"min":1,"max":10,"unit":"portions"},"102":{"type":"bitfield","ro":true,"names":["problem · sensor","fault_code"],"values":[0]}}}

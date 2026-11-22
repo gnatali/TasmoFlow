@@ -1,0 +1,1 @@
+{"name":"Dishwasher","products":[{"id":"fcsbxgao03zmzqiu","manufacturer":"BlitzHome","model":"BH-CDW1"}],"dps":{"1":{"type":"boolean","names":["switch"]},"2":{"type":"boolean","names":["Start","Pause"],"values":[true,false]},"6":{"type":"string","names":["select · option"],"values":["biaozhun","chaokuai","jieneng","qiangli","guoxian"]}}}

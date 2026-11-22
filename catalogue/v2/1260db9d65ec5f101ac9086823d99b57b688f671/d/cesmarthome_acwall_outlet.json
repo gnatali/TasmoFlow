@@ -1,0 +1,1 @@
+{"name":"Wall outlet","products":[{"id":"xca2lqfaztnmk5jh","manufacturer":"CE Smart Home","model":"LQ-2-W3"}],"dps":{"101":{"type":"boolean","names":["switch"]},"102":{"type":"integer","names":["second"],"min":0,"max":86400}}}

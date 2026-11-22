@@ -1,0 +1,1 @@
+{"name":"CO2 box","products":[{"id":"ot8jbazilxrskg6s","model":"DCR-CO2"}],"dps":{"2":{"type":"integer","ro":true,"names":["carbon_dioxide"],"unit":"ppm"}}}

@@ -1,0 +1,1 @@
+{"name":"Ceiling fan","products":[],"dps":{"60":{"type":"boolean","names":["fan · switch"]},"62":{"type":"integer","names":["fan · speed"],"min":1,"max":6},"63":{"type":"string","names":["direction"]},"64":{"type":"integer","names":["duration · value"],"min":0,"max":540,"unit":"min"},"66":{"type":"boolean","names":["switch","available"]}}}

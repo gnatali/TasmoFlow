@@ -1,0 +1,1 @@
+{"name":"Simple garage door","products":[],"dps":{"1":{"type":"boolean","names":["control"],"values":[true,false]},"101":{"type":"boolean","names":["open"]}}}

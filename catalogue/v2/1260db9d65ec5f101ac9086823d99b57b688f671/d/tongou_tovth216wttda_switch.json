@@ -1,0 +1,1 @@
+{"name":"Sensor switch","products":[{"id":"oj6soirdngp9jijy","manufacturer":"Tongou","model":"TOVTH-216WTTDA"}],"dps":{"27":{"type":"integer","ro":true,"names":["temperature"],"unit":"C","scale":10},"46":{"type":"integer","ro":true,"names":["humidity"],"unit":"%"},"2":{"type":"boolean","names":["switch"]},"101":{"type":"boolean","names":["switch"]}}}

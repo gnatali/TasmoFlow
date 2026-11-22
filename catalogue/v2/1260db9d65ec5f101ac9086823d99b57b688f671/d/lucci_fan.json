@@ -1,0 +1,1 @@
+{"name":"Ceiling fan","products":[{"id":"U8wU126HQlIeQHvS","manufacturer":"Lucci Connect","model":"WiFi fan remote"}],"dps":{"1":{"type":"boolean","names":["fan · switch"]},"2":{"type":"string","names":["fan · speed"],"values":["1","2","3"]},"102":{"type":"boolean","names":["light · switch"]}}}

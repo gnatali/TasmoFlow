@@ -1,0 +1,1 @@
+{"name":"Gate opener","products":[{"id":"4iispvj6a6vsavxl","manufacturer":"Globmatic","model":"Castor"}],"dps":{"101":{"type":"integer","names":["position","current_position"],"min":0,"max":100},"10":{"type":"string","ro":true,"names":["sensor"]}}}

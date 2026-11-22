@@ -1,0 +1,1 @@
+{"name":"Bidirectional clamp meter","products":[{"id":"ze8faryrxr0glqnn","model":"PJ2101A"}],"dps":{"101":{"type":"integer","ro":true,"names":["power"],"unit":"W"},"102":{"type":"string","ro":true,"names":["direction"]},"1":{"type":"integer","ro":true,"names":["energy"],"unit":"kWh","scale":100},"2":{"type":"integer","ro":true,"names":["energy"],"unit":"kWh","scale":100}}}

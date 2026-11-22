@@ -1,0 +1,1 @@
+{"name":"Hot water","products":[],"dps":{"1":{"type":"boolean","names":["operation_mode"],"values":[false,true]},"2":{"type":"integer","names":["temperature"],"min":15,"max":75,"unit":"C"},"3":{"type":"integer","names":["current_temperature"]},"4":{"type":"string","names":["work_mode"]},"21":{"type":"bitfield","ro":true,"names":["problem · sensor","fault_code"],"values":[0]}}}

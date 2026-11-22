@@ -1,0 +1,1 @@
+{"name":"Pool thermometer","products":[{"id":"qirx90k6hg4qzpbz","manufacturer":"Raddy","model":"PT-5"}],"dps":{"101":{"type":"integer","ro":true,"names":["temperature"],"unit":"C","scale":10},"102":{"type":"integer","ro":true,"names":["humidity"],"unit":"%"},"103":{"type":"integer","ro":true,"names":["temperature"],"unit":"C","scale":10}}}
