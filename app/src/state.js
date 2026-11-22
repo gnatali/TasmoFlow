@@ -194,7 +194,9 @@ function connectEvents() {
         const n = tuya.nodes[ev.name];
         const on = ev.connected !== false;
         if (n) {
-          const nodes = { ...tuya.nodes, [ev.name]: { ...n, connected: on, dps: { ...n.dps, ...ev.dps } } };
+          const seen = { ...n.seen };                       // when each DP was last seen in an event (the details sheet)
+          for (const k in ev.dps || {}) seen[k] = Date.now();
+          const nodes = { ...tuya.nodes, [ev.name]: { ...n, connected: on, dps: { ...n.dps, ...ev.dps }, seen } };
           for (const c of ((tuya.conf || {})[ev.name] || {}).children || []) if (nodes[c.name]) nodes[c.name] = { ...nodes[c.name], connected: on };
           tuya = { ...tuya, nodes };
         } else unknownTuya = true;

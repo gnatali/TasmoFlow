@@ -8,7 +8,7 @@ const esbuild = require('esbuild');
 const SRC = path.join(__dirname, '..', 'app', 'src');
 // the modules are plain ES modules: bundle them to CommonJS for Node
 const out = esbuild.buildSync({
-  stdin: { contents: "export * from './rules_model.js'; export * from './rules_lint.js'; export * from './rules_devices.js'; export * from './rules_conflicts.js'; export * from './rules_guided_model.js'; export * from './tuya_model.js'; export * from './tuya_colour.js'; export * from './rename_model.js';", resolveDir: SRC },
+  stdin: { contents: "export * from './rules_model.js'; export * from './rules_lint.js'; export * from './rules_devices.js'; export * from './rules_conflicts.js'; export * from './rules_guided_model.js'; export * from './tuya_model.js'; export * from './tuya_colour.js'; export * from './rename_model.js'; export * from './tuya_sheet_model.js';", resolveDir: SRC },
   loader: { '.css': 'text' }, define: { __BUILD__: '""' },
   bundle: true, format: 'cjs', write: false, logLevel: 'silent'
 }).outputFiles[0].text;
@@ -19,7 +19,7 @@ globalThis.document = { documentElement: {} };
 globalThis.window = { addEventListener() {} };      // rules.js (reached through tuya.js, rename.js) listens for beforeunload
 const m = { exports: {} };
 new Function('module', 'exports', out)(m, m.exports);
-const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, keyMismatch, seenAttrs, zbTriggerAttrs, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks } = m.exports;
+const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, keyMismatch, seenAttrs, zbTriggerAttrs, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks, sheetRows, showValue, identity, parentOf } = m.exports;
 
 let n = 0;
 const ok = (name, f) => { f(); n++; };
@@ -450,6 +450,39 @@ ok('rename: names refused', () => {
   assert.strictEqual(nameError('tuya', '', 'Pince', null, s), 'rn_empty');
   assert.strictEqual(nameError('tuya', 'ventilateur', 'Pince', null, s), 'rn_used');
   assert.strictEqual(nameError('tuya', 'Pince garage', 'Pince', null, s), null);
+});
+
+ok('Tuya sheet: DPs from the codes, the bindings, the sensors and the state, with their source', () => {
+  // the shape of a real entry (Pergola 1, 22 November 2026), id left out
+  const entry = { name: 'Pergola 1', ip: '192.168.1.27', version: '3.4', key: '***', keep: [21, 22, 24],
+    matter: [{ ep: 'Pergola 1', type: 'light3', enabled: false, dp: 20, dp_bri: 22, dp_mode: 21, dp_colour: 24, bri_min: 10, bri_max: 1000 }],
+    codes: { switch_led: 20, work_mode: 21, bright_value_v2: 22, colour_data_v2: 24, countdown_1: 26, do_not_disturb: 34 },
+    sensors: { Puissance: [19, 10, 'W'] } };
+  const node = { connected: true, ip: '192.168.1.27', version: '3.4', dps: { 20: false, 22: 1000, 34: false, 26: 30, 19: 1234 }, seen: { 26: 5000 } };
+  const rows = sheetRows(entry, node);
+  assert.deepStrictEqual(rows.map(r => r.dp), [19, 20, 21, 22, 24, 26, 34]);
+  const r = dp => rows.find(x => x.dp === dp);
+  assert.deepStrictEqual([r(22).code, r(22).src, r(22).uses], ['bright_value_v2', 'gateway', [{ kind: 'matter', ep: 'Pergola 1', role: 'bri', type: 'light3', enabled: false }]]);
+  assert.deepStrictEqual([r(26).src, r(26).at, r(26).uses], ['event', 5000, []]);
+  assert.deepStrictEqual([r(21).has, r(21).src, r(21).uses[0].role], [false, '', 'mode']);
+  assert.strictEqual(r(20).uses[0].role, '');                                                     // the binding's main DP
+  const lab = { on: 'allumé', off: 'éteint' };
+  assert.strictEqual(showValue(r(19), lab), '123.4 W');                                           // a sensor, divided
+  assert.strictEqual(showValue(r(34), lab), 'éteint');
+  assert.strictEqual(showValue(r(22), lab), '1000');
+  assert.strictEqual(showValue(r(21), lab), '');
+  assert.deepStrictEqual(sheetRows(null, null), []);
+  assert.deepStrictEqual(sheetRows({ codes: { x: 'a' }, matter: [{ dp: null }] }, { dps: { foo: 1 } }), []);   // nothing that is not a DP number
+});
+ok('Tuya sheet: identity, never the key; a sub-device and its gateway', () => {
+  const conf = { Passerelle: { name: 'Passerelle', id: 'gw1', key: '***', ip: '10.0.0.2', version: '3.3', children: [{ name: 'Capteur', cid: 'c1' }] } };
+  conf.Capteur = conf.Passerelle.children[0];
+  const id = identity('Passerelle', conf.Passerelle, { ip: '10.0.0.2', version: '3.3' }, conf);
+  assert.deepStrictEqual(id, [['name', 'Passerelle'], ['id', 'gw1'], ['ip', '10.0.0.2'], ['version', '3.3'], ['children', 'Capteur']]);
+  assert.ok(!JSON.stringify(id).includes('***'));
+  assert.deepStrictEqual(identity('Capteur', conf.Capteur, null, conf), [['name', 'Capteur'], ['cid', 'c1'], ['parent', 'Passerelle']]);
+  assert.strictEqual(parentOf('Autre', conf), '');
+  assert.deepStrictEqual(identity('L', { keep: 'all' }, null, {}), [['name', 'L'], ['keep', 'all']]);
 });
 
 console.log(`ok     rule model (${n} checks)`);

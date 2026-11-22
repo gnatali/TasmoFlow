@@ -521,6 +521,26 @@ gardé que les DP 20 et 34 du `light3`), donc un curseur dont la valeur est inco
 jusqu'à ce que l'appareil signale un changement ; `"keep": [21, 22, 24]` dans `tuya.json` les
 conserve.
 
+### Fiche de détails (22 novembre 2026)
+
+Un bouton **Détails** sur chaque carte Tuya ouvre une fiche en lecture seule (`tuya_sheet.js`, logique
+dans `tuya_sheet_model.js` ; interface seule, pas de `.tapp` à réinstaller). Faisabilité et mesures :
+[investigations/tuya-device-details-2026-11.md](investigations/tuya-device-details-2026-11.md) (en anglais).
+
+- Elle relit l'entrée (`TuyaConfig <appareil>`, une entrée : aucun coût mémoire durable mesuré), le
+  reste est déjà dans l'état de l'interface.
+- Identité : nom, identifiant, identifiant de sous-appareil et sa passerelle Tuya, ou les
+  sous-appareils d'une passerelle, IP, protocole, `keep`. Jamais la clé locale (le firmware la masque
+  en `***` ; la fiche n'affiche pas ce champ).
+- Une ligne par DP, d'après les `codes` de l'import (tous les DP de l'appareil), les liens Matter
+  (`dp`, `dp_bri`, `dp_ct`... avec leur endpoint, `hors Matter` s'il est désactivé), les capteurs
+  (valeur divisée, avec son unité) et l'état : sa valeur et sa **source** : *passerelle* (`TuyaStatus`,
+  les DP que le pilote garde) ou *événement* avec l'heure où il a été vu (`state.js` la note par DP,
+  `node.seen`) ; un DP que la passerelle ne garde pas n'a pas de valeur tant que l'appareil ne l'envoie
+  pas pendant que l'interface est ouverte.
+- Ensuite (note de faisabilité) : identifier le produit (`product_key` de `TuyaScan`, une règle dans
+  `tasmoflow.be`) et un catalogue tuya-local comparé sur les DP, pour les types, plages et libellés.
+
 ### Pilotes à l'ouverture
 
 Une fois l'état et celui de Tuya lus, `detect()` (`app/src/state.js`) remplit `S.drivers` : `zigbee`
@@ -821,6 +841,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] v0.1 (12 novembre 2026, `.tapp` réinstallée, interface légère modifiée) : un appareil Tuya dont le nom contient une virgule (Wi-Fi ou passerelle, listé par `TuyaConfig` avec son `id`) se commande depuis sa carte dans les deux interfaces (`TuyaSend <id>,<dp>,toggle` dans le journal) et apparaît dans les sélecteurs de règles sous son nom ; un sous-appareil de passerelle dont le nom contient une virgule montre ses mesures sans contrôle (vérifié par Guillaume sur la passerelle, le 12 novembre 2026)
 - [x] v0.1 (12 novembre 2026, version de test) : la carte d'une `light3` de l'interface complète (version de test, pas de `.tapp` à réinstaller pour cela, sauf pour la luminosité 1-100 % de l'interface légère) montre les onglets Blanc / Couleur (pas l'interface légère) ; l'onglet sélectionné suit le mode réglé depuis l'application Tuya ; la roue de teinte et les curseurs de saturation et de luminosité changent la lampe et la carte suit l'état renvoyé ; en Blanc, le curseur de luminosité correspond à celui de l'application Tuya ; une lampe sans `dp_ct` n'affiche pas de température de couleur; la même carte pour une `light2` (`Entrée-Porche`) : cadran en arc ouvert pour la température de couleur et luminosité de 1 % à 100 % ; une valeur qu'on vient de régler reste affichée jusqu'à ce que l'appareil la signale (plus de clignotement nouvelle / ancienne / nouvelle) ; les options sont masquées tant que la lampe est éteinte ou déconnectée et reviennent à l'allumage (vérifié par Guillaume sur la passerelle, le 12 novembre 2026)
 - [ ] v0.1 : vérifier que `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)
+- [ ] v0.2, fiche de détails Tuya (22 novembre 2026, build de test) : **Détails** sur la carte Pergola 1 : identifiant, IP, protocole 3.4, `keep` 21, 22, 24 ; 11 DP avec leurs codes ; 20, 21, 22, 24 marqués *Matter · Pergola 1* (*hors Matter*) ; 20, 21, 22, 24, 34 *passerelle* ; allumer la lumière depuis l'app Tuya affiche les DP qu'elle envoie en *événement* avec l'heure ; aucune clé nulle part ; lisible sur téléphone (un bloc par DP)
 - [x] v0.2, configuration Tuya appareil par appareil (18 novembre 2026, firmware du même jour flashé, `.tapp` réinstallée) : les cartes Tuya montrent leurs commandes (variateur, couleur, vitesse...), sous-appareils de la passerelle Tuya compris ; le journal de la passerelle montre des commandes `TuyaConfig <nom>` et aucun `TuyaConfig` seul ; avec moins de 30 Ko libres les commandes sont toujours là (pas de note « mémoire insuffisante »)
 - [x] v0.2, robustesse (18 novembre 2026, bugs T2 à T4, `.tapp` réinstallée ; vérifié par Guillaume le même jour : 67 Ko libres au repos, 54 Ko avec l'interface complète ouverte, 13 Ko des 15 Ko du budget) : l'interface s'ouvre comme avant et la mémoire `Status 4`, après `Br tasmota.gc()`, au repos et avec une interface ouverte est inchangée ou plus basse ; la liste des appareils est complète (même nombre que `ZbStatus1`) ; avec une interface ouverte sur un téléphone, couper son Wi-Fi 5 minutes pendant que des appareils envoient des événements : la mémoire ne baisse pas (le flux est fermé dès que 6 Ko attendent), et la page suit de nouveau à son retour ; « Actualiser » ne relance plus `TuyaConfig` (niveau de log 3)
 - [x] v0.2, redémarrage de la passerelle avec une page ouverte (18 novembre 2026, bug T1, `.tapp` réinstallée) : ouvrir `/tf` (interface complète et légère), l'utiliser quelques minutes pour que des événements arrivent, puis `Restart 1` depuis la console Tasmota ; le badge passe à « reconnexion… », puis revient à « en direct » ; juste après, un appui sur un bouton Zigbee et un changement Tuya (bouton, Smart Life) apparaissent sur les cartes (et dans l'onglet Événements de l'interface complète) en moins de 2 s, sans recharger la page

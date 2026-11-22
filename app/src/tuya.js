@@ -7,6 +7,7 @@ import { t } from './i18n.js';
 import { M, runTuya } from './state.js';
 import { controlsFor, sendName } from './tuya_model.js';
 import { RenameDialog } from './rename.js';
+import { TuyaSheet } from './tuya_sheet.js';
 
 // what a refused or failed command answered (state.js, run()), under its card or button
 export const Msg = ({ k }) => M.get()[k] ? html`<div class="msg bad" role="alert">${M.get()[k]}</div>` : null;
@@ -42,14 +43,17 @@ export function TuyaCard({ name, node, entry }) {
   const reads = cs.filter(c => c.kind === 'read');
   const acts = cs.filter(c => c.kind !== 'read');
   const [ren, setRen] = useState(false);
+  const [sheet, setSheet] = useState(false);
   return html`<article class="card">
     <h3>${name}</h3>
     <div class="q">${'Tuya · ' + node.ip + ' · ' + node.version + ' · ' + (node.connected ? t('connected') : t('disconnected'))}</div>
     ${reads.length ? html`<div class="st">${reads.map(c => html`<${Control} c=${c} node=${node} send=${send}/>`)}</div>` : null}
     ${acts.length ? html`<div class="row tight">${acts.map(c => html`<${Control} c=${c} node=${node} send=${send}/>`)}</div>` : null}
-    <div class="row tight"><button class="b" aria-label=${t('rn_title') + ' ' + name} onClick=${() => setRen(true)}>${t('rn_title')}</button></div>
+    <div class="row tight"><button class="b" aria-label=${t('rn_title') + ' ' + name} onClick=${() => setRen(true)}>${t('rn_title')}</button>
+      <button class="b" aria-label=${t('ts_title') + ' ' + name} onClick=${() => setSheet(true)}>${t('ts_title')}</button></div>
     <${Msg} k=${name}/>
     ${ren ? html`<${RenameDialog} kind="tuya" name=${name} onClose=${() => setRen(false)}/>` : null}
+    ${sheet ? html`<${TuyaSheet} name=${name} onClose=${() => setSheet(false)}/>` : null}
   </article>`;
 }
 

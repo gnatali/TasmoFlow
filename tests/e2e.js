@@ -744,6 +744,37 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await q.goto('http://localhost:8083/tf');
     await q.waitForFunction(() => window.TASMOFLOW && window.TASMOFLOW.source === 'github', null, { timeout: 8000 });
   });
+  await test('Tuya details sheet: identity, every DP with its code, use and source, no key', async p => {
+    await openFull(p);
+    const lamp = p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe bureau', exact: true }) });
+    await lamp.waitFor({ timeout: 6000 });
+    await lamp.getByRole('button', { name: 'Détails Lampe bureau' }).click();
+    const dlg = p.getByRole('dialog');
+    await dlg.getByText('00000000000000lamp01').waitFor({ timeout: 4000 });                 // the id, from TuyaConfig
+    await dlg.getByText('Points de données (6)').waitFor();
+    const row = dp => dlg.locator('table.sheet tr', { has: p.locator('td:first-child', { hasText: new RegExp('^' + dp + '$') }) });
+    await row(22).getByText('bright_value_v2').waitFor();
+    await row(22).getByText('Matter · Lampe bureau (bri) · hors Matter').waitFor();          // binding disabled: still says what the DP is
+    await row(22).getByText('passerelle').waitFor();                                           // from TuyaStatus
+    if ((await row(26).textContent()).includes('passerelle')) throw new Error('DP 26 has a value before any event');
+    await p.evaluate(t => fetch('http://localhost:8384/api/cmd?t=' + t + '&c=' + encodeURIComponent('TuyaSend Lampe bureau,26,30')), '0123456789abcdef0123456789abcdef');
+    await row(26).getByText(/^événement /).waitFor({ timeout: 4000 });                          // a DP the gateway does not keep, seen in an event
+    await row(26).getByText('30', { exact: true }).waitFor();
+    if (/\*\*\*|"key"/.test(await dlg.textContent())) throw new Error('the masked key is shown');
+    if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'tuya-sheet.png') });
+    await p.setViewportSize({ width: 360, height: 740 });
+    const box = await dlg.boundingBox();
+    if (box.x < 0 || box.x + box.width > 361) throw new Error('sheet wider than a phone: ' + JSON.stringify(box));
+    if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'tuya-sheet-mobile.png') });
+    await dlg.getByRole('button', { name: 'Terminé' }).click();
+    await dlg.waitFor({ state: 'detached' });
+    // a reading, divided, with its unit
+    const clamp = p.locator('article.card', { has: p.getByRole('heading', { name: 'Pince', exact: true }) });
+    await clamp.getByRole('button', { name: 'Détails Pince' }).click();
+    await dlg.locator('table.sheet tr', { hasText: 'Capteur · Total energie' }).getByText('12.34 kWh').waitFor({ timeout: 4000 });
+    await dlg.getByText(/Aucun code connu/).waitFor();
+    await dlg.getByRole('button', { name: 'Terminé' }).click();
+  });
   await test('Tuya: cards, switches, slider, readings, event back, offline device', async p => {
     await openFull(p);
     const fan = p.locator('article.card', { has: p.getByRole('heading', { name: 'Ventilateur', exact: true }) });
@@ -870,8 +901,8 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await tv.getByRole('button', { name: 'TV · allumé' }).waitFor({ timeout: 4000 });
     const kitchen = p.locator('article.card', { has: p.getByRole('heading', { name: 'Cuisine, bas', exact: true }) });
     await kitchen.waitFor();
-    // (it can still be renamed: TuyaRename splits at the last comma)
-    if (await kitchen.getByRole('button', { name: /^(?!Renommer)/ }).count()) throw new Error('a device that cannot be addressed offers a control');
+    // (it can still be renamed: TuyaRename splits at the last comma, and its details read)
+    if (await kitchen.getByRole('button', { name: /^(?!Renommer|Détails)/ }).count()) throw new Error('a device that cannot be addressed offers a control');
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'tuya.png'), fullPage: true });
   });
   await test('drivers starting (full): notes, functions off, looks again by itself, then on', async p => {
