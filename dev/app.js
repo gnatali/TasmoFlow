@@ -6,7 +6,7 @@
     ${r?p`<span class="gw">${r}</span>`:null}
     <span class="sp"></span>
     <span class=${"badge "+(t.live?"ok":"bad")}>${t.live?l("live"):l(t.stopped?"paused":"reconnecting")}</span>
-    <span class="badge">${"v"+A.version+" \xB7 "+A.source+" \xB7 dev.105beea"}</span>
+    <span class="badge">${"v"+A.version+" \xB7 "+A.source+" \xB7 dev.d7ea4e9"}</span>
     <button class="b" lang=${n==="fr"?"en":"fr"} aria-label=${n==="fr"?"English":"Fran\xE7ais"} onClick=${An}>${n==="fr"?"EN":"FR"}</button>
   </header>`}function Bn(e,{Banner:t,Picker:n}={}){let r=Object.keys(e);return function(){let{tab:o,error:a}=b.get(),i=e[o]||e[r[0]];return p`
       <${Go} Picker=${n}/>
