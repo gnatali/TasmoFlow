@@ -798,9 +798,24 @@ Started on 23 November 2026 (Guillaume's choice), from the specification (F3.2 t
   generated for `tests/auto_sample.js`'s automations with `tf_autolib.be` (and its minified copy of
   the `.tapp`), fires events, moves time on, and checks the commands sent, the restarted delay, the
   conditions and `stop()`.
-- **Next**: step 2, the API (`tf_auto.json` read and written with a copy of the previous version,
-  `/tf_auto.be` compiled before it replaces the running one) and the loading at boot; step 3, the
-  screen (list, editor, the generated Berry read only).
+- **On the gateway** (step 2, 23 November 2026): `tasmoflow.be` `start_auto()` runs `/tf_auto.be` at
+  boot (browser closed) and after each change, removing the previous rules and delays first; without
+  that file nothing is loaded (no RAM at rest). An automation's exception is logged, not raised:
+  `tasmota_class.be` runs neither rules nor timers under `try`, and one exception would skip the other
+  rules of the event (`tf_autolib.safe()`). The API is `extension/tf_auto.be` (loaded at the first
+  request, freed with the server): `/api/automations` (state and the JSON), `/api/automations_put`
+  (base64 pieces of `<file>.new`, as an update), `/api/automations_apply` (sizes, the Berry compiled
+  with `compile()` before anything is replaced, then the current files kept as `.bak` and the new
+  ones started; if they fail to start, the previous ones come back and the new ones are dropped),
+  `/api/automations_restore`. Not `/api/auto…`: `tf_http.be` dispatches to the first prefix that
+  matches, which would take `/api/autoexec`. Each file 16 KB at most (the Berry is read whole).
+- **Screen** (step 3): an **Automatisations** section of the Rules screen (`auto_view.js`, model
+  `auto_model.js`, client `auto.js`): tiles in plain language with a switch, **Modify**,
+  **Duplicate**, **Delete**, **Previous version**; the editor (dialog) has the name, the triggers
+  (the gateway's events, every Zigbee attribute and every Tuya DP of each device, read-only ones
+  included, and the Tuya connections), the condition (all or any; Zigbee and Tuya states), the steps
+  (commands from the rule pickers, delays in seconds with *restart*) and the generated Berry read only.
+  Each change is saved at once (no unsaved state); the state line says how many run.
 
 ## Renaming devices
 
@@ -878,6 +893,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] v0.1 (12 November 2026, test build): a `light3` card of the full interface (test build, no `.tapp` to install again for this, except for the 1-100 % brightness of the light interface) shows the tabs White / Colour (not the light interface); the selected tab follows the mode set from the Tuya app; the hue wheel, saturation and brightness sliders change the lamp and the card follows the state sent back; in White the brightness slider matches the Tuya app's; a lamp without `dp_ct` shows no colour temperature; the same card for a `light2` (`Entrée-Porche`): open arc dial for the colour temperature and brightness, 1 % to 100 %; a value just set stays on screen until the device reports it (no new / old / new flicker); the options are hidden while the lamp is off or disconnected and come back when it is on (verified by Guillaume on the gateway, 12 November 2026)
 - [ ] v0.1: check that `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)
 - [ ] v0.2, Zigbee details sheet (22 November 2026, test build): **Details** on the Interrupteur Entrée card: IEEE address, `SNZB-01P`, eWeLink, endpoint 1, end device; battery 100 %, LQI, last message; `Power` row used by your rule (`Rule<n> (déclencheur)`), no value until the button is pressed, then *event* with the time; the rule set listed under the rules that name it; same on a lamp (router, `Power` and `Dimmer` *gateway*)
+- [ ] v0.2, automations (23 November 2026, test build, **`.tapp` installed again**, `Restart 1`): Rules → **Automatisations** → new: *When* Interrupteur Entrée · Power = 2, *Then* a Récepteur radio switch on, a delay of 300 s with *restart*, the same switch off; saved: the boot log shows `TFL: automations started (2 rules)`; with the interface **closed**, a press switches it on, it goes off 5 minutes after the **last** press; `Restart 1`: still working; a Tuya DP as trigger (a pergola switched from the Smart Life app); a condition (all/any) that is not met: nothing happens; switch it off, **Previous version**; `Heap` at rest with and without automations
 - [ ] v0.2, Zigbee card sliders (23 November 2026, test build): a dimmable Zigbee lamp's card shows **Intensité** (and **Température de couleur** if it has `CT`) at its current level; moving it changes the lamp, and the lamp's report keeps the slider there
 - [ ] v0.2, pickers from the catalogue (23 November 2026, test build; Guillaume: the Récepteur radio's DPs and the clamp left out of the command lists, its card still showing its readings, **checked**; Zigbee `Dimmer` value **KO**, being looked into): in a new rule, the command list of Récepteur radio offers `switch_2 (switch) · allumer`..., `countdown_1 … (0-86399)`, `relay_status = memory`; Pince offers none of its readings; a Zigbee lamp offers `Dimmer … (0-254)`: picked in the free form, the text opens with 127 to change; in the guided mode a field asks for the value; the saved rule works
 - [x] v0.2, Tuya product (22 November 2026, checked on the gateway by Guillaume, test build, **`.tapp` installed again**, `Restart 1`): Récepteur radio's sheet shows *Quad switch* first (probable) before any scan, then **Identify**: its product id appears after about 10 s, the quad switch stays first; Entrée-Porche: *CCT lightbulb* (probable, same product id); the **Catalogue** column names the DPs (`light · brightness · integer 10-1000`...); the link opens the tuya-local file; `Heap` during the scan

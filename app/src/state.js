@@ -33,6 +33,7 @@ export const S = createStore({
   stopped: false,           // the gateway stopped this page's event stream: more than three were open
   error: null,
   productKeys: readKeys(),
+  autos: null,              // { loaded, error, bak, list } of the automations (auto.js), or { failed }
   products: null,           // { "<Tuya device>": its catalogue entry } for the rule pickers (catalogue.js, loadProducts)  // Tuya device id -> product id, from TuyaScan (the details sheet), kept in the browser
   startMs: 0,
   consoleOut: ''
@@ -271,7 +272,7 @@ function switchTo(gw) {
   closeEvents();
   api = client(gw);
   lastSeq = 0;
-  S.set({ gw, status: null, devices: null, tuya: null, products: null, drivers: {}, recheck: 0, rules: null, events: [], live: false, stopped: false, error: null });
+  S.set({ gw, status: null, devices: null, tuya: null, products: null, autos: null, drivers: {}, recheck: 0, rules: null, events: [], live: false, stopped: false, error: null });
   start();
 }
 

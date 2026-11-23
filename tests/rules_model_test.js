@@ -8,7 +8,7 @@ const esbuild = require('esbuild');
 const SRC = path.join(__dirname, '..', 'app', 'src');
 // the modules are plain ES modules: bundle them to CommonJS for Node
 const out = esbuild.buildSync({
-  stdin: { contents: "export * from './rules_model.js'; export * from './rules_lint.js'; export * from './rules_devices.js'; export * from './rules_conflicts.js'; export * from './rules_guided_model.js'; export * from './tuya_model.js'; export * from './tuya_colour.js'; export * from './rename_model.js'; export * from './sheet_model.js'; export * from './auto_gen.js';", resolveDir: SRC },
+  stdin: { contents: "export * from './rules_model.js'; export * from './rules_lint.js'; export * from './rules_devices.js'; export * from './rules_conflicts.js'; export * from './rules_guided_model.js'; export * from './tuya_model.js'; export * from './tuya_colour.js'; export * from './rename_model.js'; export * from './sheet_model.js'; export * from './auto_gen.js'; export * from './auto_model.js';", resolveDir: SRC },
   loader: { '.css': 'text' }, define: { __BUILD__: '""' },
   bundle: true, format: 'cjs', write: false, logLevel: 'silent'
 }).outputFiles[0].text;
@@ -19,7 +19,7 @@ globalThis.document = { documentElement: {} };
 globalThis.window = { addEventListener() {} };      // rules.js (reached through tuya.js, rename.js) listens for beforeunload
 const m = { exports: {} };
 new Function('module', 'exports', out)(m, m.exports);
-const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, keyMismatch, seenAttrs, zbTriggerAttrs, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks, sheetRows, showValue, identity, parentOf, zbIdentity, zbProduct, zbLink, zbRows, ruleRefs, matchProducts, confidence, catalogueText, tuyaDps, ZB_SET, zbControls, generate, autoErrors, q, newId } = m.exports;
+const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, keyMismatch, seenAttrs, zbTriggerAttrs, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks, sheetRows, showValue, identity, parentOf, zbIdentity, zbProduct, zbLink, zbRows, ruleRefs, matchProducts, confidence, catalogueText, tuyaDps, ZB_SET, zbControls, generate, autoErrors, q, newId, fromKey, keyOf, splitRule, cmpOf, autoGroups, describe, duration, blankAuto } = m.exports;
 
 let n = 0;
 const ok = (name, f) => { f(); n++; };
@@ -619,6 +619,34 @@ ok('automations: the generated Berry (the engine itself is tested on Berry, test
   assert.strictEqual(newId([{ id: 'a1' }, { id: 'a3' }]), 'a2');
   // a name cannot break out of its comment
   assert.ok(!generate([{ id: 'n', name: 'x\na.cmd("Restart 1")', when: [{ src: 'rule', pat: 'P' }], then: [{ cmd: 'C' }] }]).includes('\na.cmd("Restart 1")'));
+});
+
+ok('automations screen: keys, pickers, plain language', () => {
+  const dv = { '0x922D': { addr: '0x922D', name: 'Interrupteur Entrée', attrs: { BatteryPercentage: 100 } } };
+  const z = fromKey('zb|0x922D|Power', '=', 2, dv);
+  assert.deepStrictEqual(z, { src: 'zigbee', addr: '0x922D', name: 'Interrupteur Entrée', attr: 'Power', op: '=', value: '2' });
+  assert.strictEqual(keyOf(z), 'zb|0x922D|Power');
+  assert.deepStrictEqual(fromKey('tuya|Pergola 1|20', '', 'x'), { src: 'tuya', dev: 'Pergola 1', dp: '20', op: '', value: '' });
+  assert.deepStrictEqual(fromKey('tconn|Pince|0'), { src: 'tuyaconn', dev: 'Pince', on: false });
+  const r = fromKey('rule|Power1#State', '=', '1');
+  assert.deepStrictEqual([r.pat, keyOf(r), cmpOf(r)], ['Power1#State=1', 'rule|Power1#State', { subject: 'Power1#State', op: '=', value: '1' }]);
+  assert.deepStrictEqual(splitRule('Tele-ENERGY#Power>=100'), { subject: 'Tele-ENERGY#Power', op: '>=', value: '100' });
+  assert.deepStrictEqual(splitRule('System#Boot'), { subject: 'System#Boot', op: '', value: '' });
+  assert.strictEqual(keyOf({ src: 'rule', pat: '' }), '');
+  const s = { devices: dv, events: [], rules: null, products: { 'Pergola 1': { dps: { 20: { names: ['light'] }, 99: { names: ['timer'] } } } },
+    tuya: { state: 'running', nodes: { 'Pergola 1': { dps: { 20: false } } }, conf: { 'Pergola 1': { codes: { switch_led: 20 } } } } };
+  const lab = { gateway: 'Passerelle', connected: 'connecté', disconnected: 'déconnecté' };
+  const g = autoGroups(s, lab, ['System#Boot'], true);
+  assert.deepStrictEqual(g.map(x => x.group), ['Passerelle', 'Zigbee · Interrupteur Entrée', 'Tuya · Pergola 1']);
+  assert.deepStrictEqual(g[1].items.map(i => i.value), ['zb|0x922D|Power', 'zb|0x922D|BatteryPercentage']);    // a button: Power first
+  assert.deepStrictEqual(g[2].items.map(i => i.label), ['switch_led (light)', 'DP 99 (timer)', 'connecté', 'déconnecté']);
+  assert.deepStrictEqual(autoGroups(s, lab, ['System#Boot'], false).map(x => x.group), ['Zigbee · Interrupteur Entrée', 'Tuya · Pergola 1']);
+  assert.strictEqual(describe(z, s, lab), 'Interrupteur Entrée · Power = 2');
+  assert.strictEqual(describe({ src: 'tuya', dev: 'Pergola 1', dp: '20', op: '=', value: 'true' }, s, lab), 'Pergola 1 · switch_led = true');
+  assert.strictEqual(describe({ src: 'tuyaconn', dev: 'Pince', on: true }, s, lab), 'Pince · connecté');
+  assert.deepStrictEqual([duration(300), duration(90), duration(3725), duration(0)], ['5 min', '1 min 30 s', '1 h 2 min 5 s', '0 s']);
+  assert.deepStrictEqual(autoErrors(blankAuto('a1')), ['au_noTrigger', 'au_noAction']);
+  assert.deepStrictEqual(autoErrors({ when: [z], cond: { mode: 'all', items: [{ src: 'rule', pat: '' }, { src: 'tuya', dev: 'P', dp: '1' }] }, then: [{ cmd: 'x' }] }), ['au_noState', 'au_stateOp']);
 });
 
 console.log(`ok     rule model (${n} checks)`);

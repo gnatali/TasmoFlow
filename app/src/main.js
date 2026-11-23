@@ -9,7 +9,8 @@ import css from './style_full.css';
 import { onTab, loadStatus } from './state.js';
 import { DevicesView } from './views.js';
 import { EventsView, ConsoleView, DiagView } from './views_full.js';
-import { RulesView, registerEditor, loadRules } from './rules.js';
+import { RulesView, registerEditor, registerAutos, loadRules } from './rules.js';
+import { AutoSection } from './auto_view.js';
 import { SentenceEditor } from './rules_editor.js';
 import { ConflictBanner } from './rules_conflicts_view.js';
 import { findConflicts } from './rules_conflicts.js';
@@ -21,6 +22,7 @@ import { loadDevtools } from './devtools.js';
 
 addTexts(FULL_TEXTS);
 registerEditor(SentenceEditor, ConflictBanner, findConflicts);
+registerAutos(AutoSection);
 onTab({ diag: loadStatus, rules: loadRules });
 initGateways();
 watchDrivers();

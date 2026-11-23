@@ -13,6 +13,8 @@ let Editor = null;
 let Banner = null;                                  // the list of rules that clash, same story
 let clashes = () => [];                             // findConflicts(), for the warning sign on a section
 export const registerEditor = (c, banner, find) => { Editor = c; Banner = banner || null; clashes = find || (() => []); };
+let Autos = null;                                   // the automations section (auto_view.js), same story
+export const registerAutos = c => { Autos = c; };
 
 // the rule sets and the Berry rules of the gateway shown (registered by main.js with onTab())
 export function loadRules() {
@@ -189,6 +191,7 @@ export function RulesView() {
     ${rules.rules.map(r => html`<${Section} key=${r.n} title=${'Rule' + r.n + (r.on ? '' : ' · ' + t('off'))} dot=${r.on} warn=${flagged.has(r.n)} open=${!!open[r.n]} toggle=${toggle(r.n)}>
       <${RuleCard} key=${r.n + '|' + r.text + '|' + r.on + r.once + r.stop + '|' + r.bak} r=${r} note=${note} setNote=${setNote}
         mode=${modes[r.n] || 'text'} setMode=${m => setModes({ ...modes, [r.n]: m })}/></${Section}>`)}
+    ${Autos ? html`<${Section} key="autos" title=${t('au_title')} open=${!!open.a} toggle=${toggle('a')}><${Autos}/></${Section}>` : null}
     <${Section} key="berry" title=${t('rule_berry') + ' (' + rules.berry.length + ')'} open=${!!open[0]} toggle=${toggle(0)}>
       <${BerryRules} berry=${rules.berry}/></${Section}>
   </div>`;

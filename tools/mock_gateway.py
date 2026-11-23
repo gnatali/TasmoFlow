@@ -114,6 +114,56 @@ def push_tuya(name, dps=None, connected=None):
         del events[:-50]
 
 
+# automations (tf_auto.be): the two files, their .new and .bak, and the engine's state
+AUTO = {"json": None, "be": None, "bak": None, "new": {"json": b"", "be": b""}, "loaded": False, "error": None}
+
+
+def auto_route(path, q, body):
+    """/api/automations*: as tf_auto.be answers. The Berry is not compiled here: a text that does not start
+    like the generator's is taken as not compiling. Returns (status, json)."""
+    if path == "/api/automations":
+        return 200, {"ok": True, "loaded": AUTO["loaded"], "error": AUTO["error"], "bak": AUTO["bak"] is not None,
+                     "autos": json.loads(AUTO["json"]) if AUTO["json"] else []}
+    if path == "/api/automations_put":
+        if body is None:
+            return 400, {"error": "method"}
+        f = q.get("f")
+        if f not in ("json", "be"):
+            return 400, {"error": "file"}
+        off, size = int(q.get("off", "0")), int(q.get("size", "0"))
+        if off == 0:
+            if size <= 0 or size > 16384:
+                return 400, {"error": "size"}
+            AUTO["new"][f] = b""
+        elif off != len(AUTO["new"][f]):
+            return 400, {"error": "offset"}
+        data = base64.b64decode(body)
+        if not data:
+            return 400, {"error": "empty"}
+        AUTO["new"][f] += data
+        return 200, {"ok": True, "written": len(AUTO["new"][f])}
+    if path == "/api/automations_apply":
+        if int(q.get("json", "0")) != len(AUTO["new"]["json"]) or not AUTO["new"]["json"]:
+            return 400, {"error": "size json"}
+        if int(q.get("be", "0")) != len(AUTO["new"]["be"]) or not AUTO["new"]["be"]:
+            return 400, {"error": "size be"}
+        if not AUTO["new"]["be"].startswith(b"# TasmoFlow automations"):
+            return 400, {"error": "compile syntax_error: not the generator's"}
+        if AUTO["json"] is not None:
+            AUTO["bak"] = (AUTO["json"], AUTO["be"])
+        AUTO["json"], AUTO["be"] = AUTO["new"]["json"], AUTO["new"]["be"]
+        AUTO["new"] = {"json": b"", "be": b""}
+        AUTO["loaded"], AUTO["error"] = True, None
+        return 200, {"ok": True, "loaded": True}
+    if path == "/api/automations_restore":
+        if AUTO["bak"] is None:
+            return 400, {"error": "no copy"}
+        AUTO["json"], AUTO["be"] = AUTO["bak"]
+        AUTO["bak"] = None
+        return 200, {"ok": True}
+    return 400, {"error": "route"}
+
+
 def push_scan():
     """The end of a TuyaScan, as tasmoflow.be relays it (since 22 November 2026): each Wi-Fi device's
     id and product id (made up here)."""
@@ -582,6 +632,9 @@ class Api(BaseHTTPRequestHandler):
                             "wd": "/.extensions/TasmoFlow.tapp#"})
         elif u.path == "/api/devices":
             self.json(200, list(DEVICES.values()) if since_first_call() >= self.server.zb_delay else [])
+        elif u.path.startswith("/api/automations"):      # not /api/autoexec
+            code, obj = auto_route(u.path, q, body)
+            self.json(code, obj)
         elif u.path.startswith("/api/update"):
             code, obj = update_route(u.path, q, body)
             self.json(code, obj)

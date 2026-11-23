@@ -18,7 +18,7 @@ import { S, LOCAL, wake, loadStatus } from './state.js';
 import { client } from './api.js';
 import cfg from './config.js';
 
-const CHUNK = 1500;                 // bytes per request: 2000 characters of base64, under the gateway's 3000
+export const CHUNK = 1500;                 // bytes per request: 2000 characters of base64, under the gateway's 3000
 const WAIT_MS = 120000;             // the longest a restart is waited for (it takes 30 to 60 s)
 const wait = () => window.__TF_UPDATE_WAIT || WAIT_MS;
 const api = client(LOCAL);
@@ -29,7 +29,7 @@ export const U = createStore({ info: null, phase: 'idle', done: 0, total: 0, ela
 // local copy: phase '' | busy | error
 export const C = createStore({ phase: '', done: 0, total: 0, error: '' });
 
-const b64 = bytes => {
+export const b64 = bytes => {
   let s = '';
   for (let i = 0; i < bytes.length; i += 8192) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
   return btoa(s);

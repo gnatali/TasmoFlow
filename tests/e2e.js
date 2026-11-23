@@ -404,6 +404,47 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await r1b.locator('.tile.raw').getByText(/n'entre pas dans une phrase/).waitFor();
     if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'sentences.png'), fullPage: true });
   });
+  await test('automations: create (trigger, condition, delay that restarts), saved with its Berry, switched off, previous version', async p => {
+    const auto = async () => (await (await fetch('http://localhost:8384/api/automations?t=0123456789abcdef0123456789abcdef')).json());
+    await openFull(p);
+    await p.getByRole('button', { name: 'Règles' }).click();
+    await p.getByRole('button', { name: /^Automatisations/ }).click();
+    await p.getByText('Aucune automatisation enregistrée.').waitFor({ timeout: 4000 });
+    await p.getByRole('button', { name: /Nouvelle automatisation/ }).click();
+    const dlg = p.getByRole('dialog');
+    await dlg.getByLabel('Nom', { exact: true }).fill('Entrée');
+    await choose(dlg, 'Quand', 'Click');                                   // the button's attribute (Zigbee · Bouton salon)
+    await dlg.getByLabel('Comparaison Quand').selectOption('=');
+    await dlg.getByLabel('Valeur Quand').fill('single');
+    await dlg.getByRole('checkbox', { name: 'Si' }).check();                // a condition on the lamp's state
+    await choose(dlg, 'État 1', 'Dimmer');
+    await dlg.getByLabel('Comparaison État 1').selectOption('<');
+    await dlg.getByLabel('Valeur État 1').fill('100');
+    await choose(dlg, 'Alors 1', 'basculer');
+    await dlg.getByRole('button', { name: 'Ajouter un délai' }).click();
+    await dlg.getByLabel('Secondes 2').fill('300');
+    await dlg.getByText('5 min').waitFor();
+    await dlg.getByRole('button', { name: 'Ajouter une commande' }).click();
+    await choose(dlg, 'Alors 3', 'éteindre');
+    await dlg.getByText('Berry généré (lecture seule)').click();
+    await dlg.locator('pre.code').getByText(/a\.later\("tfa_a1_1", 300000/).waitFor();
+    await dlg.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+    await dlg.waitFor({ state: 'detached', timeout: 6000 });
+    await p.locator('.tile .chip', { hasText: 'Bouton salon · Click = single' }).waitFor();
+    await p.locator('.tile .chip', { hasText: 'attendre 5 min (relancé)' }).waitFor();
+    await p.getByText(/1 automatisation\(s\) active\(s\)/).waitFor();
+    let a = await auto();
+    if (!a.loaded || a.autos.length !== 1 || a.autos[0].cond.items[0].attr !== 'Dimmer') throw new Error('stored: ' + JSON.stringify(a));
+    // switched off: saved at once, the previous version kept
+    await p.getByLabel('Active Entrée').click();                          // shown as saved: it follows the gateway's answer
+    await p.getByText(/0 automatisation\(s\) active\(s\)/).waitFor({ timeout: 4000 });
+    a = await auto();
+    if (a.autos[0].on !== false || !a.bak) throw new Error('switch: ' + JSON.stringify(a));
+    p.once('dialog', d => d.accept());
+    await p.getByRole('button', { name: 'Version précédente' }).click();
+    await p.getByText(/1 automatisation\(s\) active\(s\)/).waitFor({ timeout: 4000 });
+    if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'automations.png'), fullPage: true });
+  });
   await test('pickers: every writable Tuya DP from the catalogue, Zigbee Dimmer with a value (free and guided)', async p => {
     await openFull(p);
     await p.getByRole('button', { name: 'Règles' }).click();

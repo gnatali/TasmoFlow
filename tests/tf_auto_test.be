@@ -58,6 +58,9 @@ class fake_tasmota
   end
 end
 global.tasmota = fake_tasmota()
+var logged = []
+global.log = def (msg, lvl) logged.push(msg) end
+global.format = string.format                 # f-strings call it
 
 def run_file(path)
   var f = open(path)
@@ -143,6 +146,15 @@ check("cmp nil", a.cmp(nil, "!=", "1"), false)
 check("cmp real", a.cmp(21.5, ">=", "21.5"), true)
 check("num not a number", a.num("12a"), nil)
 check("num negative", a.num("-3"), -3)
+
+# an exception in an automation is logged, the other rules of the event still run
+var ran = false
+a.on("Boom", def (v) raise "value_error", "boom" end)
+tasmota.add_rule("Boom", def (v) ran = true end, "other")
+t.fire("Boom", 1)
+check("exception logged", size(logged) > 0 && string.find(logged[0], "boom") >= 0, true)
+check("next rule still runs", ran, true)
+tasmota.remove_rule("Boom", "other")
 
 # stop(): nothing left, delays included
 t.fire("ZbReceived#0x922D#Power", 2)

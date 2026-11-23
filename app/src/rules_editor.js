@@ -13,25 +13,25 @@ import { Guided } from './rules_guided.js';
 import { parseRuleSet, serializeRuleSet, newBlock, edited, triggersOf, OPERATORS } from './rules_model.js';
 
 // suggestions only: every field stays free text
-const TRIGGERS = ['System#Boot', 'Time#Minute', 'Clock#Timer', 'Rules#Timer', 'Button1#State', 'Switch1#State',
+export const TRIGGERS = ['System#Boot', 'Time#Minute', 'Clock#Timer', 'Rules#Timer', 'Button1#State', 'Switch1#State',
   'Power1#State', 'Wifi#Connected', 'Wifi#Disconnected', 'Mqtt#Connected', 'Tele-ENERGY#Power'];
 const ACTIONS = ['Power1 on', 'Power1 off', 'Power1 toggle', 'Power2 toggle', 'Var1 ', 'Mem1 ', 'RuleTimer1 ', 'Delay 10', 'Restart 1'];
 
 const items = l => l.map(x => ({ label: x.trim(), value: x }));
-const verbs = () => ({ On: t('rule_vOn'), Off: t('rule_vOff'), Toggle: t('rule_vToggle') });
+export const verbs = () => ({ On: t('rule_vOn'), Off: t('rule_vOff'), Toggle: t('rule_vToggle') });
 
 // a trigger that never fires because of SetOption83 (see keyMismatch), as a sentence, or null
 const keyWarn = (tr, s) => { const k = keyMismatch(tr.subject, s.devices, s.zbNames);
   return k ? { k, text: t(k.want === 'name' ? 'rule_keyName' : 'rule_keyAddr').replace('{d}', k.device) } : null; };
 
 // What each list offers: the common ones, then the gateway's own devices
-const conn = () => ({ connected: t('rule_connected'), disconnected: t('rule_disconnected') });
+export const conn = () => ({ connected: t('rule_connected'), disconnected: t('rule_disconnected') });
 function triggerGroups(s) {
   const z = zbTriggers(s.devices, s.zbNames, conn(), seenAttrs(s.devices, s.events, s.rules));
   return { skipped: z.skipped, groups: [{ group: t('rule_gwEvents'), items: items(TRIGGERS) },
     ...z.groups.map(g => ({ ...g, group: 'Zigbee · ' + g.group })), ...tuyaTriggers(s.tuya, conn())] };
 }
-function actionGroups(s) {
+export function actionGroups(s) {
   return [{ group: t('rule_commands'), items: items(ACTIONS) },
     ...zbActions(s.devices, verbs()).map(g => ({ ...g, group: 'Zigbee · ' + g.group })),
     ...tuyaActions(s.tuya, verbs(), s.products)];
@@ -45,7 +45,7 @@ const css = o => Object.keys(o).map(k => k.replace(/[A-Z]/g, c => '-' + c.toLowe
 // into a text field, so any Tasmota trigger or command can still be written. A native <select>
 // cannot do this: it shows the same text open and closed, and a <datalist> only offers what
 // matches the text already typed.
-function Choice({ label, value, groups, friendly, onChange, placeholder, isSel }) {
+export function Choice({ label, value, groups, friendly, onChange, placeholder, isSel }) {
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState(false);
   const [pos, setPos] = useState(null);               // where the list floats, in the window

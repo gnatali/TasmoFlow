@@ -222,6 +222,7 @@ def main():
         "tf_http.be": berry("tf_http.be"),
         "tf_rules.be": berry("tf_rules.be"),
         "tf_autolib.be": berry("tf_autolib.be"),
+        "tf_auto.be": berry("tf_auto.be"),
         "tf_update.be": berry("tf_update.be"),
     }
 

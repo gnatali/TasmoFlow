@@ -14,6 +14,10 @@
 # replace each other); a rule calls f(value, trigger, event); set_timer(ms, f, id) and
 # remove_timer(id) for the delays.
 #
+# Neither the rules nor the timers are run under try by tasmota_class.be (exec_rules, run_timers):
+# an exception would skip the other rules of the same event, the Tuya driver's included. Every
+# function given to Tasmota here is wrapped (safe()): the error is logged, the rest goes on.
+#
 # Values are compared by cmp(): booleans and "true"/"false"/"on"/"off" as 1/0, numbers as
 # numbers, anything else as text. State conditions read the device when they are evaluated:
 # ZbStatus3 answers as the command's response (xdrv_23_zigbee_A_impl.ino, CmndZbStatus),
@@ -30,11 +34,23 @@ class tf_autolib
     self.n = 0
   end
 
+  # f(v), its exceptions logged instead of raised (see above)
+  def safe(f)
+    return def (v)
+      try
+        f(v)
+      except .. as e, m
+        log(f"TFL: automation error {e} {m}", 1)
+      end
+    end
+  end
+
   # a rule on any Tasmota trigger (`Power1#State=1`, `ZbReceived#0x1234#Power`)
   def on(pat, f)
     self.n += 1
     var id = "tfauto" + str(self.n)
-    tasmota.add_rule(pat, f, id)
+    var g = self.safe(f)
+    tasmota.add_rule(pat, / v -> g(v), id)
     self.rules.push([pat, id])
   end
 
@@ -71,7 +87,8 @@ class tf_autolib
   # ("off 5 minutes after the last motion"), else delays add up
   def later(id, ms, f, restart)
     if restart    tasmota.remove_timer(id)    end
-    tasmota.set_timer(ms, f, id)
+    var g = self.safe(/ v -> f())
+    tasmota.set_timer(ms, / -> g(nil), id)
     if self.timers.find(id) == nil    self.timers.push(id)    end
   end
 

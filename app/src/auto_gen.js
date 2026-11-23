@@ -71,7 +71,11 @@ export function autoErrors(a) {
   if (!(a.when || []).some(t => trigger(t, 'r'))) errs.push('au_noTrigger');
   if (!(a.then || []).some(s => s.cmd && s.cmd.trim())) errs.push('au_noAction');
   for (const t of a.when || []) if (t.op && !OPS.includes(t.op)) errs.push('au_badOp');
-  for (const s of (a.cond && a.cond.items) || []) if (s.op && !OPS.includes(s.op)) errs.push('au_badOp');
+  for (const s of (a.cond && a.cond.items) || []) {
+    if (s.src !== 'zigbee' && s.src !== 'tuya') errs.push('au_noState');       // a condition reads a device
+    else if (!s.op) errs.push('au_stateOp');
+    else if (!OPS.includes(s.op)) errs.push('au_badOp');
+  }
   if ((a.then || []).some(s => s.wait != null && !(+s.wait >= 0))) errs.push('au_badWait');
   return [...new Set(errs)];
 }

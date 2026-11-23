@@ -855,9 +855,26 @@ passerelle, navigateur fermé.
   généré pour les automatisations de `tests/auto_sample.js` avec `tf_autolib.be` (et sa copie minifiée
   de la `.tapp`), envoie des événements, avance le temps, et vérifie les commandes envoyées, le délai
   relancé, les conditions et `stop()`.
-- **Ensuite** : étape 2, l'API (`tf_auto.json` lu et écrit avec copie de la version précédente,
-  `/tf_auto.be` compilé avant de remplacer celui qui tourne) et le chargement au démarrage ; étape 3,
-  l'écran (liste, éditeur, le Berry généré en lecture seule).
+- **Sur la passerelle** (étape 2, 23 novembre 2026) : `start_auto()` de `tasmoflow.be` exécute
+  `/tf_auto.be` au démarrage (navigateur fermé) et après chaque changement, en retirant d'abord les
+  règles et délais précédents ; sans ce fichier rien n'est chargé (pas de RAM au repos). L'exception
+  d'une automatisation est notée au journal, pas levée : `tasmota_class.be` n'exécute ni les règles ni
+  les minuteries sous `try`, et une exception sauterait les autres règles de l'événement
+  (`tf_autolib.safe()`). L'API est `extension/tf_auto.be` (chargée à la première requête, libérée avec
+  le serveur) : `/api/automations` (état et JSON), `/api/automations_put` (morceaux base64 de
+  `<fichier>.new`, comme une mise à jour), `/api/automations_apply` (tailles, Berry compilé par
+  `compile()` avant tout remplacement, puis fichiers actuels gardés en `.bak` et nouveaux démarrés ;
+  s'ils ne démarrent pas, les précédents reviennent et les nouveaux sont abandonnés),
+  `/api/automations_restore`. Pas `/api/auto…` : `tf_http.be` choisit le premier préfixe qui
+  correspond, qui prendrait `/api/autoexec`. Chaque fichier 16 Ko au plus (le Berry est lu en entier).
+- **Écran** (étape 3) : une section **Automatisations** de l'écran Règles (`auto_view.js`, modèle
+  `auto_model.js`, client `auto.js`) : tuiles en langage clair avec un interrupteur, **Modifier**,
+  **Dupliquer**, **Supprimer**, **Version précédente** ; l'éditeur (dialogue) a le nom, les
+  déclencheurs (les événements de la passerelle, chaque attribut Zigbee et chaque DP Tuya de chaque
+  appareil, y compris en lecture seule, et les connexions Tuya), la condition (toutes ou l'une ;
+  états Zigbee et Tuya), les étapes (commandes des sélecteurs de règles, délais en secondes avec
+  *relancer*) et le Berry généré en lecture seule. Chaque changement est enregistré aussitôt (pas
+  d'état non enregistré) ; la ligne d'état dit combien tournent.
 
 ## Renommer des appareils
 
@@ -937,6 +954,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] v0.1 (12 novembre 2026, version de test) : la carte d'une `light3` de l'interface complète (version de test, pas de `.tapp` à réinstaller pour cela, sauf pour la luminosité 1-100 % de l'interface légère) montre les onglets Blanc / Couleur (pas l'interface légère) ; l'onglet sélectionné suit le mode réglé depuis l'application Tuya ; la roue de teinte et les curseurs de saturation et de luminosité changent la lampe et la carte suit l'état renvoyé ; en Blanc, le curseur de luminosité correspond à celui de l'application Tuya ; une lampe sans `dp_ct` n'affiche pas de température de couleur; la même carte pour une `light2` (`Entrée-Porche`) : cadran en arc ouvert pour la température de couleur et luminosité de 1 % à 100 % ; une valeur qu'on vient de régler reste affichée jusqu'à ce que l'appareil la signale (plus de clignotement nouvelle / ancienne / nouvelle) ; les options sont masquées tant que la lampe est éteinte ou déconnectée et reviennent à l'allumage (vérifié par Guillaume sur la passerelle, le 12 novembre 2026)
 - [ ] v0.1 : vérifier que `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)
 - [ ] v0.2, fiche de détails Zigbee (22 novembre 2026, build de test) : **Détails** sur la carte Interrupteur Entrée : adresse IEEE, `SNZB-01P`, eWeLink, endpoint 1, terminal ; batterie 100 %, LQI, dernier message ; ligne `Power` utilisée par ta règle (`Rule<n> (déclencheur)`), sans valeur tant que le bouton n'est pas appuyé, puis *événement* avec l'heure ; le jeu de règles listé dans les règles qui le citent ; pareil sur une lampe (routeur, `Power` et `Dimmer` *passerelle*)
+- [ ] v0.2, automatisations (23 novembre 2026, build de test, **`.tapp` réinstallée**, `Restart 1`) : Règles → **Automatisations** → nouvelle : *Quand* Interrupteur Entrée · Power = 2, *Alors* un interrupteur du Récepteur radio allumé, un délai de 300 s avec *relancer*, le même éteint ; enregistrée : le journal de démarrage affiche `TFL: automations started (2 rules)` ; interface **fermée**, un appui l'allume, il s'éteint 5 minutes après le **dernier** appui ; `Restart 1` : fonctionne toujours ; un DP Tuya comme déclencheur (une pergola allumée depuis l'app Smart Life) ; une condition (toutes/l'une) non remplie : rien ne se passe ; la désactiver, **Version précédente** ; `Heap` au repos avec et sans automatisations
 - [ ] v0.2, curseurs des cartes Zigbee (23 novembre 2026, build de test) : la carte d'une lampe Zigbee à variateur montre **Intensité** (et **Température de couleur** si elle a `CT`) à son niveau actuel ; le déplacer change la lampe, et le rapport de la lampe garde le curseur à sa place
 - [ ] v0.2, sélecteurs d'après le catalogue (23 novembre 2026, build de test ; Guillaume : les DP du Récepteur radio et la pince absente des listes de commandes, sa carte affichant toujours ses mesures, **vérifiés** ; valeur du `Dimmer` Zigbee **KO**, en cours d'analyse) : dans une nouvelle règle, la liste des commandes du Récepteur radio propose `switch_2 (switch) · allumer`..., `countdown_1 … (0-86399)`, `relay_status = memory` ; la Pince ne propose aucune de ses mesures ; une lampe Zigbee propose `Dimmer … (0-254)` : choisi dans la forme libre, le texte s'ouvre avec 127 à changer ; en mode guidé un champ demande la valeur ; la règle enregistrée fonctionne
 - [x] v0.2, produit Tuya (22 novembre 2026, vérifié sur la passerelle par Guillaume, build de test, **`.tapp` réinstallée**, `Restart 1`) : la fiche du Récepteur radio montre *Quad switch* en premier (probable) avant toute découverte, puis **Identifier** : son identifiant produit apparaît après environ 10 s, le quad switch reste premier ; Entrée-Porche : *CCT lightbulb* (probable, même identifiant produit) ; la colonne **Catalogue** nomme les DP (`light · brightness · integer 10-1000`...) ; le lien ouvre le fichier tuya-local ; `Heap` pendant la découverte
