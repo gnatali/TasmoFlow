@@ -49,6 +49,7 @@ Specification (French, outside the repository):
 
 | Date | Step |
 | --- | --- |
+| 23 Nov | **Automations, step 1: the Berry engine** (Guillaume's choice): JSON format and generator in the browser (`app/src/auto_gen.js`), library `extension/tf_autolib.be` in the `.tapp` (one id per rule, delays that restart, state conditions all/any), `tests/tf_auto_test.be` run in CI on Berry with a fake Tasmota. Nothing runs on the gateway yet (step 2: API and loading at boot; step 3: the screen) |
 | 23 Nov | **Zigbee card sliders**, like a Tuya light's (shared `Control`): Dimmer and CT for the devices that report them; a Tuya device without binding names its switches by code. Interface only; to try on the gateway (test plan) |
 | 23 Nov | **Eruda in test builds** (Guillaume): a console inside the page for the phone (`app/src/devtools.js`, eruda 3.4.3 from jsDelivr with SRI), only when `__BUILD__` is set; absent from releases. The pickers' recette: 1 OK, 2 OK (the clamp, read only, is in no command list; its card shows its readings), 3 KO (*no value* with `Dimmer`, details asked) |
 | 23 Nov | **Catalogue in the rules** (Guillaume's choice): the command pickers offer every writable Tuya DP (import codes, catalogue entry, state; read-only ones left out: catalogue format 2, `ro`), and, for Zigbee the same way, `Dimmer` and `CT` with a value; read back in plain language. Interface only; to try on the gateway (test plan) |

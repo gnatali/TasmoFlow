@@ -8,7 +8,7 @@ const esbuild = require('esbuild');
 const SRC = path.join(__dirname, '..', 'app', 'src');
 // the modules are plain ES modules: bundle them to CommonJS for Node
 const out = esbuild.buildSync({
-  stdin: { contents: "export * from './rules_model.js'; export * from './rules_lint.js'; export * from './rules_devices.js'; export * from './rules_conflicts.js'; export * from './rules_guided_model.js'; export * from './tuya_model.js'; export * from './tuya_colour.js'; export * from './rename_model.js'; export * from './sheet_model.js';", resolveDir: SRC },
+  stdin: { contents: "export * from './rules_model.js'; export * from './rules_lint.js'; export * from './rules_devices.js'; export * from './rules_conflicts.js'; export * from './rules_guided_model.js'; export * from './tuya_model.js'; export * from './tuya_colour.js'; export * from './rename_model.js'; export * from './sheet_model.js'; export * from './auto_gen.js';", resolveDir: SRC },
   loader: { '.css': 'text' }, define: { __BUILD__: '""' },
   bundle: true, format: 'cjs', write: false, logLevel: 'silent'
 }).outputFiles[0].text;
@@ -19,7 +19,7 @@ globalThis.document = { documentElement: {} };
 globalThis.window = { addEventListener() {} };      // rules.js (reached through tuya.js, rename.js) listens for beforeunload
 const m = { exports: {} };
 new Function('module', 'exports', out)(m, m.exports);
-const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, keyMismatch, seenAttrs, zbTriggerAttrs, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks, sheetRows, showValue, identity, parentOf, zbIdentity, zbProduct, zbLink, zbRows, ruleRefs, matchProducts, confidence, catalogueText, tuyaDps, ZB_SET, zbControls } = m.exports;
+const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, keyMismatch, seenAttrs, zbTriggerAttrs, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks, sheetRows, showValue, identity, parentOf, zbIdentity, zbProduct, zbLink, zbRows, ruleRefs, matchProducts, confidence, catalogueText, tuyaDps, ZB_SET, zbControls, generate, autoErrors, q, newId } = m.exports;
 
 let n = 0;
 const ok = (name, f) => { f(); n++; };
@@ -601,6 +601,24 @@ ok('cards: Zigbee Dimmer and CT sliders, Tuya switches named by their code witho
   assert.deepStrictEqual(zbControls({ addr: '0x2', attrs: { Power: 1 } }, lab), []);
   const c = controlsFor({ dps: { 1: true, 2: false, 9: 0 } }, { codes: { switch_1: 1, countdown_1: 9 } });
   assert.deepStrictEqual(c.map(x => [x.kind, x.label, x.dp]), [['switch', 'switch_1', '1'], ['switch', 'DP 2', '2']]);
+});
+
+ok('automations: the generated Berry (the engine itself is tested on Berry, tests/tf_auto_test.be)', () => {
+  const { SAMPLE } = require('./auto_sample.js');
+  const b = generate(SAMPLE);
+  assert.ok(b.startsWith('# TasmoFlow automations') && b.includes('\nreturn def (a)\n') && b.trimEnd().endsWith('end'));
+  assert.ok(b.includes('a.zb(["0x922D", "Interrupteur Entrée"], "Power", def (v) if a.cmp(v, "=", "2") r1() end end)'));
+  assert.ok(b.includes('a.later("tfa_a1_1", 300000, def ()') && b.includes('end, true)'));
+  assert.ok(b.includes('a.cmd("ZbSend {\\"device\\":\\"0x3C4D\\",\\"send\\":{\\"Power\\":\\"On\\"}}")'));
+  assert.ok(!b.includes('Power1 off'));                                              // a3 is disabled
+  assert.ok(b.includes(' || '));                                                     // a4: any of two
+  assert.strictEqual(q('a"b\\c\nd'), '"a\\"b\\\\c\\nd"');
+  assert.deepStrictEqual(autoErrors({ when: [], then: [] }), ['au_noTrigger', 'au_noAction']);
+  assert.deepStrictEqual(autoErrors({ when: [{ src: 'rule', pat: 'X', op: '~' }], then: [{ cmd: 'Power1 on' }, { wait: -1 }] }), ['au_badOp', 'au_badWait']);
+  assert.strictEqual(generate([{ id: 'x', when: [], then: [{ cmd: 'a' }] }]).includes('var r1'), false);   // an automation with an error is left out
+  assert.strictEqual(newId([{ id: 'a1' }, { id: 'a3' }]), 'a2');
+  // a name cannot break out of its comment
+  assert.ok(!generate([{ id: 'n', name: 'x\na.cmd("Restart 1")', when: [{ src: 'rule', pat: 'P' }], then: [{ cmd: 'C' }] }]).includes('\na.cmd("Restart 1")'));
 });
 
 console.log(`ok     rule model (${n} checks)`);

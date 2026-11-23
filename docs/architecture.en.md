@@ -770,6 +770,38 @@ Plan (v0.2 step 1, **written**, to check on the gateway: the **Rules** screen, `
 - **Crash protection.** After several quick crashes, Tasmota starts without Berry and disables
   every rule: TasmoFlow reports it and offers to enable them again.
 
+## Automations (Berry engine)
+
+Started on 23 November 2026 (Guillaume's choice), from the specification (F3.2 to F3.8, F3.11,
+"Moteur d'actions"): what a Tasmota rule set cannot do, run on the gateway with the browser closed.
+
+- **Source of truth**: the automations in JSON (`tf_auto.json` on the gateway, step 2). Format and
+  generator: `app/src/auto_gen.js`. An automation has triggers (any of them starts it: a Zigbee
+  attribute, by address and by name so that `SetOption83` does not matter; **a DP of a given Tuya
+  device**, which a Tasmota rule cannot single out; a Tuya device connecting; any Tasmota trigger), an
+  optional condition (**all** or **any** of several device states, read when it fires) and steps
+  (commands, and **delays**: the next steps later, with *restart* for "off 5 minutes after the last
+  motion"). Simple rules stay in the sentence editor (`Rule1` to `Rule3`).
+- **Generator in the browser** (saves the gateway's memory): the enabled automations without error
+  become `/tf_auto.be`, a function that registers each trigger through `extension/tf_autolib.be`
+  (`on`, `zb`, `tuya`, `tuyaconn`, `cmd`, `later`, `zbget`, `tuyaget`, `cmp`, `stop`). Every rule gets
+  its own id: `tasmota.add_rule(pattern, f, id)` first removes a rule with the same pattern and id
+  (`tasmota_class.be`), so two automations on the `Tuya` event would replace each other. `stop()`
+  removes every rule and delay before a new version is loaded. Strings are written as Berry literals
+  (`q()`), names stay in comments with line breaks removed.
+- **Values**: `cmp()` compares booleans and `true`/`false`/`on`/`off` as 1/0, numbers as numbers,
+  anything else as text (equal or not). States are read when the condition is evaluated:
+  `ZbStatus3 <address>` (answered as the command's response) and `TuyaStatus <device>` (the DPs the
+  Tuya driver keeps: an unknown one makes its comparison false).
+- **Tests**: `tests/rules_model_test.js` (the generated text), `tests/tf_auto_test.be` in CI on
+  standard Berry, strict mode, with a fake Tasmota that follows `tasmota_class.be`: it runs the Berry
+  generated for `tests/auto_sample.js`'s automations with `tf_autolib.be` (and its minified copy of
+  the `.tapp`), fires events, moves time on, and checks the commands sent, the restarted delay, the
+  conditions and `stop()`.
+- **Next**: step 2, the API (`tf_auto.json` read and written with a copy of the previous version,
+  `/tf_auto.be` compiled before it replaces the running one) and the loading at boot; step 3, the
+  screen (list, editor, the generated Berry read only).
+
 ## Renaming devices
 
 The **Rename** button of a card (`rename.js`, model in `rename_model.js`) changes the name with

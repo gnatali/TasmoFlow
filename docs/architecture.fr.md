@@ -824,6 +824,41 @@ Plan (v0.2 étape 1, **écrite**, à vérifier sur la passerelle : l'écran **R�
 - **Protection anti-plantage.** Après plusieurs plantages rapides, Tasmota démarre sans Berry
   et désactive toutes les règles : TasmoFlow le signale et propose de les réactiver.
 
+## Automatisations (moteur Berry)
+
+Commencées le 23 novembre 2026 (choix de Guillaume), d'après le cahier des charges (F3.2 à F3.8,
+F3.11, « Moteur d'actions ») : ce qu'un jeu de règles Tasmota ne sait pas faire, exécuté sur la
+passerelle, navigateur fermé.
+
+- **Source de vérité** : les automatisations en JSON (`tf_auto.json` sur la passerelle, étape 2).
+  Format et générateur : `app/src/auto_gen.js`. Une automatisation a des déclencheurs (n'importe
+  lequel la lance : un attribut Zigbee, par adresse et par nom pour que `SetOption83` n'importe pas ;
+  **un DP d'un appareil Tuya donné**, qu'une règle Tasmota ne sait pas isoler ; un appareil Tuya qui
+  se connecte ; n'importe quel déclencheur Tasmota), une condition facultative (**tous** ou **l'un**
+  de plusieurs états d'appareils, lus au déclenchement) et des étapes (commandes, et **délais** : les
+  étapes suivantes plus tard, avec *relancer* pour « éteindre 5 minutes après le dernier
+  mouvement »). Les règles simples restent dans l'éditeur de phrases (`Rule1` à `Rule3`).
+- **Générateur dans le navigateur** (il économise la mémoire de la passerelle) : les
+  automatisations actives et sans erreur deviennent `/tf_auto.be`, une fonction qui inscrit chaque
+  déclencheur par `extension/tf_autolib.be` (`on`, `zb`, `tuya`, `tuyaconn`, `cmd`, `later`, `zbget`,
+  `tuyaget`, `cmp`, `stop`). Chaque règle a son propre identifiant : `tasmota.add_rule(motif, f, id)`
+  retire d'abord une règle de même motif et même identifiant (`tasmota_class.be`), donc deux
+  automatisations sur l'événement `Tuya` se remplaceraient. `stop()` retire toutes les règles et tous
+  les délais avant de charger une nouvelle version. Les chaînes sont écrites en littéraux Berry
+  (`q()`), les noms restent en commentaire, sans retour à la ligne.
+- **Valeurs** : `cmp()` compare les booléens et `true`/`false`/`on`/`off` comme 1/0, les nombres comme
+  des nombres, le reste comme du texte (égal ou non). Les états sont lus quand la condition est
+  évaluée : `ZbStatus3 <adresse>` (réponse de la commande) et `TuyaStatus <appareil>` (les DP que
+  garde le pilote Tuya : un DP inconnu rend sa comparaison fausse).
+- **Tests** : `tests/rules_model_test.js` (le texte généré), `tests/tf_auto_test.be` en CI sur Berry
+  standard, en mode strict, avec un faux Tasmota qui suit `tasmota_class.be` : il exécute le Berry
+  généré pour les automatisations de `tests/auto_sample.js` avec `tf_autolib.be` (et sa copie minifiée
+  de la `.tapp`), envoie des événements, avance le temps, et vérifie les commandes envoyées, le délai
+  relancé, les conditions et `stop()`.
+- **Ensuite** : étape 2, l'API (`tf_auto.json` lu et écrit avec copie de la version précédente,
+  `/tf_auto.be` compilé avant de remplacer celui qui tourne) et le chargement au démarrage ; étape 3,
+  l'écran (liste, éditeur, le Berry généré en lecture seule).
+
 ## Renommer des appareils
 
 Le bouton **Renommer** d'une carte (`rename.js`, modèle dans `rename_model.js`) change le nom
