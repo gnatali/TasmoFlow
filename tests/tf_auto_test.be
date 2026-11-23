@@ -150,11 +150,11 @@ check("num negative", a.num("-3"), -3)
 # an exception in an automation is logged, the other rules of the event still run
 var ran = false
 a.on("Boom", def (v) raise "value_error", "boom" end)
-tasmota.add_rule("Boom", def (v) ran = true end, "other")
+t.add_rule("Boom", def (v) ran = true end, "other")
 t.fire("Boom", 1)
 check("exception logged", size(logged) > 0 && string.find(logged[0], "boom") >= 0, true)
 check("next rule still runs", ran, true)
-tasmota.remove_rule("Boom", "other")
+t.remove_rule("Boom", "other")
 
 # stop(): nothing left, delays included
 t.fire("ZbReceived#0x922D#Power", 2)
