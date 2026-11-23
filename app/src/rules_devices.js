@@ -113,6 +113,14 @@ const zbSet = (addr, attr, v) => 'ZbSend {"device":"' + addr + '","send":{"' + a
 // and Z_Data_Light: Dimmer 0-254, CT in mireds, 153 (6500 K) to 500 (2000 K) for most bulbs)
 export const ZB_SET = [['Dimmer', 0, 254, 127], ['CT', 153, 500, 300]];
 
+// The sliders of a Zigbee card (the same control as a Tuya light's, tuya.js Control): `Dimmer` as a
+// percentage (0-254), `CT` in mireds, for a device that reported them. `labels` = { Dimmer, CT }.
+export function zbControls(d, labels) {
+  const attrs = zbAttrs(d);
+  return ZB_SET.filter(([a]) => attrs.includes(a))
+    .map(([a, lo, hi]) => ({ kind: 'range', label: labels[a], dp: a, min: lo, max: hi, percent: a === 'Dimmer' }));
+}
+
 // What a rule can make a Zigbee device do: on, off, toggle for a device with `Power`, and a value for
 // `Dimmer` and `CT` when it has them. `labels` = { On, Off, Toggle } in the user's language. An item with
 // `tpl` takes a value: `value` holds a default, `tpl` the command with `{v}` where the value goes.

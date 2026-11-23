@@ -56,6 +56,7 @@ Cahier des charges (en français, hors du dépôt) :
 
 | Date | Étape |
 | --- | --- |
+| 23 nov. | **Curseurs des cartes Zigbee**, comme ceux d'une lumière Tuya (`Control` partagé) : Intensité et CT pour les appareils qui les signalent ; un appareil Tuya sans lien nomme ses interrupteurs par leur code. Interface seule ; à essayer sur la passerelle (plan de test) |
 | 23 nov. | **Eruda dans les versions de test** (Guillaume) : une console dans la page pour le téléphone (`app/src/devtools.js`, eruda 3.4.3 depuis jsDelivr avec SRI), seulement quand `__BUILD__` est défini ; absente des releases. Recette des sélecteurs : 1 OK, 2 OK (la pince, en lecture seule, n'est dans aucune liste de commandes ; sa carte affiche ses mesures), 3 KO (*pas de valeur* avec `Dimmer`, détails demandés) |
 | 23 nov. | **Catalogue dans les règles** (choix de Guillaume) : les sélecteurs de commandes proposent tous les DP Tuya modifiables (codes de l'import, entrée de catalogue, état ; ceux en lecture seule écartés : format 2 du catalogue, `ro`), et, pour Zigbee de la même manière, `Dimmer` et `CT` avec une valeur ; relus en langage clair. Interface seule ; à essayer sur la passerelle (plan de test) |
 | 22 nov. | **Identification des produits Tuya et catalogue vérifiés sur la passerelle** (Guillaume, build de test `0.2.0-dev.1168fe3`, `.tapp` réinstallée) |

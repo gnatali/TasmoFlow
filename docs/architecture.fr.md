@@ -583,6 +583,15 @@ la valeur, puis les jeux de règles qui citent l'appareil. Faisabilité et mesur
   locale sans GitHub : « hors de portée ». L'équivalent Zigbee (un catalogue de produits Zigbee)
   n'est pas utile pour l'instant : Tasmota nomme lui-même les attributs.
 
+### Contrôles des cartes, Zigbee comme Tuya (23 novembre 2026)
+
+Une carte Zigbee offre les mêmes curseurs qu'une lumière Tuya (`Control` de `tuya.js`, partagé) :
+**Intensité** en pourcentage (0-254) et **Température de couleur** (`CT`, 153-500 mireds) pour un
+appareil qui les a signalés (`zbControls()`) ; un changement envoie
+`ZbSend {"device":"0x1234","send":{"Dimmer":127}}` et le rapport de la lampe déplace le curseur. Un
+appareil Tuya sans lien Matter nomme ses interrupteurs par le code de l'import (`switch_1`) au lieu de
+`DP 1`.
+
 ### Pilotes à l'ouverture
 
 Une fois l'état et celui de Tuya lus, `detect()` (`app/src/state.js`) remplit `S.drivers` : `zigbee`
@@ -893,6 +902,7 @@ Résultats des 6 et 9 novembre 2026 (passerelle avec le pilote Tuya). `[x]` vali
 - [x] v0.1 (12 novembre 2026, version de test) : la carte d'une `light3` de l'interface complète (version de test, pas de `.tapp` à réinstaller pour cela, sauf pour la luminosité 1-100 % de l'interface légère) montre les onglets Blanc / Couleur (pas l'interface légère) ; l'onglet sélectionné suit le mode réglé depuis l'application Tuya ; la roue de teinte et les curseurs de saturation et de luminosité changent la lampe et la carte suit l'état renvoyé ; en Blanc, le curseur de luminosité correspond à celui de l'application Tuya ; une lampe sans `dp_ct` n'affiche pas de température de couleur; la même carte pour une `light2` (`Entrée-Porche`) : cadran en arc ouvert pour la température de couleur et luminosité de 1 % à 100 % ; une valeur qu'on vient de régler reste affichée jusqu'à ce que l'appareil la signale (plus de clignotement nouvelle / ancienne / nouvelle) ; les options sont masquées tant que la lampe est éteinte ou déconnectée et reviennent à l'allumage (vérifié par Guillaume sur la passerelle, le 12 novembre 2026)
 - [ ] v0.1 : vérifier que `TuyaConfig` via l'interface ne fait pas refuser le pilote (seuil de 32 Ko)
 - [ ] v0.2, fiche de détails Zigbee (22 novembre 2026, build de test) : **Détails** sur la carte Interrupteur Entrée : adresse IEEE, `SNZB-01P`, eWeLink, endpoint 1, terminal ; batterie 100 %, LQI, dernier message ; ligne `Power` utilisée par ta règle (`Rule<n> (déclencheur)`), sans valeur tant que le bouton n'est pas appuyé, puis *événement* avec l'heure ; le jeu de règles listé dans les règles qui le citent ; pareil sur une lampe (routeur, `Power` et `Dimmer` *passerelle*)
+- [ ] v0.2, curseurs des cartes Zigbee (23 novembre 2026, build de test) : la carte d'une lampe Zigbee à variateur montre **Intensité** (et **Température de couleur** si elle a `CT`) à son niveau actuel ; le déplacer change la lampe, et le rapport de la lampe garde le curseur à sa place
 - [ ] v0.2, sélecteurs d'après le catalogue (23 novembre 2026, build de test ; Guillaume : les DP du Récepteur radio et la pince absente des listes de commandes, sa carte affichant toujours ses mesures, **vérifiés** ; valeur du `Dimmer` Zigbee **KO**, en cours d'analyse) : dans une nouvelle règle, la liste des commandes du Récepteur radio propose `switch_2 (switch) · allumer`..., `countdown_1 … (0-86399)`, `relay_status = memory` ; la Pince ne propose aucune de ses mesures ; une lampe Zigbee propose `Dimmer … (0-254)` : choisi dans la forme libre, le texte s'ouvre avec 127 à changer ; en mode guidé un champ demande la valeur ; la règle enregistrée fonctionne
 - [x] v0.2, produit Tuya (22 novembre 2026, vérifié sur la passerelle par Guillaume, build de test, **`.tapp` réinstallée**, `Restart 1`) : la fiche du Récepteur radio montre *Quad switch* en premier (probable) avant toute découverte, puis **Identifier** : son identifiant produit apparaît après environ 10 s, le quad switch reste premier ; Entrée-Porche : *CCT lightbulb* (probable, même identifiant produit) ; la colonne **Catalogue** nomme les DP (`light · brightness · integer 10-1000`...) ; le lien ouvre le fichier tuya-local ; `Heap` pendant la découverte
 - [ ] v0.2, fiche de détails Tuya (22 novembre 2026, build de test) : **Détails** sur la carte Pergola 1 : identifiant, IP, protocole 3.4, `keep` 21, 22, 24 ; 11 DP avec leurs codes ; 20, 21, 22, 24 marqués *Matter · Pergola 1* (*hors Matter*) ; 20, 21, 22, 24, 34 *passerelle* ; allumer la lumière depuis l'app Tuya affiche les DP qu'elle envoie en *événement* avec l'heure ; aucune clé nulle part ; lisible sur téléphone (un bloc par DP)

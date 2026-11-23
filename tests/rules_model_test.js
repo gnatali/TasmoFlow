@@ -19,7 +19,7 @@ globalThis.document = { documentElement: {} };
 globalThis.window = { addEventListener() {} };      // rules.js (reached through tuya.js, rename.js) listens for beforeunload
 const m = { exports: {} };
 new Function('module', 'exports', out)(m, m.exports);
-const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, keyMismatch, seenAttrs, zbTriggerAttrs, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks, sheetRows, showValue, identity, parentOf, zbIdentity, zbProduct, zbLink, zbRows, ruleRefs, matchProducts, confidence, catalogueText, tuyaDps, ZB_SET } = m.exports;
+const { renameRefs, nameError, controlsFor, sendName, lightControls, arcValue, parseColour, formatColour, colourToRgb, findConflicts, commandInfo, zbKey, zbTriggers, zbActions, tuyaActions, describeSubject, describeCommand, usableKey, tuyaTriggers, describeTrigger, describeConnection, keyMismatch, seenAttrs, zbTriggerAttrs, triggersOf, flatRule, guidedDevices, seenValues, triggerOptions, learn, guidedBlock, parseRuleSet, serializeRuleSet, parseBlock, serializeBlock, edited, newBlock, parseCommands, writeCommands, lintRule, splitBlocks, sheetRows, showValue, identity, parentOf, zbIdentity, zbProduct, zbLink, zbRows, ruleRefs, matchProducts, confidence, catalogueText, tuyaDps, ZB_SET, zbControls } = m.exports;
 
 let n = 0;
 const ok = (name, f) => { f(); n++; };
@@ -591,6 +591,16 @@ ok('pickers: Zigbee Dimmer and CT, with a value', () => {
   assert.strictEqual(describeCommand('ZbSend {"device":"0x3C4D","send":{"Dimmer":200}}', lamps, {}), 'Lampe salon · Dimmer = 200');
   assert.strictEqual(zbActions({ '0x1': { addr: '0x1', attrs: { Temperature: 20 } } }, {}).length, 0);
   assert.strictEqual(ZB_SET.length, 2);
+});
+
+ok('cards: Zigbee Dimmer and CT sliders, Tuya switches named by their code without a binding', () => {
+  const lab = { Dimmer: 'Intensité', CT: 'Température de couleur' };
+  assert.deepStrictEqual(zbControls({ addr: '0x1', attrs: { Power: 1, Dimmer: 180, CT: 300 } }, lab), [
+    { kind: 'range', label: 'Intensité', dp: 'Dimmer', min: 0, max: 254, percent: true },
+    { kind: 'range', label: 'Température de couleur', dp: 'CT', min: 153, max: 500, percent: false }]);
+  assert.deepStrictEqual(zbControls({ addr: '0x2', attrs: { Power: 1 } }, lab), []);
+  const c = controlsFor({ dps: { 1: true, 2: false, 9: 0 } }, { codes: { switch_1: 1, countdown_1: 9 } });
+  assert.deepStrictEqual(c.map(x => [x.kind, x.label, x.dp]), [['switch', 'switch_1', '1'], ['switch', 'DP 2', '2']]);
 });
 
 console.log(`ok     rule model (${n} checks)`);

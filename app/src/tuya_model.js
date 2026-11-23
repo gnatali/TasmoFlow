@@ -66,8 +66,10 @@ export function controlsFor(node, entry) {
     const [dp, div, unit] = sensors[label];
     out.push({ kind: 'read', label, dp: String(dp), div: num(div, 1), unit: unit || '' });
   }
-  if (!out.length) {   // no binding: the boolean DPs can still be toggled
-    for (const dp in node.dps) if (typeof node.dps[dp] === 'boolean') out.push({ kind: 'switch', label: 'DP ' + dp, dp });
+  if (!out.length) {   // no binding: the boolean DPs can still be toggled, named by the import's code (`switch_1`)
+    const codes = (entry && entry.codes) || {};
+    const code = dp => Object.keys(codes).find(c => String(codes[c]) === String(dp));
+    for (const dp in node.dps) if (typeof node.dps[dp] === 'boolean') out.push({ kind: 'switch', label: code(dp) || 'DP ' + dp, dp });
   }
   return out;
 }

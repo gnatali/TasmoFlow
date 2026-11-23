@@ -15,7 +15,8 @@ export const Msg = ({ k }) => M.get()[k] ? html`<div class="msg bad" role="alert
 // the full interface may reshape the controls (tuya_colour.js sets `refine`); one with `render` is a component
 export const EXTRA = {};
 
-function Control({ c, node, send }) {
+// one control of a card, Tuya or Zigbee (views.js gives a Zigbee device as { dps: its attributes, connected })
+export function Control({ c, node, send }) {
   if (c.render) return html`<${c.render} c=${c} node=${node} send=${send}/>`;
   const v = node.dps[c.dp];
   if (c.kind === 'read') {

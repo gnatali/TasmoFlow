@@ -4,9 +4,9 @@ import { useState } from 'preact/hooks';
 import { html } from './html.js';
 import { t } from './i18n.js';
 import { S, run, loadStatus, loadDevices, loadTuya, detect, RECHECK_MAX } from './state.js';
-import { TuyaSection, Msg } from './tuya.js';
+import { TuyaSection, Msg, Control } from './tuya.js';
 import { RenameDialog } from './rename.js';
-import { isAddr } from './rules_devices.js';
+import { isAddr, zbControls } from './rules_devices.js';
 import { ZigbeeSheet, ago } from './sheet.js';
 
 // attributes shown first on a card
@@ -33,6 +33,10 @@ function ZigbeeCard({ d }) {
   const [ren, setRen] = useState(false);
   const [sheet, setSheet] = useState(false);
   const name = d.name && !isAddr(d.name) ? d.name : '';
+  // Dimmer and CT sliders, like a Tuya light's: ZbSend sets the value, the device's report moves the slider
+  const ctl = zbControls(d, { Dimmer: t('dimmer'), CT: t('colortemp') });
+  const node = { dps: d.attrs, connected: d.reachable !== false };
+  const set = (a, v) => run(d.addr, 'ZbSend {"device":"' + d.addr + '","send":{"' + a + '":' + v + '}}');
   return html`<article class="card">
     <h3>${d.name || d.addr}</h3>
     <div class="q">${[d.model, d.manufacturer].filter(Boolean).join(' · ') || d.addr}</div>
@@ -41,6 +45,7 @@ function ZigbeeCard({ d }) {
       (d.battery != null && d.battery >= 0 ? ' · ' + t('battery') + ' ' + d.battery + ' %' : '') +
       (d.reachable === false ? ' · ' + t('unreachable') : '') +
       ' · ' + (d.router ? t('router') : t('endDevice'))}</div>
+    ${ctl.length ? html`<div class="row tight">${ctl.map(c => html`<${Control} c=${c} node=${node} send=${set}/>`)}</div>` : null}
     <div class="row tight">
       ${hasPower(d) ? html`<button class="b" onClick=${() => run(d.addr, 'ZbSend {"device":"' + d.addr + '","send":{"Power":"Toggle"}}')}>${t('toggle')}</button>` : null}
       <button class="b" aria-label=${t('rn_title') + ' ' + (name || d.addr)} onClick=${() => setRen(true)}>${t('rn_title')}</button>

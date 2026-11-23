@@ -674,6 +674,12 @@ class Api(BaseHTTPRequestHandler):
             if word == "ZbPermitJoin":
                 self.json(200, {"ZbPermitJoin": "Done"})
                 return
+            mv = re.fullmatch(r'ZbSend \{"device":"(0x[0-9A-F]{4})","send":\{"(Dimmer|CT)":(\d+)\}\}', c)
+            if mv and mv.group(1) in DEVICES:     # a light's value: the lamp reports it back a moment later
+                DEVICES[mv.group(1)]["info"][mv.group(2)] = int(mv.group(3))
+                threading.Timer(0.3, push_event, (mv.group(1), {mv.group(2): int(mv.group(3)), "Endpoint": 1})).start()
+                self.json(200, {"ZbSend": "Done"})
+                return
             m = re.match(r'ZbSend \{"device":"(0x[0-9A-F]{4})","send":\{"Power":"Toggle"\}\}', c)
             if m and m.group(1) == STATE.get("unreachable"):
                 # no answer from the device: Tasmota publishes {"Reachable":false} (Z_Unreachable), which

@@ -790,6 +790,18 @@ const jsBody = body => ({ body, contentType: 'application/javascript', headers: 
     await q.goto('http://localhost:8083/tf');
     await q.waitForFunction(() => window.TASMOFLOW && window.TASMOFLOW.source === 'github', null, { timeout: 8000 });
   });
+  await test('Zigbee card: Dimmer slider like a Tuya light, the lamp reports the value back', async p => {
+    await openFull(p);
+    const lamp = p.locator('article.card', { has: p.getByRole('heading', { name: 'Lampe salon', exact: true }) });
+    await lamp.waitFor({ timeout: 6000 });
+    const dim = lamp.getByRole('slider', { name: 'Intensité' });
+    if ((await dim.inputValue()) !== String(Math.round(180 / 254 * 100))) throw new Error('slider at ' + await dim.inputValue());
+    await dim.fill('50');
+    const st = async () => (await (await fetch('http://localhost:8384/api/cmd?t=0123456789abcdef0123456789abcdef&c=ZbStatus3%200x3C4D')).json()).ZbStatus3[0].Dimmer;
+    for (let i = 0; i < 30 && (await st()) !== 127; i++) await wait(100);
+    if ((await st()) !== 127) throw new Error('ZbSend Dimmer not sent: ' + (await st()));
+    await lamp.getByRole('slider', { name: 'Température de couleur' }).count().then(n => { if (n) throw new Error('CT slider without CT'); });
+  });
   await test('Zigbee details sheet: identity from ZbStatus3, link, attributes with their source, rules naming it', async p => {
     const api = c => fetch('http://localhost:8384/api/cmd?t=0123456789abcdef0123456789abcdef&c=' + encodeURIComponent(c)).then(r => r.json());
     await api('Rule3 on ZbReceived#0x3C4D#Dimmer>100 do Power1 on endon');

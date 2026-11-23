@@ -548,6 +548,14 @@ sets that name the device. Tuya feasibility and measurements:
   Zigbee counterpart (a catalogue of Zigbee products) is not needed for now: Tasmota names the
   attributes itself.
 
+### Card controls, Zigbee like Tuya (23 November 2026)
+
+A Zigbee card offers the same sliders as a Tuya light (`tuya.js` `Control`, shared): **Dimmer** as a
+percentage (0-254) and **Colour temperature** (`CT`, 153-500 mireds) for a device that reported them
+(`zbControls()`); a change sends `ZbSend {"device":"0x1234","send":{"Dimmer":127}}` and the lamp's
+report moves the slider. A Tuya device without a Matter binding names its switches by the import's
+code (`switch_1`) instead of `DP 1`.
+
 ### Drivers at opening
 
 Once the status and the Tuya state are read, `detect()` (`app/src/state.js`) sets `S.drivers`:
@@ -838,6 +846,7 @@ Results of 6 and 9 November 2026 (gateway with the Tuya driver). `[x]` passed, `
 - [x] v0.1 (12 November 2026, test build): a `light3` card of the full interface (test build, no `.tapp` to install again for this, except for the 1-100 % brightness of the light interface) shows the tabs White / Colour (not the light interface); the selected tab follows the mode set from the Tuya app; the hue wheel, saturation and brightness sliders change the lamp and the card follows the state sent back; in White the brightness slider matches the Tuya app's; a lamp without `dp_ct` shows no colour temperature; the same card for a `light2` (`Entrée-Porche`): open arc dial for the colour temperature and brightness, 1 % to 100 %; a value just set stays on screen until the device reports it (no new / old / new flicker); the options are hidden while the lamp is off or disconnected and come back when it is on (verified by Guillaume on the gateway, 12 November 2026)
 - [ ] v0.1: check that `TuyaConfig` through the interface does not make the driver refuse (32 KB threshold)
 - [ ] v0.2, Zigbee details sheet (22 November 2026, test build): **Details** on the Interrupteur Entrée card: IEEE address, `SNZB-01P`, eWeLink, endpoint 1, end device; battery 100 %, LQI, last message; `Power` row used by your rule (`Rule<n> (déclencheur)`), no value until the button is pressed, then *event* with the time; the rule set listed under the rules that name it; same on a lamp (router, `Power` and `Dimmer` *gateway*)
+- [ ] v0.2, Zigbee card sliders (23 November 2026, test build): a dimmable Zigbee lamp's card shows **Intensité** (and **Température de couleur** if it has `CT`) at its current level; moving it changes the lamp, and the lamp's report keeps the slider there
 - [ ] v0.2, pickers from the catalogue (23 November 2026, test build; Guillaume: the Récepteur radio's DPs and the clamp left out of the command lists, its card still showing its readings, **checked**; Zigbee `Dimmer` value **KO**, being looked into): in a new rule, the command list of Récepteur radio offers `switch_2 (switch) · allumer`..., `countdown_1 … (0-86399)`, `relay_status = memory`; Pince offers none of its readings; a Zigbee lamp offers `Dimmer … (0-254)`: picked in the free form, the text opens with 127 to change; in the guided mode a field asks for the value; the saved rule works
 - [x] v0.2, Tuya product (22 November 2026, checked on the gateway by Guillaume, test build, **`.tapp` installed again**, `Restart 1`): Récepteur radio's sheet shows *Quad switch* first (probable) before any scan, then **Identify**: its product id appears after about 10 s, the quad switch stays first; Entrée-Porche: *CCT lightbulb* (probable, same product id); the **Catalogue** column names the DPs (`light · brightness · integer 10-1000`...); the link opens the tuya-local file; `Heap` during the scan
 - [ ] v0.2, Tuya details sheet (22 November 2026, test build): **Details** on the Pergola 1 card: id, IP, protocol 3.4, `keep` 21, 22, 24; 11 DPs with their codes; 20, 21, 22, 24 marked *Matter · Pergola 1* (*hors Matter*); 20, 21, 22, 24, 34 *gateway*; switching the light from the Tuya app shows the DPs it sends as *event* with the time; no key anywhere; readable on a phone (one block per DP)
